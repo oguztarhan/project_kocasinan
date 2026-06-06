@@ -5,19 +5,19 @@ using UnityEngine.InputSystem.UI;
 
 namespace BusJam
 {
-    /// <summary>Runtime-built portrait uGUI front-end (menu, HUD, win, lose).</summary>
+    /// <summary>
+    /// Runtime-built portrait uGUI in-game HUD (coins, level, timer, joker buttons).
+    /// The Main Menu, Level Complete, and Game Over screens are provided by the
+    /// project's own custom canvases/managers, so they are intentionally not built here.
+    /// </summary>
     public class GameUI : MonoBehaviour
     {
-        public System.Action OnPlay, OnNext, OnRetry, OnMenu, OnSkip, OnSwap, OnAddTime, OnToggleSound;
+        // Pause forwards to the project's own navigation; jokers drive gameplay actions.
+        public System.Action OnMenu, OnSkip, OnSwap, OnAddTime;
 
         Font font;
-        GameObject menuPanel, hudPanel, winPanel, losePanel;
-        Text menuCoins, menuBest, hudCoins, hudLevel, hudTimer, hudTheme, winEarned, loseReason, comboText;
-        Image[] winStars;
-        Text soundLabel;
-
-        readonly Color PanelBg = new Color(0.05f, 0.07f, 0.12f, 0.74f);
-        readonly Color Card    = new Color(0.13f, 0.16f, 0.24f, 0.98f);
+        GameObject hudPanel;
+        Text hudCoins, hudLevel, hudTimer, hudTheme, comboText;
 
         public void Build(int skipCost, int swapCost, int timeCost)
         {
@@ -42,27 +42,8 @@ namespace BusJam
                 module.AssignDefaultActions();
             }
 
-            BuildMenu(canvasGo.transform);
             BuildHud(canvasGo.transform, skipCost, swapCost, timeCost);
-            BuildWin(canvasGo.transform);
-            BuildLose(canvasGo.transform);
-            ShowMenu();
-        }
-
-        void BuildMenu(Transform parent)
-        {
-            menuPanel = Panel(parent, "Menu", PanelBg);
-            Label(menuPanel.transform, "BUS JAM\nRUSH", new Vector2(0, 520), new Vector2(900, 280), 110, Color.white);
-            Label(menuPanel.transform, "Move buses. Board in order. Beat the clock!", new Vector2(0, 320), new Vector2(960, 60), 34, new Color(0.82f, 0.87f, 0.96f));
-
-            menuCoins = Label(menuPanel.transform, "", new Vector2(0, 170), new Vector2(700, 60), 46, Palette.Gold);
-            menuBest  = Label(menuPanel.transform, "", new Vector2(0, 100), new Vector2(700, 46), 30, new Color(0.78f, 0.82f, 0.92f));
-
-            Button(menuPanel.transform, "PLAY", new Vector2(0, -120), new Vector2(440, 150),
-                new Color(0.27f, 0.78f, 0.38f), () => OnPlay?.Invoke(), 60);
-            var soundBtn = Button(menuPanel.transform, "SOUND: ON", new Vector2(0, -330), new Vector2(340, 90),
-                new Color(0.32f, 0.42f, 0.62f), () => OnToggleSound?.Invoke(), 32);
-            soundLabel = soundBtn.GetComponentInChildren<Text>();
+            ShowHud();
         }
 
         void BuildHud(Transform parent, int skipCost, int swapCost, int timeCost)
@@ -101,63 +82,15 @@ namespace BusJam
             pause.GetComponent<RectTransform>().anchoredPosition = new Vector2(-70, -75);
         }
 
-        void BuildWin(Transform parent)
-        {
-            winPanel = Panel(parent, "Win", PanelBg);
-            var card = Image(winPanel.transform, Card);
-            Anchor(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860, 760));
-
-            Label(winPanel.transform, "LEVEL\nCOMPLETE!", new Vector2(0, 230), new Vector2(800, 200), 72, new Color(0.45f, 0.92f, 0.55f));
-
-            winStars = new Image[3];
-            for (int i = 0; i < 3; i++)
-            {
-                var s = Image(winPanel.transform, new Color(0.3f, 0.32f, 0.38f));
-                Anchor(s.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 150, 40), new Vector2(110, 110));
-                s.transform.localRotation = Quaternion.Euler(0, 0, 45);
-                winStars[i] = s;
-            }
-
-            winEarned = Label(winPanel.transform, "+0 coins", new Vector2(0, -100), new Vector2(760, 70), 48, Palette.Gold);
-            Button(winPanel.transform, "NEXT", new Vector2(0, -240), new Vector2(440, 140),
-                new Color(0.27f, 0.72f, 0.92f), () => OnNext?.Invoke(), 56);
-            Button(winPanel.transform, "MENU", new Vector2(0, -390), new Vector2(300, 100),
-                new Color(0.4f, 0.45f, 0.55f), () => OnMenu?.Invoke(), 36);
-        }
-
-        void BuildLose(Transform parent)
-        {
-            losePanel = Panel(parent, "Lose", PanelBg);
-            var card = Image(losePanel.transform, Card);
-            Anchor(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860, 660));
-
-            Label(losePanel.transform, "GAME OVER", new Vector2(0, 200), new Vector2(800, 100), 70, new Color(0.96f, 0.42f, 0.42f));
-            loseReason = Label(losePanel.transform, "", new Vector2(0, 70), new Vector2(760, 70), 36, new Color(0.85f, 0.88f, 0.95f));
-            Button(losePanel.transform, "RETRY", new Vector2(0, -90), new Vector2(440, 140),
-                new Color(0.92f, 0.57f, 0.22f), () => OnRetry?.Invoke(), 56);
-            Button(losePanel.transform, "MENU", new Vector2(0, -240), new Vector2(300, 100),
-                new Color(0.4f, 0.45f, 0.55f), () => OnMenu?.Invoke(), 36);
-        }
-
         // ---- API ------------------------------------------------------------
-        public void ShowMenu() { Toggle(menuPanel, true); Toggle(hudPanel, false); Toggle(winPanel, false); Toggle(losePanel, false); }
-        public void ShowHud()  { Toggle(menuPanel, false); Toggle(hudPanel, true); Toggle(winPanel, false); Toggle(losePanel, false); }
+        // Only the in-game HUD is managed here. Win/Lose/Menu screens live in the
+        // project's own canvases, which react to BusJamGame's gameplay events.
+        public void ShowHud() { Toggle(hudPanel, true); }
+        public void HideHud() { Toggle(hudPanel, false); }
 
-        public void ShowWin(int coinsEarned, int stars)
-        {
-            Toggle(hudPanel, false); Toggle(winPanel, true);
-            winEarned.text = $"+{coinsEarned} coins";
-            for (int i = 0; i < winStars.Length; i++)
-                winStars[i].color = i < stars ? Palette.Gold : new Color(0.3f, 0.32f, 0.38f);
-        }
-
-        public void ShowLose(string reason) { Toggle(hudPanel, false); Toggle(losePanel, true); loseReason.text = reason; }
-
-        public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); if (menuCoins) menuCoins.text = "Coins: " + c; }
-        public void SetMenuInfo(int best) { if (menuBest) menuBest.text = $"Best level: {best}"; }
+        public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
         public void SetLevel(int l) { if (hudLevel) hudLevel.text = "Level " + l; }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
-        public void SetSound(bool on) { if (soundLabel) soundLabel.text = on ? "SOUND: ON" : "SOUND: OFF"; }
 
         public void SetTimer(float t)
         {

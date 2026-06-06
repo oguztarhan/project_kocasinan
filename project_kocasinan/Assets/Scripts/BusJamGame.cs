@@ -14,9 +14,20 @@ namespace BusJam
     /// </summary>
     public class BusJamGame : MonoBehaviour
     {
-        enum GameState { Boot, Menu, Playing, Win, Lose }
+        enum GameState { Boot, Playing, Win, Lose }
+
+        // Raised when a level is cleared / failed so the project's own Level Complete
+        // and Game Over canvases can react. Scoring + progression are applied before
+        // these fire, so subscribers only need to present the result.
+        public System.Action<int, int> OnLevelComplete; // (coinsEarnedThisLevel, stars 1-3)
+        public System.Action<string>   OnGameOver;      // (reason)
+        public System.Action           OnExitToMenu;    // HUD pause button pressed
 
         const int SkipCost = 60, SwapCost = 40, TimeCost = 50, SlotUnlockCost = 80, AddTimeAmount = 15;
+
+        // When the player chooses to continue after a loss, refill the clock to at least
+        // this many seconds so a time-out failure can actually keep playing.
+        const float ContinueTimeBonus = 30f;
 
         // Portrait layout
         const float SlotSpacing = 1.35f, ColumnSpacing = 1.35f;
@@ -61,27 +72,19 @@ namespace BusJam
             WireUI();
             ui.Build(SkipCost, SwapCost, TimeCost);
 
-            state = GameState.Menu;
-            RefreshMenu();
+            // The Main Menu is now a separate scene/canvas, so the gameplay scene
+            // starts the saved level immediately on load.
+            StartLevel(SaveSystem.Level);
         }
 
         void WireUI()
         {
-            ui.OnPlay  = () => { sfx.Click(); StartLevel(SaveSystem.Level); };
-            ui.OnNext  = () => { sfx.Click(); StartLevel(SaveSystem.Level); };
-            ui.OnRetry = () => { sfx.Click(); StartLevel(currentLevel); };
-            ui.OnMenu  = () => { sfx.Click(); Teardown(); state = GameState.Menu; ui.ShowMenu(); RefreshMenu(); };
-            ui.OnSkip  = JokerSkip;
-            ui.OnSwap  = JokerSwap;
+            // Only in-game HUD controls are wired here. The pause button is forwarded
+            // to OnExitToMenu so the project's own navigation decides where to go.
+            ui.OnMenu    = () => { sfx.Click(); OnExitToMenu?.Invoke(); };
+            ui.OnSkip    = JokerSkip;
+            ui.OnSwap    = JokerSwap;
             ui.OnAddTime = JokerTime;
-            ui.OnToggleSound = () => { SaveSystem.Sound = !SaveSystem.Sound; ui.SetSound(SaveSystem.Sound); sfx.Click(); };
-        }
-
-        void RefreshMenu()
-        {
-            ui.SetCoins(SaveSystem.Coins);
-            ui.SetMenuInfo(SaveSystem.BestLevel);
-            ui.SetSound(SaveSystem.Sound);
         }
 
         void Update()
@@ -269,19 +272,32 @@ namespace BusJam
 
         void CheckEnd()
         {
+            // Only evaluate the board while a level is actively being played.
             if (state != GameState.Playing) return;
+
+            // Every passenger has boarded -> level cleared.
             if (line.Count == 0) { Win(); return; }
+
+            // Wait for any in-flight bus/passenger animations to settle before judging
+            // whether the board is genuinely stuck (avoids false positives mid-move).
             if (busy > 0) return;
 
+            // A move still exists if the next passenger can board a parked bus.
             if (FindParkedBus(line[0].color) != null) return;
-            bool freeSlot = FirstFreeSlot() != null;
-            bool busesLeft = AnyColumnHasBus();
-            if (freeSlot && busesLeft) return;
-            if (HasLockedSlot() && SaveSystem.Coins >= SlotUnlockCost) return;
-            if (line.Count > 0 && SaveSystem.Coins >= SkipCost) return;
-            if (line.Count >= 2 && SaveSystem.Coins >= SwapCost) return;
+
+            bool parkingFull = FirstFreeSlot() == null; // no free (unlocked & empty) bay
+            bool busesLeft   = AnyColumnHasBus();        // buses still queued in columns
+
+            // A move also exists if there is an open bay to deploy another column bus.
+            if (!parkingFull && busesLeft) return;
+
+            // DEADLOCK: the parking bays are full (or no buses remain to deploy) AND the
+            // next passenger cannot board any parked bus. The grid is locked, so trigger
+            // the lose condition immediately. Setting state to Lose (inside Lose) halts
+            // Update()'s timer and tap handling, so no further grid moves are processed
+            // while the ContinuePanel UI flow takes over.
             sfx.Lose();
-            Lose("Stuck! No moves left.");
+            Lose("Stuck! Parking full and no one can board.");
         }
 
         // ====================================================================
@@ -343,6 +359,70 @@ namespace BusJam
         // ====================================================================
         // Level lifecycle
         // ====================================================================
+        // ---- Public progression API (called by the project's own UI) --------
+        /// <summary>Advance to the next saved level (Level Complete -> Next).</summary>
+        public void PlayNextLevel() { sfx.Click(); StartLevel(SaveSystem.Level); }
+
+        /// <summary>Replay the current level (Game Over -> Retry).</summary>
+        public void RetryLevel() { sfx.Click(); StartLevel(currentLevel); }
+
+        /// <summary>
+        /// Resume a failed level after the player chooses to continue (pay gold / watch ad).
+        /// Grants one extra unlocked parking bay and tops the clock back up so play can go on.
+        /// Safe no-op (returns false) unless the game is currently in the Lose state, so it can
+        /// never be fired from the menu or mid-play without throwing.
+        /// </summary>
+        public bool ContinueLevel()
+        {
+            if (state != GameState.Lose) return false;
+
+            AddParkingSlot();
+
+            // Refill the clock so a time-out loss can actually keep playing.
+            timeLeft = Mathf.Max(timeLeft, ContinueTimeBonus);
+            ui.SetTimer(timeLeft);
+
+            state = GameState.Playing;
+            ui.ShowHud();
+            sfx.Click();
+
+            // Nudge the boarding loop in case the new bay immediately unblocks a move.
+            TryStartBoardingPump();
+            return true;
+        }
+
+        /// <summary>Append one already-unlocked parking bay and re-center the row.</summary>
+        void AddParkingSlot()
+        {
+            int newIndex = totalSlots;
+            totalSlots++;
+
+            // Grow the slots array by one.
+            var grown = new ParkingSlot[totalSlots];
+            System.Array.Copy(slots, grown, slots.Length);
+
+            var pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pad.name = "Slot" + newIndex;
+            pad.transform.SetParent(boardRoot, false);
+            pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.4f);
+            pad.GetComponent<Renderer>().sharedMaterial = slotMat;
+
+            var slot = pad.AddComponent<ParkingSlot>();
+            slot.index = newIndex;
+            slot.locked = false; // continue-bonus bays open immediately
+            grown[newIndex] = slot;
+            slots = grown;
+
+            // SlotX is centered on the slot count, so re-place every pad (and any parked
+            // bus) now that the count changed, keeping the row aligned.
+            for (int i = 0; i < totalSlots; i++)
+            {
+                slots[i].transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
+                if (slots[i].occupant != null)
+                    slots[i].occupant.transform.position = ParkingWorld(slots[i].index);
+            }
+        }
+
         void StartLevel(int levelNumber)
         {
             currentLevel = levelNumber;
@@ -390,14 +470,19 @@ namespace BusJam
             ui.SetCoins(SaveSystem.Coins);
             sfx.Win();
             Juice.Confetti(this, boardRoot, new Vector3(0, 6, QueueHeadZ), confettiMats, 46);
-            ui.ShowWin(earnedThisLevel, stars);
+
+            // Scoring + progression are saved above; the custom Level Complete canvas
+            // presents the result via this event.
+            OnLevelComplete?.Invoke(earnedThisLevel, stars);
         }
 
         void Lose(string reason)
         {
             if (state != GameState.Playing) return;
             state = GameState.Lose;
-            ui.ShowLose(reason);
+
+            // The custom Game Over canvas presents the failure via this event.
+            OnGameOver?.Invoke(reason);
         }
 
         // ====================================================================
@@ -509,7 +594,6 @@ namespace BusJam
             foreach (var s in slots) if (s.IsFree) return s;
             return null;
         }
-        bool HasLockedSlot() { foreach (var s in slots) if (s.locked) return true; return false; }
         bool AnyColumnHasBus() { foreach (var c in columns) if (c.Count > 0) return true; return false; }
 
         // ====================================================================
