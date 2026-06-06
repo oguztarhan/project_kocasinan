@@ -13,6 +13,10 @@ namespace BusJam
         public BusState state = BusState.Queued;
         public int slotIndex = -1;
 
+        // Jam-grid placement
+        public Vector2Int cell;
+        public Vector2Int dir;
+
         public Renderer[] seatWindows;
         public Material filledMat;
 

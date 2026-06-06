@@ -7,48 +7,51 @@ using UnityEngine.InputSystem;
 namespace BusJam
 {
     /// <summary>
-    /// Top-level manager / bootstrapper (the only component in the scene).
-    /// Portrait mobile bus-jam: tap an unblocked bus (front of its column) to send
-    /// it to a parking slot; the single line boards in order; full buses leave.
-    /// Builds everything procedurally on Start.
+    /// Portrait bus-jam manager. Buses sit in a 2D JAM GRID; each has an arrow
+    /// (down / left / right). Tap a bus and it slides out to a parking slot ONLY if
+    /// its path to that edge is clear — otherwise it's blocked. The queue STREAMS:
+    /// only the first units are shown, more walk in from off-screen, and the total
+    /// is hidden. Drives the HUD; exposes gameplay events for external UI.
     /// </summary>
     public class BusJamGame : MonoBehaviour
     {
-        enum GameState { Boot, Playing, Win, Lose }
+        enum GameState { Boot, Menu, Playing, Win, Lose }
 
-        // Raised when a level is cleared / failed so the project's own Level Complete
-        // and Game Over canvases can react. Scoring + progression are applied before
-        // these fire, so subscribers only need to present the result.
-        public System.Action<int, int> OnLevelComplete; // (coinsEarnedThisLevel, stars 1-3)
-        public System.Action<string>   OnGameOver;      // (reason)
-        public System.Action           OnExitToMenu;    // HUD pause button pressed
+        [Header("Standalone testing")]
+        public bool autoStart = true;
+        public bool autoAdvance = true;
+
+        public System.Action<int> CoinsChanged;
+        public System.Action<int> LevelStarted;
+        public System.Action<int, int> LevelCompleted;
+        public System.Action<string> LevelFailed;
+        public System.Action<string> OnGameOver;
+        public System.Action PauseRequested;
+
+        public int CurrentLevel => currentLevel;
+        public int Coins => SaveSystem.Coins;
 
         const int SkipCost = 60, SwapCost = 40, TimeCost = 50, SlotUnlockCost = 80, AddTimeAmount = 15;
+        const float ContinueTimeBonus = 20f;
 
-        // When the player chooses to continue after a loss, refill the clock to at least
-        // this many seconds so a time-out failure can actually keep playing.
-        const float ContinueTimeBonus = 30f;
-
-        // Portrait layout
-        const float SlotSpacing = 1.35f, ColumnSpacing = 1.35f;
-        const float ParkingZ = 5.0f, ColumnFrontZ = 7.6f, ColumnDepthSpacing = 2.3f;
-        const float QueueHeadZ = 2.7f, FenceZ = 3.9f;
-        const int PerRow = 6;
+        const float CellSize = 1.3f, GridBaseZ = 7.0f, ParkingZ = 4.6f;
+        const float SlotSpacing = 1.3f, QueueFrontZ = 3.2f, FenceZ = 3.9f, QueueSpacing = 0.85f;
+        const int VISIBLE = 10;
 
         GameState state = GameState.Boot;
         Camera cam;
         GameUI ui;
         Sfx sfx;
         Transform boardRoot;
+        Font numberFont;
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
-        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat;
-        Material slotMat;
+        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat, cabinDarkMat;
         Material[] confettiMats;
 
         LevelData level;
         int currentLevel = 1;
-        int totalSlots, columnCount;
+        int totalSlots, gridW, gridH;
         float timeLeft;
         int earnedThisLevel, combo;
         float lastBoardTime = -10f;
@@ -56,44 +59,62 @@ namespace BusJam
         bool pumpRunning, pumpDirty;
 
         ParkingSlot[] slots;
-        readonly List<List<Bus>> columns = new List<List<Bus>>();
-        readonly List<Passenger> line = new List<Passenger>();
+        readonly Dictionary<Vector2Int, Bus> occ = new Dictionary<Vector2Int, Bus>();
+        readonly List<Bus> gridBuses = new List<Bus>();
+
+        List<LineGroup> groups;
+        int nextGroupIndex;
+        readonly List<LineUnit> visible = new List<LineUnit>();
 
         // ====================================================================
         void Start()
         {
             Screen.orientation = ScreenOrientation.Portrait;
             cam = Camera.main;
+            numberFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             BuildMaterials();
             PlaceCamera();
 
             sfx = gameObject.AddComponent<Sfx>();
             ui = gameObject.AddComponent<GameUI>();
-            WireUI();
+            ui.OnMenu = () => { sfx.Click(); PauseRequested?.Invoke(); };
+            ui.OnSkip = JokerSkip;
+            ui.OnSwap = JokerSwap;
+            ui.OnAddTime = JokerTime;
             ui.Build(SkipCost, SwapCost, TimeCost);
 
-            // The Main Menu is now a separate scene/canvas, so the gameplay scene
-            // starts the saved level immediately on load.
-            StartLevel(SaveSystem.Level);
+            if (autoStart) LoadLevel(SaveSystem.Level);
+            else { state = GameState.Menu; ui.HideHud(); }
         }
 
-        void WireUI()
+        // ---- Public control ------------------------------------------------
+        public void LoadLevel(int levelNumber) { CancelInvoke(); StartLevel(levelNumber); }
+        public void NextLevel() { LoadLevel(SaveSystem.Level); }
+        public void RetryLevel() { LoadLevel(currentLevel); }
+        public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
+
+        public void ContinueLevel()
         {
-            // Only in-game HUD controls are wired here. The pause button is forwarded
-            // to OnExitToMenu so the project's own navigation decides where to go.
-            ui.OnMenu    = () => { sfx.Click(); OnExitToMenu?.Invoke(); };
-            ui.OnSkip    = JokerSkip;
-            ui.OnSwap    = JokerSwap;
-            ui.OnAddTime = JokerTime;
+            if (state != GameState.Lose || slots == null) return;
+            CancelInvoke();
+            foreach (var s in slots)
+                if (s != null && s.locked) { s.Unlock(); break; }
+            timeLeft = Mathf.Max(timeLeft, 0f) + ContinueTimeBonus;
+            state = GameState.Playing;
+            ui.ShowHud();
+            ui.SetTimer(timeLeft);
+            sfx.Click();
+            TryStartBoardingPump();
         }
 
+        // ====================================================================
         void Update()
         {
             if (state != GameState.Playing) return;
 
             timeLeft -= Time.deltaTime;
             ui.SetTimer(timeLeft);
-            if (timeLeft <= 0f) { sfx.Lose(); Lose("Time's up!"); return; }
+            if (timeLeft <= 0f) { Lose("Time's up!"); return; }
 
             RevealMystery();
 
@@ -123,54 +144,60 @@ namespace BusJam
 
         void RevealMystery()
         {
-            int n = Mathf.Min(line.Count, 5);
+            int n = Mathf.Min(visible.Count, 4);
             for (int i = 0; i < n; i++)
-                if (line[i] != null && line[i].mystery && !line[i].revealed) line[i].Reveal(bodyMats[line[i].color]);
+                if (visible[i] != null && visible[i].mystery && !visible[i].revealed) visible[i].Reveal(bodyMats[visible[i].color]);
         }
 
         // ====================================================================
-        // Tap a bus -> move it out if it is the unblocked front of its column
+        // Jam grid: tap a bus -> slide out if its path is clear
         // ====================================================================
         void TryTapBus(Bus bus)
         {
-            for (int j = 0; j < columns.Count; j++)
+            if (bus.state != BusState.Queued) return; // already leaving / parked
+
+            var p = bus.cell + bus.dir;
+            while (InGrid(p))
             {
-                int d = columns[j].IndexOf(bus);
-                if (d < 0) continue;
-
-                if (d != 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; }      // blocked
-                var slot = FirstFreeSlot();
-                if (slot == null) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // no room
-
-                columns[j].RemoveAt(0);
-                slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
-                sfx.Deploy();
-                StartCoroutine(DeployRoutine(bus, slot));
-                RepositionColumn(j);
-                return;
+                if (occ.ContainsKey(p)) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // blocked
+                p += bus.dir;
             }
-            // not a column bus (already parked/leaving) -> ignore
+
+            var slot = NearestFreeSlot(GridWorld(bus.cell).x);
+            if (slot == null) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; }
+
+            occ.Remove(bus.cell);
+            gridBuses.Remove(bus);
+            slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
+            sfx.Deploy();
+            StartCoroutine(ExitRoutine(bus, slot));
         }
 
-        IEnumerator DeployRoutine(Bus bus, ParkingSlot slot)
+        IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
-            yield return MoveTo(bus.transform, ParkingWorld(slot.index), 0.3f);
+            int dist = ExitDistance(bus.cell, bus.dir);
+            Vector3 exitPt = GridWorld(bus.cell) + new Vector3(bus.dir.x, 0, bus.dir.y) * (dist * CellSize);
+            yield return MoveTo(bus.transform, exitPt, 0.16f);
+            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.identity, 0.32f, 0.9f);
             bus.state = BusState.Parked;
-            StartCoroutine(Juice.PunchScale(bus.transform, 0.18f));
+            StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
             busy--;
             TryStartBoardingPump();
             CheckEnd();
         }
 
-        void RepositionColumn(int j)
+        int ExitDistance(Vector2Int cell, Vector2Int dir)
         {
-            for (int d = 0; d < columns[j].Count; d++)
-                StartCoroutine(MoveTo(columns[j][d].transform, ColumnPos(j, d), 0.2f));
+            int d = 0; var p = cell;
+            while (InGrid(p)) { p += dir; d++; }
+            return d;
         }
 
+        bool InGrid(Vector2Int p) => p.x >= 0 && p.x < gridW && p.y >= 0 && p.y < gridH;
+
         // ====================================================================
-        // Boarding (single ordered line)
+        // Boarding (streaming queue)
         // ====================================================================
         void TryStartBoardingPump()
         {
@@ -199,19 +226,35 @@ namespace BusJam
                     }
                 }
 
-                if (line.Count > 0)
+                if (visible.Count > 0)
                 {
-                    var front = line[0];
-                    Bus bus = FindParkedBus(front.color);
+                    var u = visible[0];
+                    Bus bus = FindParkedBus(u.color);
                     if (bus != null)
                     {
-                        line.RemoveAt(0);
-                        yield return MoveTo(front.transform, BusDoorWorld(bus), 0.22f);
-                        bus.FillNextSeat();
-                        StartCoroutine(Juice.PunchScale(bus.transform, 0.14f));
-                        OnBoarded(front);
-                        if (front != null) Destroy(front.gameObject);
-                        yield return RepositionLine();
+                        if (u.isCabin)
+                        {
+                            var walker = SpawnWalker(u.color, u.golden, u.transform.position + new Vector3(0, 0, 0.5f));
+                            yield return MoveTo(walker.transform, BusDoorWorld(bus), 0.22f, ease: true);
+                            bus.FillNextSeat();
+                            StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
+                            OnBoarded(u.golden, walker.transform.position);
+                            Destroy(walker);
+                            u.SetCount(u.count - 1);
+                            StartCoroutine(Juice.PunchScale(u.transform, 0.1f));
+                            if (u.count <= 0) { visible.RemoveAt(0); Destroy(u.gameObject); StreamNext(); yield return RepositionLine(); }
+                        }
+                        else
+                        {
+                            visible.RemoveAt(0);
+                            yield return MoveTo(u.transform, BusDoorWorld(bus), 0.22f, ease: true);
+                            bus.FillNextSeat();
+                            StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
+                            OnBoarded(u.golden, u.transform.position);
+                            Destroy(u.gameObject);
+                            StreamNext();
+                            yield return RepositionLine();
+                        }
                         progressed = true;
                     }
                 }
@@ -221,23 +264,40 @@ namespace BusJam
             CheckEnd();
         }
 
-        void OnBoarded(Passenger p)
+        GameObject SpawnWalker(PieceColor color, bool golden, Vector3 pos)
+        {
+            var go = new GameObject("Walker");
+            go.transform.SetParent(boardRoot, false);
+            go.transform.position = pos;
+            LowPolyBuilder.BuildPerson(go.transform, bodyMats[color], skinMat, golden, false, mysteryMat, goldMat, out _);
+            return go;
+        }
+
+        void StreamNext()
+        {
+            if (nextGroupIndex < groups.Count)
+            {
+                var u = CreateUnit(groups[nextGroupIndex++]);
+                u.transform.position = LinePos(visible.Count + 3); // walk in from off-screen
+                visible.Add(u);
+            }
+        }
+
+        void OnBoarded(bool golden, Vector3 pos)
         {
             combo = (Time.time - lastBoardTime < 1.6f) ? combo + 1 : 1;
             lastBoardTime = Time.time;
 
             int coins = Mathf.Clamp(combo, 1, 5);
-            if (p.golden)
+            if (golden)
             {
                 coins += 15;
                 sfx.Coin();
-                Juice.Burst(this, boardRoot, p.transform.position + Vector3.up * 0.5f, goldMat, 12, 4f);
+                Juice.Burst(this, boardRoot, pos + Vector3.up * 0.6f, goldMat, 14, 4.2f);
             }
             else sfx.Board();
 
-            SaveSystem.AddCoins(coins);
-            earnedThisLevel += coins;
-            ui.SetCoins(SaveSystem.Coins);
+            AddCoins(coins);
             if (combo >= 2) ui.ShowCombo(combo);
         }
 
@@ -255,9 +315,20 @@ namespace BusJam
         {
             busy++;
             slot.occupant = null;
-            Vector3 away = bus.transform.position + new Vector3(0, 0, -16f);
-            yield return MoveTo(bus.transform, away, 0.4f);
-            bus.state = BusState.Done;
+            Material poof = bodyMats[bus.color];
+            Vector3 start = bus.transform.position;
+            Vector3 startScale = bus.transform.localScale;
+            sfx.Deploy();
+            float e = 0f, dur = 0.4f;
+            while (e < dur && bus != null)
+            {
+                e += Time.deltaTime;
+                float k = e / dur;
+                bus.transform.position = start + new Vector3(0, 1.6f, -1.5f) * k;
+                bus.transform.localScale = startScale * Mathf.Lerp(1f, 0.1f, k);
+                yield return null;
+            }
+            Juice.Burst(this, boardRoot, start + Vector3.up * 0.4f, poof, 16, 4.5f);
             if (bus != null) Destroy(bus.gameObject);
             busy--;
             CheckEnd();
@@ -265,39 +336,26 @@ namespace BusJam
 
         IEnumerator RepositionLine()
         {
-            for (int i = 0; i < line.Count; i++)
-                if (line[i] != null) StartCoroutine(MoveTo(line[i].transform, LinePos(i), 0.18f));
+            for (int i = 0; i < visible.Count; i++)
+                if (visible[i] != null) StartCoroutine(MoveTo(visible[i].transform, LinePos(i), 0.18f, ease: true));
             yield return new WaitForSeconds(0.1f);
         }
 
         void CheckEnd()
         {
-            // Only evaluate the board while a level is actively being played.
             if (state != GameState.Playing) return;
-
-            // Every passenger has boarded -> level cleared.
-            if (line.Count == 0) { Win(); return; }
-
-            // Wait for any in-flight bus/passenger animations to settle before judging
-            // whether the board is genuinely stuck (avoids false positives mid-move).
+            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { Win(); return; }
             if (busy > 0) return;
+            if (visible.Count == 0) return;
 
-            // A move still exists if the next passenger can board a parked bus.
-            if (FindParkedBus(line[0].color) != null) return;
-
-            bool parkingFull = FirstFreeSlot() == null; // no free (unlocked & empty) bay
-            bool busesLeft   = AnyColumnHasBus();        // buses still queued in columns
-
-            // A move also exists if there is an open bay to deploy another column bus.
-            if (!parkingFull && busesLeft) return;
-
-            // DEADLOCK: the parking bays are full (or no buses remain to deploy) AND the
-            // next passenger cannot board any parked bus. The grid is locked, so trigger
-            // the lose condition immediately. Setting state to Lose (inside Lose) halts
-            // Update()'s timer and tap handling, so no further grid moves are processed
-            // while the ContinuePanel UI flow takes over.
-            sfx.Lose();
-            Lose("Stuck! Parking full and no one can board.");
+            if (FindParkedBus(visible[0].color) != null) return;
+            bool freeSlot = FirstFreeSlot() != null;
+            bool busesLeft = gridBuses.Count > 0;
+            if (freeSlot && busesLeft) return;
+            if (HasLockedSlot() && SaveSystem.Coins >= SlotUnlockCost) return;
+            if (visible.Count > 0 && SaveSystem.Coins >= SkipCost) return;
+            if (visible.Count >= 2 && SaveSystem.Coins >= SwapCost) return;
+            Lose("Stuck! No moves left.");
         }
 
         // ====================================================================
@@ -306,37 +364,37 @@ namespace BusJam
         void TryUnlockSlot(ParkingSlot slot)
         {
             if (!slot.locked) return;
-            if (!SaveSystem.TrySpend(SlotUnlockCost)) { sfx.Error(); StartCoroutine(Bump(slot.transform)); return; }
+            if (!Spend(SlotUnlockCost)) { sfx.Error(); StartCoroutine(Bump(slot.transform)); return; }
             slot.Unlock();
             sfx.Coin();
-            ui.SetCoins(SaveSystem.Coins);
             TryStartBoardingPump();
         }
 
         void JokerSkip()
         {
-            if (state != GameState.Playing || line.Count == 0) { sfx.Error(); return; }
-            if (!SaveSystem.TrySpend(SkipCost)) { sfx.Error(); return; }
-            sfx.Click(); ui.SetCoins(SaveSystem.Coins);
-            var p = line[0]; line.RemoveAt(0);
-            if (p != null) StartCoroutine(LeaveAndDestroy(p.transform));
+            if (state != GameState.Playing || visible.Count == 0) { sfx.Error(); return; }
+            if (!Spend(SkipCost)) { sfx.Error(); return; }
+            sfx.Click();
+            var u = visible[0]; visible.RemoveAt(0);
+            if (u != null) StartCoroutine(LeaveAndDestroy(u.transform));
+            StreamNext();
             StartCoroutine(AfterJoker());
         }
 
         void JokerSwap()
         {
-            if (state != GameState.Playing || line.Count < 2) { sfx.Error(); return; }
-            if (!SaveSystem.TrySpend(SwapCost)) { sfx.Error(); return; }
-            sfx.Click(); ui.SetCoins(SaveSystem.Coins);
-            (line[0], line[1]) = (line[1], line[0]);
+            if (state != GameState.Playing || visible.Count < 2) { sfx.Error(); return; }
+            if (!Spend(SwapCost)) { sfx.Error(); return; }
+            sfx.Click();
+            (visible[0], visible[1]) = (visible[1], visible[0]);
             StartCoroutine(AfterJoker());
         }
 
         void JokerTime()
         {
             if (state != GameState.Playing) { sfx.Error(); return; }
-            if (!SaveSystem.TrySpend(TimeCost)) { sfx.Error(); return; }
-            sfx.Click(); ui.SetCoins(SaveSystem.Coins);
+            if (!Spend(TimeCost)) { sfx.Error(); return; }
+            sfx.Click();
             timeLeft += AddTimeAmount; ui.SetTimer(timeLeft);
         }
 
@@ -357,72 +415,27 @@ namespace BusJam
         }
 
         // ====================================================================
-        // Level lifecycle
+        // Economy
         // ====================================================================
-        // ---- Public progression API (called by the project's own UI) --------
-        /// <summary>Advance to the next saved level (Level Complete -> Next).</summary>
-        public void PlayNextLevel() { sfx.Click(); StartLevel(SaveSystem.Level); }
-
-        /// <summary>Replay the current level (Game Over -> Retry).</summary>
-        public void RetryLevel() { sfx.Click(); StartLevel(currentLevel); }
-
-        /// <summary>
-        /// Resume a failed level after the player chooses to continue (pay gold / watch ad).
-        /// Grants one extra unlocked parking bay and tops the clock back up so play can go on.
-        /// Safe no-op (returns false) unless the game is currently in the Lose state, so it can
-        /// never be fired from the menu or mid-play without throwing.
-        /// </summary>
-        public bool ContinueLevel()
+        void AddCoins(int delta)
         {
-            if (state != GameState.Lose) return false;
+            SaveSystem.AddCoins(delta);
+            earnedThisLevel += delta;
+            ui.SetCoins(SaveSystem.Coins);
+            CoinsChanged?.Invoke(SaveSystem.Coins);
+        }
 
-            AddParkingSlot();
-
-            // Refill the clock so a time-out loss can actually keep playing.
-            timeLeft = Mathf.Max(timeLeft, ContinueTimeBonus);
-            ui.SetTimer(timeLeft);
-
-            state = GameState.Playing;
-            ui.ShowHud();
-            sfx.Click();
-
-            // Nudge the boarding loop in case the new bay immediately unblocks a move.
-            TryStartBoardingPump();
+        bool Spend(int cost)
+        {
+            if (!SaveSystem.TrySpend(cost)) return false;
+            ui.SetCoins(SaveSystem.Coins);
+            CoinsChanged?.Invoke(SaveSystem.Coins);
             return true;
         }
 
-        /// <summary>Append one already-unlocked parking bay and re-center the row.</summary>
-        void AddParkingSlot()
-        {
-            int newIndex = totalSlots;
-            totalSlots++;
-
-            // Grow the slots array by one.
-            var grown = new ParkingSlot[totalSlots];
-            System.Array.Copy(slots, grown, slots.Length);
-
-            var pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            pad.name = "Slot" + newIndex;
-            pad.transform.SetParent(boardRoot, false);
-            pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.4f);
-            pad.GetComponent<Renderer>().sharedMaterial = slotMat;
-
-            var slot = pad.AddComponent<ParkingSlot>();
-            slot.index = newIndex;
-            slot.locked = false; // continue-bonus bays open immediately
-            grown[newIndex] = slot;
-            slots = grown;
-
-            // SlotX is centered on the slot count, so re-place every pad (and any parked
-            // bus) now that the count changed, keeping the row aligned.
-            for (int i = 0; i < totalSlots; i++)
-            {
-                slots[i].transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
-                if (slots[i].occupant != null)
-                    slots[i].occupant.transform.position = ParkingWorld(slots[i].index);
-            }
-        }
-
+        // ====================================================================
+        // Level lifecycle
+        // ====================================================================
         void StartLevel(int levelNumber)
         {
             currentLevel = levelNumber;
@@ -430,31 +443,31 @@ namespace BusJam
 
             level = LevelGenerator.Generate(levelNumber);
             totalSlots = level.baseSlots + level.extraSlots;
-            columnCount = level.columns;
             boardRoot = new GameObject("Board").transform;
 
             Theme theme = Themes.For(levelNumber);
             ApplyTheme(theme);
             BuildSlots();
-            BuildColumns();
+            BuildGrid();
             BuildLine();
 
             timeLeft = level.timeLimit;
             earnedThisLevel = 0; combo = 0; lastBoardTime = -10f;
 
             state = GameState.Playing;
+            ui.ShowHud();
             ui.SetLevel(levelNumber);
             ui.SetTheme(theme.name);
             ui.SetCoins(SaveSystem.Coins);
             ui.SetTimer(timeLeft);
-            ui.ShowHud();
+            LevelStarted?.Invoke(levelNumber);
         }
 
         void Teardown()
         {
             StopAllCoroutines();
             busy = 0; pumpRunning = false; pumpDirty = false;
-            columns.Clear(); line.Clear(); slots = null;
+            occ.Clear(); gridBuses.Clear(); visible.Clear(); slots = null;
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
         }
@@ -464,25 +477,26 @@ namespace BusJam
             state = GameState.Win;
             int stars = timeLeft > level.timeLimit * 0.5f ? 3 : (timeLeft > level.timeLimit * 0.2f ? 2 : 1);
             int bonus = 25 + currentLevel * 5 + stars * 10;
-            SaveSystem.AddCoins(bonus); earnedThisLevel += bonus;
+            AddCoins(bonus);
             SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
             SaveSystem.BestLevel = currentLevel;
-            ui.SetCoins(SaveSystem.Coins);
             sfx.Win();
-            Juice.Confetti(this, boardRoot, new Vector3(0, 6, QueueHeadZ), confettiMats, 46);
-
-            // Scoring + progression are saved above; the custom Level Complete canvas
-            // presents the result via this event.
-            OnLevelComplete?.Invoke(earnedThisLevel, stars);
+            Juice.Confetti(this, boardRoot, new Vector3(0, 6, QueueFrontZ), confettiMats, 50);
+            ui.HideHud();
+            LevelCompleted?.Invoke(earnedThisLevel, stars);
+            if (autoAdvance && LevelCompleted == null) Invoke(nameof(NextLevel), 2.2f);
         }
 
         void Lose(string reason)
         {
             if (state != GameState.Playing) return;
             state = GameState.Lose;
-
-            // The custom Game Over canvas presents the failure via this event.
+            sfx.Lose();
+            ui.HideHud();
+            LevelFailed?.Invoke(reason);
             OnGameOver?.Invoke(reason);
+            bool handledExternally = OnGameOver != null || LevelFailed != null;
+            if (autoAdvance && !handledExternally) Invoke(nameof(RetryLevel), 1.8f);
         }
 
         // ====================================================================
@@ -497,11 +511,12 @@ namespace BusJam
                 pad.name = "Slot" + i;
                 pad.transform.SetParent(boardRoot, false);
                 pad.transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
-                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.4f);
+                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.2f);
                 pad.GetComponent<Renderer>().sharedMaterial = slotMat;
 
                 var slot = pad.AddComponent<ParkingSlot>();
-                slot.index = i; slot.locked = i >= level.baseSlots;
+                slot.index = i;
+                slot.locked = (i % 2 == 1); // unlock 0,2,4 — lock 1,3
                 slots[i] = slot;
 
                 if (slot.locked)
@@ -511,58 +526,90 @@ namespace BusJam
                     marker.transform.localPosition = new Vector3(0, 0.7f, 0);
                     MakeCube(marker.transform, lockMat, new Vector3(0.55f, 0.12f, 0.14f));
                     MakeCube(marker.transform, lockMat, new Vector3(0.14f, 0.12f, 0.55f));
+                    var pulse = marker.AddComponent<IdleBob>();
+                    pulse.scalePulse = true; pulse.scaleAmp = 0.12f; pulse.speed = 3f; pulse.amp = 0f;
                     slot.lockMarker = marker;
                 }
             }
         }
 
-        void BuildColumns()
+        void BuildGrid()
         {
-            columns.Clear();
-            for (int j = 0; j < columnCount; j++)
+            gridW = level.gridW; gridH = level.gridH;
+            occ.Clear(); gridBuses.Clear();
+            foreach (var gb in level.gridBuses)
             {
-                var col = new List<Bus>();
-                var defs = level.busColumns[j];
-                for (int d = 0; d < defs.Count; d++)
-                {
-                    var bus = CreateBus(defs[d]);
-                    bus.transform.position = ColumnPos(j, d);
-                    bus.state = BusState.Queued;
-                    col.Add(bus);
-                }
-                columns.Add(col);
+                var bus = CreateBus(gb.color, gb.capacity, DirYaw(gb.dir));
+                bus.cell = gb.cell; bus.dir = gb.dir; bus.state = BusState.Queued;
+                bus.transform.position = GridWorld(gb.cell);
+                occ[gb.cell] = bus;
+                gridBuses.Add(bus);
             }
         }
 
         void BuildLine()
         {
-            for (int i = 0; i < level.line.Count; i++)
+            groups = level.groups;
+            nextGroupIndex = 0;
+            visible.Clear();
+            int init = Mathf.Min(VISIBLE, groups.Count);
+            for (int i = 0; i < init; i++)
             {
-                PieceColor color = level.line[i];
-                bool golden = level.goldenSet.Contains(i);
-                bool mystery = level.mysterySet.Contains(i);
-
-                var go = new GameObject("Person");
-                go.transform.SetParent(boardRoot, false);
-                go.transform.position = LinePos(i);
-                var body = LowPolyBuilder.BuildPerson(go.transform, bodyMats[color], skinMat,
-                    golden, mystery, mysteryMat, goldMat, out GameObject cover);
-
-                var p = go.AddComponent<Passenger>();
-                p.color = color; p.golden = golden; p.mystery = mystery;
-                p.body = body; p.mysteryCover = cover;
-                line.Add(p);
+                var u = CreateUnit(groups[i]);
+                u.transform.position = LinePos(i);
+                visible.Add(u);
             }
+            nextGroupIndex = init;
         }
 
-        Bus CreateBus(BusDef def)
+        LineUnit CreateUnit(LineGroup g)
         {
-            var root = new GameObject("Bus_" + def.color);
+            bool cabin = g.count > 1;
+            var go = new GameObject(cabin ? "Cabin" : "Person");
+            go.transform.SetParent(boardRoot, false);
+            var u = go.AddComponent<LineUnit>();
+            u.color = g.color; u.count = g.count; u.golden = g.golden; u.mystery = g.mystery; u.isCabin = cabin;
+
+            if (cabin)
+            {
+                u.body = LowPolyBuilder.BuildCabin(go.transform, bodyMats[g.color], cabinDarkMat, goldMat, g.golden);
+                u.numberLabel = MakeNumber(go.transform, g.count);
+            }
+            else
+            {
+                u.body = LowPolyBuilder.BuildPerson(go.transform, bodyMats[g.color], skinMat,
+                    g.golden, g.mystery, mysteryMat, goldMat, out GameObject cover);
+                u.mysteryCover = cover;
+            }
+            return u;
+        }
+
+        TextMesh MakeNumber(Transform parent, int n)
+        {
+            var go = new GameObject("Num");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0, 1.55f, 0);
+            if (cam != null) go.transform.rotation = cam.transform.rotation;
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = n.ToString();
+            tm.font = numberFont;
+            tm.fontSize = 72; tm.fontStyle = FontStyle.Bold;
+            tm.characterSize = 0.14f;
+            tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center;
+            tm.color = Color.white;
+            go.GetComponent<MeshRenderer>().sharedMaterial = numberFont.material;
+            return tm;
+        }
+
+        Bus CreateBus(PieceColor color, int capacity, float yaw)
+        {
+            var root = new GameObject("Bus_" + color);
             root.transform.SetParent(boardRoot, false);
+            root.transform.rotation = Quaternion.Euler(0, yaw, 0);
             var bus = root.AddComponent<Bus>();
-            bus.color = def.color; bus.capacity = def.capacity; bus.filledMat = bodyMats[def.color];
-            bus.seatWindows = LowPolyBuilder.BuildBus(root.transform, def.capacity,
-                bodyMats[def.color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
+            bus.color = color; bus.capacity = capacity; bus.filledMat = bodyMats[color];
+            bus.seatWindows = LowPolyBuilder.BuildBus(root.transform, capacity,
+                bodyMats[color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
             return bus;
         }
 
@@ -570,18 +617,9 @@ namespace BusJam
         // Positions
         // ====================================================================
         float SlotX(int i) => (i - (totalSlots - 1) / 2f) * SlotSpacing;
-        float ColumnX(int j) => (j - (columnCount - 1) / 2f) * ColumnSpacing;
-        Vector3 ColumnPos(int j, int depth) => new Vector3(ColumnX(j), 0, ColumnFrontZ + depth * ColumnDepthSpacing);
         Vector3 ParkingWorld(int i) => new Vector3(SlotX(i), 0, ParkingZ);
-
-        Vector3 LinePos(int index)
-        {
-            int row = index / PerRow;
-            int col = index % PerRow;
-            if (row % 2 == 1) col = PerRow - 1 - col;
-            float x = (col - (PerRow - 1) / 2f) * 0.95f;
-            return new Vector3(x, 0, QueueHeadZ - row * 0.95f);
-        }
+        Vector3 GridWorld(Vector2Int c) => new Vector3((c.x - (gridW - 1) / 2f) * CellSize, 0, GridBaseZ + c.y * CellSize);
+        Vector3 LinePos(int index) => new Vector3(0, 0, QueueFrontZ - index * QueueSpacing);
 
         Vector3 BusDoorWorld(Bus bus)
         {
@@ -589,17 +627,22 @@ namespace BusJam
             return bus.transform.position + new Vector3(0, 0.25f, -len * 0.4f);
         }
 
-        ParkingSlot FirstFreeSlot()
+        float DirYaw(Vector2Int d) { if (d.x == -1) return 90f; if (d.x == 1) return -90f; return 0f; }
+
+        ParkingSlot FirstFreeSlot() { foreach (var s in slots) if (s.IsFree) return s; return null; }
+        ParkingSlot NearestFreeSlot(float x)
         {
-            foreach (var s in slots) if (s.IsFree) return s;
-            return null;
+            ParkingSlot best = null; float bd = float.MaxValue;
+            foreach (var s in slots)
+                if (s.IsFree) { float d = Mathf.Abs(SlotX(s.index) - x); if (d < bd) { bd = d; best = s; } }
+            return best;
         }
-        bool AnyColumnHasBus() { foreach (var c in columns) if (c.Count > 0) return true; return false; }
+        bool HasLockedSlot() { foreach (var s in slots) if (s.locked) return true; return false; }
 
         // ====================================================================
         // Coroutine helpers
         // ====================================================================
-        static IEnumerator MoveTo(Transform t, Vector3 target, float dur)
+        static IEnumerator MoveTo(Transform t, Vector3 target, float dur, bool ease = false)
         {
             if (t == null) yield break;
             Vector3 from = t.position;
@@ -608,10 +651,38 @@ namespace BusJam
             {
                 if (t == null) yield break;
                 e += Time.deltaTime;
-                t.position = Vector3.Lerp(from, target, Mathf.Clamp01(e / dur));
+                float k = Mathf.Clamp01(e / dur);
+                if (ease) k = EaseOutBack(k);
+                t.position = Vector3.LerpUnclamped(from, target, k);
                 yield return null;
             }
             if (t != null) t.position = target;
+        }
+
+        static IEnumerator MoveAndRotateArc(Transform t, Vector3 target, Quaternion rot, float dur, float arc)
+        {
+            if (t == null) yield break;
+            Vector3 from = t.position; Quaternion fr = t.rotation;
+            float e = 0f;
+            while (e < dur)
+            {
+                if (t == null) yield break;
+                e += Time.deltaTime;
+                float k = Mathf.Clamp01(e / dur);
+                Vector3 p = Vector3.Lerp(from, target, k);
+                p.y += Mathf.Sin(k * Mathf.PI) * arc;
+                t.position = p;
+                t.rotation = Quaternion.Slerp(fr, rot, Mathf.Clamp01(k * 1.6f));
+                yield return null;
+            }
+            if (t != null) { t.position = target; t.rotation = rot; }
+        }
+
+        static float EaseOutBack(float x)
+        {
+            const float c1 = 1.70158f, c3 = 2.70158f;
+            float xm = x - 1f;
+            return 1f + c3 * xm * xm * xm + c1 * xm * xm;
         }
 
         static IEnumerator Bump(Transform t)
@@ -621,7 +692,7 @@ namespace BusJam
             for (int i = 0; i < 6; i++)
             {
                 if (t == null) yield break;
-                t.position = p + new Vector3(Mathf.Sin(i * 1.6f) * 0.1f, 0, 0);
+                t.position = p + new Vector3(Mathf.Sin(i * 1.6f) * 0.08f, 0, 0);
                 yield return null;
             }
             if (t != null) t.position = p;
@@ -633,26 +704,27 @@ namespace BusJam
         void BuildMaterials()
         {
             Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var mats = new List<Material>();
+            var list = new List<Material>();
             foreach (PieceColor c in System.Enum.GetValues(typeof(PieceColor)))
             {
-                bodyMats[c] = Mat(sh, Palette.ToColor(c), 0.15f);
-                mats.Add(bodyMats[c]);
+                bodyMats[c] = Mat(sh, Palette.ToColor(c), 0.2f, 0.18f);
+                list.Add(bodyMats[c]);
             }
-            confettiMats = mats.ToArray();
+            confettiMats = list.ToArray();
 
-            glassMat     = Mat(sh, new Color(0.16f, 0.22f, 0.33f), 0.8f);
+            glassMat     = Mat(sh, new Color(0.18f, 0.26f, 0.40f), 0.85f);
             wheelMat     = Mat(sh, new Color(0.12f, 0.12f, 0.14f), 0.2f);
-            lightMat     = Mat(sh, new Color(1f, 0.95f, 0.7f), 0.6f);
+            lightMat     = Mat(sh, new Color(1f, 0.96f, 0.72f), 0.6f, 0.5f);
             skinMat      = Mat(sh, Palette.Skin, 0.1f);
             seatEmptyMat = Mat(sh, Palette.SeatEmpty, 0.2f);
             mysteryMat   = Mat(sh, Palette.Mystery, 0.2f);
-            goldMat      = Mat(sh, Palette.Gold, 0.7f);
-            arrowMat     = Mat(sh, new Color(0.98f, 0.98f, 0.98f), 0.3f);
-            lockMat      = Mat(sh, new Color(0.4f, 0.88f, 0.45f), 0.2f);
+            goldMat      = Mat(sh, Palette.Gold, 0.7f, 0.4f);
+            arrowMat     = Mat(sh, new Color(0.99f, 0.99f, 0.99f), 0.3f, 0.25f);
+            lockMat      = Mat(sh, new Color(0.42f, 0.9f, 0.48f), 0.2f, 0.25f);
+            cabinDarkMat = Mat(sh, new Color(0.16f, 0.17f, 0.22f), 0.2f);
         }
 
-        static Material Mat(Shader sh, Color col, float smooth)
+        static Material Mat(Shader sh, Color col, float smooth, float emission = 0f)
         {
             var m = new Material(sh);
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
@@ -660,6 +732,11 @@ namespace BusJam
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
+            if (emission > 0f && m.HasProperty("_EmissionColor"))
+            {
+                m.EnableKeyword("_EMISSION");
+                m.SetColor("_EmissionColor", col * emission);
+            }
             return m;
         }
 
@@ -679,9 +756,9 @@ namespace BusJam
 
             if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = th.ambient;
-            var sun = Object.FindFirstObjectByType<Light>();
-            if (sun != null && sun.type == LightType.Directional) sun.intensity = 1.5f;
+            RenderSettings.ambientLight = th.ambient * 1.1f;
+            var sun = Object.FindAnyObjectByType<Light>();
+            if (sun != null && sun.type == LightType.Directional) sun.intensity = 1.75f;
 
             Material ground = Mat(sh, th.ground, 0.05f);
             Material field  = Mat(sh, th.field, 0.05f);
@@ -691,15 +768,14 @@ namespace BusJam
             Material alt    = Mat(sh, th.propAlt, 0.1f);
             Material foliage= Mat(sh, th.foliage, 0.05f);
             Material trunk  = Mat(sh, th.trunk, 0.1f);
-            Material window = Mat(sh, new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f), 0.6f);
+            Material window = Mat(sh, new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f), 0.6f, 0.2f);
+            Material cloud  = Mat(sh, new Color(1f, 1f, 1f), 0f, 0.15f);
             slotMat = accent;
 
-            // Surfaces
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 4f), new Vector3(40, 0.3f, 60), field);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 5f), new Vector3(9.5f, 0.2f, 22), ground);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.14f, -2.5f), new Vector3(9.5f, 0.2f, 6), road);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 6f), new Vector3(46, 0.3f, 70), field);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 6f), new Vector3(11f, 0.2f, 26), ground);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.14f, -2.4f), new Vector3(11f, 0.2f, 6), road);
 
-            // Fence between queue and parking
             for (int i = -4; i <= 4; i++)
             {
                 var post = MakeCube(boardRoot, accent, new Vector3(0.1f, 0.5f, 0.1f));
@@ -708,27 +784,48 @@ namespace BusJam
                 bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
             }
 
-            // Side props
             for (int i = 0; i < 6; i++)
             {
                 float z = -1f + i * 2.6f;
-                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-6.2f, 0, z), main, alt, foliage, trunk, window, 1f);
-                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(6.2f, 0, z), main, alt, foliage, trunk, window, 1f);
+                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
+                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
             }
-            // Back skyline
+            float backZ = GridBaseZ + level.gridH * CellSize + 4f;
             for (int i = 0; i < 5; i++)
-                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-5f + i * 2.5f, 0, ColumnFrontZ + columnCount + 6f),
-                    main, alt, foliage, trunk, window, 1.6f);
+                LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
+
+            for (int k = 0; k < 4; k++)
+                MakeCloud(new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f), cloud, k);
+        }
+
+        void MakeCloud(Vector3 pos, Material mat, int seed)
+        {
+            var cloud = new GameObject("Cloud");
+            cloud.transform.SetParent(boardRoot, false);
+            cloud.transform.position = pos;
+            float[] dx = { -0.6f, 0.2f, 0.9f };
+            float[] sc = { 1.0f, 1.3f, 0.9f };
+            for (int i = 0; i < 3; i++)
+            {
+                var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(s.GetComponent<Collider>());
+                s.transform.SetParent(cloud.transform, false);
+                s.transform.localPosition = new Vector3(dx[i], 0, 0);
+                s.transform.localScale = new Vector3(1.4f, 0.8f, 1.2f) * sc[i];
+                s.GetComponent<Renderer>().sharedMaterial = mat;
+            }
+            var drift = cloud.AddComponent<IdleBob>();
+            drift.axis = Vector3.right; drift.amp = 1.6f; drift.speed = 0.22f; drift.phase = seed * 1.3f;
         }
 
         void PlaceCamera()
         {
             if (cam == null) return;
-            Vector3 pos = new Vector3(0f, 17.5f, -10.5f);
-            Vector3 target = new Vector3(0f, 0f, 5.0f);
+            Vector3 pos = new Vector3(0f, 18f, -11f);
+            Vector3 target = new Vector3(0f, 0f, 5.5f);
             cam.transform.position = pos;
             cam.transform.rotation = Quaternion.LookRotation(target - pos, Vector3.up);
-            cam.fieldOfView = 50f;
+            cam.fieldOfView = 56f;
         }
     }
 }

@@ -73,6 +73,9 @@ namespace BusJam
             head.transform.localScale = new Vector3(0.26f, 0.08f, 0.26f);
             head.transform.localPosition = new Vector3(0, 0, -0.05f);
             head.transform.localRotation = Quaternion.Euler(0, 45, 0);
+            var pulse = arrowPivot.AddComponent<IdleBob>();
+            pulse.scalePulse = true; pulse.scaleAmp = 0.16f; pulse.speed = 4.5f; pulse.amp = 0f;
+            pulse.phase = Random.value * 6.28f;
 
             // Wheels (along ±X, front/back)
             float wx = w * 0.52f, wz = len * 0.32f;
@@ -108,29 +111,69 @@ namespace BusJam
             cover = null;
             Material shirt = mystery ? mysteryMat : colorMat;
 
-            var torso = Prim(PrimitiveType.Capsule, root, shirt);
-            torso.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
-            torso.transform.localPosition = new Vector3(0, 0.4f, 0);
+            // Visual child so gameplay can move the root while this gently bobs.
+            var vis = new GameObject("Vis");
+            vis.transform.SetParent(root, false);
+            var bob = vis.AddComponent<IdleBob>();
+            bob.amp = 0.05f; bob.speed = 2.3f; bob.phase = Random.value * 6.28f;
+
+            var torso = Prim(PrimitiveType.Capsule, vis.transform, shirt);
+            torso.transform.localScale = new Vector3(0.44f, 0.42f, 0.44f);
+            torso.transform.localPosition = new Vector3(0, 0.42f, 0);
             Renderer bodyR = torso.GetComponent<Renderer>();
 
-            var head = Prim(PrimitiveType.Sphere, root, skin);
-            head.transform.localScale = Vector3.one * 0.32f;
-            head.transform.localPosition = new Vector3(0, 0.88f, 0);
+            var head = Prim(PrimitiveType.Sphere, vis.transform, skin);
+            head.transform.localScale = Vector3.one * 0.38f;        // big cute head
+            head.transform.localPosition = new Vector3(0, 0.92f, 0);
 
             if (mystery)
             {
-                var q = Prim(PrimitiveType.Cube, root, mysteryMat);
-                q.transform.localScale = Vector3.one * 0.16f;
-                q.transform.localPosition = new Vector3(0, 1.24f, 0);
+                var q = Prim(PrimitiveType.Cube, vis.transform, mysteryMat);
+                q.transform.localScale = Vector3.one * 0.17f;
+                q.transform.localPosition = new Vector3(0, 1.3f, 0);
                 q.transform.localRotation = Quaternion.Euler(0, 45, 0);
                 cover = q;
             }
             if (golden)
             {
-                var crown = Prim(PrimitiveType.Cube, root, goldMat);
-                crown.transform.localScale = new Vector3(0.2f, 0.1f, 0.2f);
-                crown.transform.localPosition = new Vector3(0, 1.12f, 0);
+                var crown = Prim(PrimitiveType.Cube, vis.transform, goldMat);
+                crown.transform.localScale = new Vector3(0.22f, 0.1f, 0.22f);
+                crown.transform.localPosition = new Vector3(0, 1.18f, 0);
                 crown.transform.localRotation = Quaternion.Euler(0, 45, 0);
+                var spin = crown.AddComponent<IdleBob>();
+                spin.scalePulse = true; spin.scaleAmp = 0.2f; spin.speed = 5f; spin.amp = 0f;
+            }
+            return bodyR;
+        }
+
+        /// <summary>A colored passenger cabin (booth) that holds a stack of people.
+        /// The numeric label is added by the caller. Returns the body renderer.</summary>
+        public static Renderer BuildCabin(Transform root, Material colorMat, Material dark, Material goldMat, bool golden)
+        {
+            var vis = new GameObject("Vis");
+            vis.transform.SetParent(root, false);
+            var bob = vis.AddComponent<IdleBob>();
+            bob.amp = 0.03f; bob.speed = 1.6f; bob.phase = Random.value * 6.28f;
+
+            var box = Prim(PrimitiveType.Cube, vis.transform, colorMat);
+            box.transform.localScale = new Vector3(0.92f, 0.95f, 0.7f);
+            box.transform.localPosition = new Vector3(0, 0.48f, 0);
+            Renderer bodyR = box.GetComponent<Renderer>();
+
+            var roof = Prim(PrimitiveType.Cube, vis.transform, golden ? goldMat : dark);
+            roof.transform.localScale = new Vector3(1.05f, 0.16f, 0.84f);
+            roof.transform.localPosition = new Vector3(0, 1.0f, 0);
+
+            var door = Prim(PrimitiveType.Cube, vis.transform, dark);
+            door.transform.localScale = new Vector3(0.46f, 0.6f, 0.06f);
+            door.transform.localPosition = new Vector3(0, 0.34f, -0.36f);
+
+            // little awning posts
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var post = Prim(PrimitiveType.Cube, vis.transform, dark);
+                post.transform.localScale = new Vector3(0.07f, 0.95f, 0.07f);
+                post.transform.localPosition = new Vector3(s * 0.42f, 0.48f, -0.34f);
             }
             return bodyR;
         }
