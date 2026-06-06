@@ -1,31 +1,31 @@
 using UnityEngine;
-using BusJam; // BusJamGame and SaveSystem live in this namespace
+using UnityEngine.SceneManagement;   // required to reload / switch scenes
+using BusJam;                         // BusJamGame and SaveSystem live in this namespace.
+                                      // THIS 'using' is what fixes the "BusJamGame not found"
+                                      // (red squiggly) compile error.
 
 /// <summary>
-/// Drives the custom "Continue / Game Over" UI flow in the gameplay scene:
-///   * Listens for BusJamGame's OnGameOver event and pops up the ContinuePanel.
-///   * Handles the three ContinuePanel buttons:
-///       - Pay gold to continue  (+1 parking spot)
-///       - Watch an ad to continue (+1 parking spot)
-///       - No Thanks -> close panel and show the definitive Failed screen
-/// Attach this to a manager object in the gameplay scene and assign the panels
-/// in the Inspector. No test keys, no manual triggers — it reacts to the real
-/// loss state, so the flow works automatically on scene load.
+/// Drives the custom failure UI flow in the gameplay scene:
+///   * Listens to BusJamGame.OnGameOver -> shows the Continue panel.
+///   * Continue buttons resume the level (+1 parking spot) via BusJamGame.ContinueLevel().
+///   * "No Thanks" closes Continue and shows the definitive Failed panel.
+///   * Failed panel's Restart reloads the level; Main Menu returns to the menu scene.
+/// IMPORTANT: this component must live in the GAMEPLAY scene (SampleScene), in the same
+/// scene as BusJamGame — otherwise it can't find the game and the panels won't trigger.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    [Header("Panels")]
-    [Tooltip("Custom Continue / Game Over panel offering to keep playing.")]
-    [SerializeField] private GameObject continuePanel;
+    [Header("UI Panels")]
+    [SerializeField] private GameObject continuePanel;   // shown first on a loss
+    [SerializeField] private GameObject failedPanel;     // shown after "No Thanks"
 
-    [Tooltip("Definitive Failed panel, shown when the player declines to continue.")]
-    [SerializeField] private GameObject failedPanel;
+    [Header("Continue Settings")]
+    [SerializeField] private int continueCost = 100;     // gold cost of "Pay to continue"
 
-    [Header("Continue settings")]
-    [Tooltip("Gold cost of the 'Pay to continue' option.")]
-    [SerializeField] private int continueCost = 100;
+    [Header("Scene Names")]
+    [SerializeField] private string mainMenuSceneName = "MainMenu";
 
-    // Reference to the core game so we can resume play and read the loss event.
+    // Reference to the core game loop so we can react to its events and resume play.
     private BusJamGame game;
 
     void Awake()
@@ -33,18 +33,19 @@ public class GameManager : MonoBehaviour
         // BusJamGame is the single gameplay controller in this scene.
         game = FindAnyObjectByType<BusJamGame>();
         if (game == null)
-            Debug.LogWarning("GameManager: no BusJamGame found in the scene; the Continue flow will not trigger.");
+            Debug.LogWarning("GameManager: BusJamGame not found. Place this GameManager in the " +
+                             "gameplay scene (SampleScene) alongside BusJamGame.");
     }
 
     void OnEnable()
     {
-        // Subscribe to the real failure event so the panel pops up automatically.
+        // Subscribe to the real failure event so the Continue panel pops up automatically.
         if (game != null) game.OnGameOver += HandleGameOver;
     }
 
     void OnDisable()
     {
-        // Always unsubscribe to avoid dangling delegates / duplicate calls.
+        // Always unsubscribe to avoid dangling delegates after a scene reload.
         if (game != null) game.OnGameOver -= HandleGameOver;
     }
 
@@ -55,13 +56,13 @@ public class GameManager : MonoBehaviour
         if (failedPanel != null) failedPanel.SetActive(false);
     }
 
-    // Called by BusJamGame the moment the player fails the level (time-out or stuck).
+    // Called automatically by BusJamGame the moment the player fails (time-out or stuck/locked).
     private void HandleGameOver(string reason)
     {
         if (continuePanel != null) continuePanel.SetActive(true);
     }
 
-    // --- ContinuePanel button handlers (wire these to the buttons' OnClick) ---
+    // ---------------- Continue panel buttons ----------------
 
     /// <summary>"Pay 100 Gold to continue" button.</summary>
     public void ContinueWithCoin()
@@ -82,18 +83,36 @@ public class GameManager : MonoBehaviour
     /// <summary>"Watch an ad to continue" button.</summary>
     public void ContinueWithAd()
     {
-        // TODO: plug a real rewarded-ad SDK here and call ResumeAfterContinue()
+        // TODO: hook a real rewarded-ad SDK here and call ResumeAfterContinue()
         //       only from the ad's success/reward callback. For now we grant it directly.
         Debug.Log("GameManager: ad watched. Continuing with +1 parking spot.");
         ResumeAfterContinue();
     }
 
-    /// <summary>"No Thanks" button: close this panel and show the definitive Failed screen.</summary>
+    /// <summary>"No Thanks" button: close Continue and show the definitive Failed panel.</summary>
     public void RejectContinue()
     {
-        Debug.Log("GameManager: player declined to continue. Showing Failed screen.");
+        Debug.Log("GameManager: player declined to continue. Showing Failed panel.");
         if (continuePanel != null) continuePanel.SetActive(false);
         if (failedPanel != null) failedPanel.SetActive(true);
+    }
+
+    // ---------------- Failed panel buttons ----------------
+
+    /// <summary>"Restart" button: reload the current level from the start.</summary>
+    public void RestartGame()
+    {
+        Debug.Log("GameManager: restarting the level...");
+        // Reloading the active gameplay scene fully resets the board. BusJamGame
+        // auto-starts the saved level on load, so the player replays the same level.
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    /// <summary>"Main Menu" button: leave gameplay and return to the menu scene.</summary>
+    public void GoToMainMenu()
+    {
+        Debug.Log("GameManager: returning to the main menu...");
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 
     // Shared helper: hide the Continue panel and resume play with an extra parking bay.
