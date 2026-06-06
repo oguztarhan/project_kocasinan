@@ -1,13 +1,77 @@
 using UnityEngine;
-using UnityEngine.SceneManagement; // Sahneler arası geçiş yapmak için bu kütüphane şart!
+using TMPro; // Buton yazıları için TextMeshPro kütüphanesi
+using UnityEngine.SceneManagement;
 
 public class MenuManager : MonoBehaviour
 {
-    // Bu fonksiyonu ortadaki büyük "Oyna" butonuna bağlayacağız
-    public void StartGame()
+    [Header("Sahne Geçişi")]
+    [SerializeField] private string gameSceneName = "SampleScene";
+
+    [Header("Ayarlar Penceresi")]
+    [SerializeField] private GameObject settingsPanel;
+
+    [Header("Butonların Yazıları (TMP)")]
+    [SerializeField] private TextMeshProUGUI soundText;
+    [SerializeField] private TextMeshProUGUI musicText;
+    [SerializeField] private TextMeshProUGUI vibText;
+
+    // Durumlar (Açık mı, Kapalı mı?)
+    private bool isSoundOn = true;
+    private bool isMusicOn = true;
+    private bool isVibrationOn = true;
+
+    void Start()
     {
-        // e7459a90-387f-4427-b03c-6ede6e1cda7a görselindeki listende 1 numarada SampleScene vardı.
-        // O yüzden buraya tam olarak o sahnenin adını yazıyoruz.
-        SceneManager.LoadScene("SampleScene");
+        // Oyun ilk açıldığında ayarlar penceresi gizli olsun
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        // Yazıları ilk durumlarına göre güncelle (Hepsi AÇIK başlayacak)
+        UpdateSettingsTexts();
+    }
+
+    // OYUNU BAŞLAT BUTONU İÇİN (Zaten yapmıştınız)
+    public void PlayGame()
+    {
+        SceneManager.LoadScene(gameSceneName);
+    }
+
+    // AYARLAR PENCERESİNİ AÇMA / KAPATMA FONKSİYONU
+    public void ToggleSettingsPanel()
+    {
+        if (settingsPanel != null)
+        {
+            // Panel aktifse kapatır, kapalıysa açar
+            settingsPanel.SetActive(!settingsPanel.activeSelf);
+        }
+    }
+
+    // SES BUTONU FONKSİYONU
+    public void ToggleSound()
+    {
+        isSoundOn = !isSoundOn; // Tersine çevir (Açıksa kapalı, kapalıysa açık yap)
+        UpdateSettingsTexts();  // Yazıyı ekranda güncelle
+    }
+
+    // MÜZİK BUTONU FONKSİYONU
+    public void ToggleMusic()
+    {
+        isMusicOn = !isMusicOn;
+        UpdateSettingsTexts();
+    }
+
+    // TİTREŞİM BUTONU FONKSİYONU
+    public void ToggleVibration()
+    {
+        isVibrationOn = !isVibrationOn;
+        UpdateSettingsTexts();
+    }
+
+    // YAZILARI GÜNCELLEME YARDIMCISI
+    private void UpdateSettingsTexts()
+    {
+        if (soundText != null) soundText.text = isSoundOn ? "Ses: AÇIK" : "Ses: KAPALI";
+        if (musicText != null) musicText.text = isMusicOn ? "Müzik: AÇIK" : "Müzik: KAPALI";
+        if (vibText != null) vibText.text = isVibrationOn ? "Titreşim: AÇIK" : "Titreşim: KAPALI";
     }
 }
