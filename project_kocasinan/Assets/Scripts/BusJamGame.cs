@@ -43,10 +43,9 @@ namespace BusJam
         GameUI ui;
         Sfx sfx;
         Transform boardRoot;
-        Font numberFont;
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
-        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat, cabinDarkMat;
+        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
         Material[] confettiMats;
 
         LevelData level;
@@ -71,7 +70,6 @@ namespace BusJam
         {
             Screen.orientation = ScreenOrientation.Portrait;
             cam = Camera.main;
-            numberFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             BuildMaterials();
             PlaceCamera();
 
@@ -232,29 +230,14 @@ namespace BusJam
                     Bus bus = FindParkedBus(u.color);
                     if (bus != null)
                     {
-                        if (u.isCabin)
-                        {
-                            var walker = SpawnWalker(u.color, u.golden, u.transform.position + new Vector3(0, 0, 0.5f));
-                            yield return MoveTo(walker.transform, BusDoorWorld(bus), 0.22f, ease: true);
-                            bus.FillNextSeat();
-                            StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
-                            OnBoarded(u.golden, walker.transform.position);
-                            Destroy(walker);
-                            u.SetCount(u.count - 1);
-                            StartCoroutine(Juice.PunchScale(u.transform, 0.1f));
-                            if (u.count <= 0) { visible.RemoveAt(0); Destroy(u.gameObject); StreamNext(); yield return RepositionLine(); }
-                        }
-                        else
-                        {
-                            visible.RemoveAt(0);
-                            yield return MoveTo(u.transform, BusDoorWorld(bus), 0.22f, ease: true);
-                            bus.FillNextSeat();
-                            StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
-                            OnBoarded(u.golden, u.transform.position);
-                            Destroy(u.gameObject);
-                            StreamNext();
-                            yield return RepositionLine();
-                        }
+                        visible.RemoveAt(0);
+                        yield return MoveTo(u.transform, BusDoorWorld(bus), 0.22f, ease: true);
+                        bus.FillNextSeat();
+                        StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
+                        OnBoarded(u.golden, u.transform.position);
+                        Destroy(u.gameObject);
+                        StreamNext();
+                        yield return RepositionLine();
                         progressed = true;
                     }
                 }
@@ -262,15 +245,6 @@ namespace BusJam
             busy--;
             pumpRunning = false;
             CheckEnd();
-        }
-
-        GameObject SpawnWalker(PieceColor color, bool golden, Vector3 pos)
-        {
-            var go = new GameObject("Walker");
-            go.transform.SetParent(boardRoot, false);
-            go.transform.position = pos;
-            LowPolyBuilder.BuildPerson(go.transform, bodyMats[color], skinMat, golden, false, mysteryMat, goldMat, out _);
-            return go;
         }
 
         void StreamNext()
@@ -441,7 +415,9 @@ namespace BusJam
             currentLevel = levelNumber;
             Teardown();
 
-            level = LevelGenerator.Generate(levelNumber);
+            // Load an authored level asset if one exists; otherwise generate procedurally.
+            var def = Resources.Load<LevelDefinition>("Levels/Level" + levelNumber);
+            level = def != null ? LevelGenerator.Generate(def) : LevelGenerator.Generate(levelNumber);
             totalSlots = level.baseSlots + level.extraSlots;
             boardRoot = new GameObject("Board").transform;
 
@@ -449,6 +425,7 @@ namespace BusJam
             ApplyTheme(theme);
             BuildSlots();
             BuildGrid();
+            BuildBoardBackground();
             BuildLine();
 
             timeLeft = level.timeLimit;
@@ -547,6 +524,31 @@ namespace BusJam
             }
         }
 
+        // Visible board + faint cell-grid lines so the jam layout reads clearly.
+        void BuildBoardBackground()
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            Material boardMat = Mat(sh, new Color(0.20f, 0.22f, 0.28f), 0.08f);
+            Material lineMat = Mat(sh, new Color(0.36f, 0.40f, 0.50f), 0.1f, 0.12f);
+
+            float w = gridW * CellSize;
+            float d = gridH * CellSize;
+            float cz = GridBaseZ + (gridH - 1) * CellSize * 0.5f;
+
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.07f, cz), new Vector3(w + 0.3f, 0.12f, d + 0.3f), boardMat);
+
+            for (int x = 0; x <= gridW; x++)
+            {
+                var ln = MakeCube(boardRoot, lineMat, new Vector3(0.04f, 0.03f, d));
+                ln.transform.position = new Vector3((x - gridW / 2f) * CellSize, 0f, cz);
+            }
+            for (int y = 0; y <= gridH; y++)
+            {
+                var ln = MakeCube(boardRoot, lineMat, new Vector3(w, 0.03f, 0.04f));
+                ln.transform.position = new Vector3(0, 0f, GridBaseZ - CellSize * 0.5f + y * CellSize);
+            }
+        }
+
         void BuildLine()
         {
             groups = level.groups;
@@ -564,41 +566,14 @@ namespace BusJam
 
         LineUnit CreateUnit(LineGroup g)
         {
-            bool cabin = g.count > 1;
-            var go = new GameObject(cabin ? "Cabin" : "Person");
+            var go = new GameObject("Person");
             go.transform.SetParent(boardRoot, false);
             var u = go.AddComponent<LineUnit>();
-            u.color = g.color; u.count = g.count; u.golden = g.golden; u.mystery = g.mystery; u.isCabin = cabin;
-
-            if (cabin)
-            {
-                u.body = LowPolyBuilder.BuildCabin(go.transform, bodyMats[g.color], cabinDarkMat, goldMat, g.golden);
-                u.numberLabel = MakeNumber(go.transform, g.count);
-            }
-            else
-            {
-                u.body = LowPolyBuilder.BuildPerson(go.transform, bodyMats[g.color], skinMat,
-                    g.golden, g.mystery, mysteryMat, goldMat, out GameObject cover);
-                u.mysteryCover = cover;
-            }
+            u.color = g.color; u.golden = g.golden; u.mystery = g.mystery;
+            u.body = LowPolyBuilder.BuildPerson(go.transform, bodyMats[g.color], skinMat,
+                g.golden, g.mystery, mysteryMat, goldMat, out GameObject cover);
+            u.mysteryCover = cover;
             return u;
-        }
-
-        TextMesh MakeNumber(Transform parent, int n)
-        {
-            var go = new GameObject("Num");
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = new Vector3(0, 1.55f, 0);
-            if (cam != null) go.transform.rotation = cam.transform.rotation;
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = n.ToString();
-            tm.font = numberFont;
-            tm.fontSize = 72; tm.fontStyle = FontStyle.Bold;
-            tm.characterSize = 0.14f;
-            tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center;
-            tm.color = Color.white;
-            go.GetComponent<MeshRenderer>().sharedMaterial = numberFont.material;
-            return tm;
         }
 
         Bus CreateBus(PieceColor color, int capacity, float yaw)
@@ -608,7 +583,7 @@ namespace BusJam
             root.transform.rotation = Quaternion.Euler(0, yaw, 0);
             var bus = root.AddComponent<Bus>();
             bus.color = color; bus.capacity = capacity; bus.filledMat = bodyMats[color];
-            bus.seatWindows = LowPolyBuilder.BuildBus(root.transform, capacity,
+            bus.seatWindows = LowPolyBuilder.BuildBus(root.transform, capacity, CellSize,
                 bodyMats[color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
             return bus;
         }
@@ -623,7 +598,7 @@ namespace BusJam
 
         Vector3 BusDoorWorld(Bus bus)
         {
-            float len = LowPolyBuilder.BusLength(bus.capacity);
+            float len = LowPolyBuilder.BusLength(CellSize);
             return bus.transform.position + new Vector3(0, 0.25f, -len * 0.4f);
         }
 
@@ -721,7 +696,6 @@ namespace BusJam
             goldMat      = Mat(sh, Palette.Gold, 0.7f, 0.4f);
             arrowMat     = Mat(sh, new Color(0.99f, 0.99f, 0.99f), 0.3f, 0.25f);
             lockMat      = Mat(sh, new Color(0.42f, 0.9f, 0.48f), 0.2f, 0.25f);
-            cabinDarkMat = Mat(sh, new Color(0.16f, 0.17f, 0.22f), 0.2f);
         }
 
         static Material Mat(Shader sh, Color col, float smooth, float emission = 0f)

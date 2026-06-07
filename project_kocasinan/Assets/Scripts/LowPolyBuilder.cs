@@ -23,14 +23,21 @@ namespace BusJam
             return go;
         }
 
-        public static float BusLength(int capacity) => capacity * 0.5f + 0.7f;
+        /// <summary>Single source of truth: a bus body's length as a fraction of a
+        /// grid cell, so a bus always fits inside one cell with margin.</summary>
+        public const float BusFit = 0.78f;
+        public static float BusLength(float cellSize) => cellSize * BusFit;
 
-        public static Renderer[] BuildBus(Transform root, int capacity,
+        public static Renderer[] BuildBus(Transform root, int capacity, float cellSize,
             Material body, Material glass, Material wheel, Material light, Material seatEmpty, Material arrowMat)
         {
-            float h = BusHeight, w = BusWidth, len = BusLength(capacity);
-            float bodyY = WheelRadius + h * 0.5f;
-            float top = WheelRadius + h;
+            // Everything derives from cellSize so the bus is guaranteed to fit one cell.
+            float len = cellSize * BusFit;   // along Z (arrow axis)
+            float w   = cellSize * 0.50f;    // along X
+            float h   = cellSize * 0.42f;
+            float wr  = cellSize * 0.11f;    // wheel radius
+            float bodyY = wr + h * 0.5f;
+            float top = wr + h;
 
             var bodyGo = Prim(PrimitiveType.Cube, root, body, keepCollider: true);
             bodyGo.name = "Body";
@@ -39,15 +46,15 @@ namespace BusJam
 
             // Windshield at the front (-Z)
             var wind = Prim(PrimitiveType.Cube, root, glass);
-            wind.transform.localScale = new Vector3(w * 0.86f, h * 0.5f, len * 0.12f);
-            wind.transform.localPosition = new Vector3(0, bodyY + h * 0.12f, -len * 0.5f - 0.01f);
+            wind.transform.localScale = new Vector3(w * 0.86f, h * 0.5f, len * 0.14f);
+            wind.transform.localPosition = new Vector3(0, bodyY + h * 0.12f, -len * 0.5f - 0.005f);
 
             // Side window strips
             for (int side = -1; side <= 1; side += 2)
             {
                 var sw = Prim(PrimitiveType.Cube, root, glass);
-                sw.transform.localScale = new Vector3(0.04f, h * 0.34f, len * 0.78f);
-                sw.transform.localPosition = new Vector3(side * (w * 0.5f + 0.01f), bodyY + h * 0.15f, 0);
+                sw.transform.localScale = new Vector3(0.03f, h * 0.34f, len * 0.7f);
+                sw.transform.localPosition = new Vector3(side * (w * 0.5f + 0.005f), bodyY + h * 0.15f, 0);
             }
 
             // Seat dots on the roof (light up as people board)
@@ -57,45 +64,42 @@ namespace BusJam
                 float z = -len * 0.5f + (i + 1) * (len / (capacity + 1));
                 var s = Prim(PrimitiveType.Cube, root, seatEmpty);
                 s.name = "Seat" + i;
-                s.transform.localScale = new Vector3(w * 0.42f, 0.06f, len / (capacity + 2));
-                s.transform.localPosition = new Vector3(0, top + 0.02f, z);
+                s.transform.localScale = new Vector3(w * 0.5f, 0.05f, len / (capacity + 2));
+                s.transform.localPosition = new Vector3(0, top + 0.01f, z);
                 seats[i] = s.GetComponent<Renderer>();
             }
 
-            // Arrow on top, pointing -Z
+            // Arrow on top, pointing -Z. Static (no idle pulse) so the grid is dead-still.
             var arrowPivot = new GameObject("Arrow");
             arrowPivot.transform.SetParent(root, false);
-            arrowPivot.transform.localPosition = new Vector3(0, top + 0.18f, -len * 0.5f + 0.1f);
+            arrowPivot.transform.localPosition = new Vector3(0, top + 0.12f, -len * 0.5f + 0.06f);
             var shaft = Prim(PrimitiveType.Cube, arrowPivot.transform, arrowMat);
-            shaft.transform.localScale = new Vector3(0.1f, 0.08f, 0.34f);
-            shaft.transform.localPosition = new Vector3(0, 0, 0.16f);
+            shaft.transform.localScale = new Vector3(cellSize * 0.06f, 0.06f, cellSize * 0.22f);
+            shaft.transform.localPosition = new Vector3(0, 0, cellSize * 0.1f);
             var head = Prim(PrimitiveType.Cube, arrowPivot.transform, arrowMat);
-            head.transform.localScale = new Vector3(0.26f, 0.08f, 0.26f);
-            head.transform.localPosition = new Vector3(0, 0, -0.05f);
+            head.transform.localScale = new Vector3(cellSize * 0.18f, 0.06f, cellSize * 0.18f);
+            head.transform.localPosition = new Vector3(0, 0, -cellSize * 0.03f);
             head.transform.localRotation = Quaternion.Euler(0, 45, 0);
-            var pulse = arrowPivot.AddComponent<IdleBob>();
-            pulse.scalePulse = true; pulse.scaleAmp = 0.16f; pulse.speed = 4.5f; pulse.amp = 0f;
-            pulse.phase = Random.value * 6.28f;
 
             // Wheels (along ±X, front/back)
-            float wx = w * 0.52f, wz = len * 0.32f;
-            Wheel(root, wheel, new Vector3(wx, WheelRadius, wz));
-            Wheel(root, wheel, new Vector3(wx, WheelRadius, -wz));
-            Wheel(root, wheel, new Vector3(-wx, WheelRadius, wz));
-            Wheel(root, wheel, new Vector3(-wx, WheelRadius, -wz));
+            float wx = w * 0.52f, wz = len * 0.34f;
+            Wheel(root, wheel, new Vector3(wx, wr, wz), wr);
+            Wheel(root, wheel, new Vector3(wx, wr, -wz), wr);
+            Wheel(root, wheel, new Vector3(-wx, wr, wz), wr);
+            Wheel(root, wheel, new Vector3(-wx, wr, -wz), wr);
 
             // Headlights at the front
-            Light2(root, light, new Vector3(wx * 0.5f, WheelRadius + 0.1f, -len * 0.5f - 0.02f));
-            Light2(root, light, new Vector3(-wx * 0.5f, WheelRadius + 0.1f, -len * 0.5f - 0.02f));
+            Light2(root, light, new Vector3(wx * 0.5f, wr + 0.05f, -len * 0.5f - 0.01f));
+            Light2(root, light, new Vector3(-wx * 0.5f, wr + 0.05f, -len * 0.5f - 0.01f));
             return seats;
         }
 
-        static void Wheel(Transform parent, Material mat, Vector3 pos)
+        static void Wheel(Transform parent, Material mat, Vector3 pos, float r)
         {
-            var w = Prim(PrimitiveType.Cylinder, parent, mat);
-            w.transform.localRotation = Quaternion.Euler(0, 0, 90); // axis -> X
-            w.transform.localScale = new Vector3(WheelRadius * 2f, 0.05f, WheelRadius * 2f);
-            w.transform.localPosition = pos;
+            var wgo = Prim(PrimitiveType.Cylinder, parent, mat);
+            wgo.transform.localRotation = Quaternion.Euler(0, 0, 90); // axis -> X
+            wgo.transform.localScale = new Vector3(r * 2f, 0.04f, r * 2f);
+            wgo.transform.localPosition = pos;
         }
 
         static void Light2(Transform parent, Material mat, Vector3 pos)
@@ -142,38 +146,6 @@ namespace BusJam
                 crown.transform.localRotation = Quaternion.Euler(0, 45, 0);
                 var spin = crown.AddComponent<IdleBob>();
                 spin.scalePulse = true; spin.scaleAmp = 0.2f; spin.speed = 5f; spin.amp = 0f;
-            }
-            return bodyR;
-        }
-
-        /// <summary>A colored passenger cabin (booth) that holds a stack of people.
-        /// The numeric label is added by the caller. Returns the body renderer.</summary>
-        public static Renderer BuildCabin(Transform root, Material colorMat, Material dark, Material goldMat, bool golden)
-        {
-            var vis = new GameObject("Vis");
-            vis.transform.SetParent(root, false);
-            var bob = vis.AddComponent<IdleBob>();
-            bob.amp = 0.03f; bob.speed = 1.6f; bob.phase = Random.value * 6.28f;
-
-            var box = Prim(PrimitiveType.Cube, vis.transform, colorMat);
-            box.transform.localScale = new Vector3(0.92f, 0.95f, 0.7f);
-            box.transform.localPosition = new Vector3(0, 0.48f, 0);
-            Renderer bodyR = box.GetComponent<Renderer>();
-
-            var roof = Prim(PrimitiveType.Cube, vis.transform, golden ? goldMat : dark);
-            roof.transform.localScale = new Vector3(1.05f, 0.16f, 0.84f);
-            roof.transform.localPosition = new Vector3(0, 1.0f, 0);
-
-            var door = Prim(PrimitiveType.Cube, vis.transform, dark);
-            door.transform.localScale = new Vector3(0.46f, 0.6f, 0.06f);
-            door.transform.localPosition = new Vector3(0, 0.34f, -0.36f);
-
-            // little awning posts
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var post = Prim(PrimitiveType.Cube, vis.transform, dark);
-                post.transform.localScale = new Vector3(0.07f, 0.95f, 0.07f);
-                post.transform.localPosition = new Vector3(s * 0.42f, 0.48f, -0.34f);
             }
             return bodyR;
         }

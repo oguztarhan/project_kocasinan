@@ -15,12 +15,10 @@ namespace BusJam
         public Vector2Int dir;
     }
 
-    /// <summary>One queue slot: a single person (count 1) or a cabin emitting N
-    /// same-color people in order.</summary>
+    /// <summary>One queue slot: a single waiting person.</summary>
     public class LineGroup
     {
         public PieceColor color;
-        public int count;
         public bool golden;
         public bool mystery;
     }
@@ -42,42 +40,73 @@ namespace BusJam
         public const int BaseSlots = 3;
         public const int ExtraSlots = 2;
 
+        /// <summary>Procedural levels (used for 6+ and as the fallback). Gets harder
+        /// as the level rises: more colors, more buses, less time per person.</summary>
         public static LevelData Generate(int level)
         {
             var rng = new System.Random(level * 9176 + 4242);
 
-            int colorCount = Mathf.Clamp(3 + (level - 1) / 5, 3, Palette.Count); // +1 color / 5 levels
-            int busCount   = Mathf.Clamp(4 + level, 4, 15);
-            int capacity   = 3;
+            int colorCount = Mathf.Clamp(3 + (level - 1) / 4, 3, Palette.Count); // +1 color every 4 levels
+            int busCount   = Mathf.Clamp(4 + level, 6, 16);
+            float rate     = Mathf.Clamp(2.2f - level * 0.04f, 1.4f, 2.2f);       // seconds per person
+            float timeLimit = Mathf.Max(18f, busCount * 3 * rate);
+            float goldenP  = Mathf.Min(0.10f, level * 0.01f);
+            float mysteryP = Mathf.Min(0.30f, level * 0.025f);
 
+            return Build(rng, level, colorCount, busCount, 5, 0, BaseSlots, ExtraSlots, timeLimit, goldenP, mysteryP);
+        }
+
+        /// <summary>Authored levels. Parameters are tunable in the Inspector but still
+        /// flow through the same solvable-by-construction core.</summary>
+        public static LevelData Generate(LevelDefinition def)
+        {
+            int seed = def.seed != 0 ? def.seed : def.levelNumber * 9176 + 4242;
+            var rng = new System.Random(seed);
+
+            int colorCount = Mathf.Clamp(def.colorCount, 3, Palette.Count);
+            int busCount   = Mathf.Max(4, def.busCount);
+            int baseSlots  = Mathf.Max(1, def.baseSlots);
+            int extraSlots = Mathf.Max(0, def.extraSlots);
+            float timeLimit = Mathf.Max(10f, def.timeLimit);
+
+            return Build(rng, def.levelNumber, colorCount, busCount, Mathf.Max(3, def.gridWidth), def.gridHeight,
+                         baseSlots, extraSlots, timeLimit,
+                         Mathf.Clamp01(def.goldenChance), Mathf.Clamp01(def.mysteryChance));
+        }
+
+        // Shared solvable-by-construction core for both procedural and authored levels.
+        static LevelData Build(System.Random rng, int levelNumber, int colorCount, int busCount,
+            int gridWidth, int gridHeightHint, int baseSlots, int extraSlots, float timeLimit,
+            float goldenP, float mysteryP)
+        {
+            const int capacity = 3;
             var buses = new List<BusDef>(busCount);
             for (int i = 0; i < busCount; i++)
                 buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), capacity = capacity });
 
-            var groups   = BuildQueue(buses, rng, level);
-            var gridBuses = BuildGrid(buses, rng, out int gridW, out int gridH);
-
-            int people = 0; foreach (var g in groups) people += g.count;
-            float timeLimit = Mathf.Max(20f, people * 2.0f - level * 1.4f);
+            var groups    = BuildQueue(buses, rng, baseSlots, goldenP, mysteryP);
+            var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, out int gridW, out int gridH);
 
             return new LevelData
             {
-                levelNumber = level,
+                levelNumber = levelNumber,
                 groups = groups,
                 gridBuses = gridBuses,
                 gridW = gridW, gridH = gridH,
-                baseSlots = BaseSlots,
-                extraSlots = ExtraSlots,
+                baseSlots = baseSlots,
+                extraSlots = extraSlots,
                 timeLimit = timeLimit,
                 colorCount = colorCount
             };
         }
 
-        // ---- Queue (window emission -> mostly singles, occasional cabins) ----
-        static List<LineGroup> BuildQueue(List<BusDef> buses, System.Random rng, int level)
+        // ---- Queue (window emission -> one single person per slot) -----------
+        // window MUST equal the unlocked parking slots (baseSlots): at most `window`
+        // buses are ever "open", which keeps the queue servable -> solvable.
+        static List<LineGroup> BuildQueue(List<BusDef> buses, System.Random rng, int window, float goldenP, float mysteryP)
         {
             int n = buses.Count;
-            int window = BaseSlots;
+            window = Mathf.Clamp(window, 1, n);
             var remaining = new int[n];
             for (int i = 0; i < n; i++) remaining[i] = buses[i].capacity;
 
@@ -85,19 +114,11 @@ namespace BusJam
             var open = new List<int>();
             int nextToOpen = Mathf.Min(window, n);
             for (int i = 0; i < nextToOpen; i++) open.Add(i);
-            int lastPick = -1;
-
             while (open.Count > 0)
             {
-                int pick;
-                if (lastPick >= 0 && remaining[lastPick] > 0 && rng.NextDouble() < 0.30) // mild bias
-                    pick = lastPick;
-                else
-                    pick = open[rng.Next(open.Count)];
-
+                int pick = open[rng.Next(open.Count)];
                 flat.Add(buses[pick].color);
                 remaining[pick]--;
-                lastPick = remaining[pick] > 0 ? pick : -1;
                 if (remaining[pick] == 0)
                 {
                     open.Remove(pick);
@@ -105,39 +126,24 @@ namespace BusJam
                 }
             }
 
-            // Merge same-color runs, then keep only runs >= 3 as cabins (else singles).
-            var merged = new List<LineGroup>();
-            foreach (var c in flat)
-            {
-                if (merged.Count > 0 && merged[merged.Count - 1].color == c && merged[merged.Count - 1].count < 9)
-                    merged[merged.Count - 1].count++;
-                else
-                    merged.Add(new LineGroup { color = c, count = 1 });
-            }
-
+            // One single person per emitted color.
             var groups = new List<LineGroup>();
-            foreach (var g in merged)
-            {
-                if (g.count >= 3) groups.Add(g);                       // cabin
-                else for (int i = 0; i < g.count; i++) groups.Add(new LineGroup { color = g.color, count = 1 });
-            }
+            foreach (var c in flat) groups.Add(new LineGroup { color = c });
 
-            float goldenP = Mathf.Min(0.10f, level * 0.01f);
-            float mysteryP = Mathf.Min(0.26f, level * 0.022f);
             for (int i = 0; i < groups.Count; i++)
             {
                 if (rng.NextDouble() < goldenP) groups[i].golden = true;
-                if (groups[i].count == 1 && i >= 2 && rng.NextDouble() < mysteryP) groups[i].mystery = true;
+                if (i >= 2 && rng.NextDouble() < mysteryP) groups[i].mystery = true;
             }
             return groups;
         }
 
         // ---- Grid (reverse generation: always solvable) ----------------------
-        static List<GridBus> BuildGrid(List<BusDef> buses, System.Random rng, out int W, out int H)
+        static List<GridBus> BuildGrid(List<BusDef> buses, System.Random rng, int gridWidth, int gridHeightHint, out int W, out int H)
         {
             int n = buses.Count;
-            W = 5;
-            H = Mathf.Clamp(Mathf.CeilToInt(n * 1.7f / W), 2, 6);
+            W = Mathf.Max(3, gridWidth);
+            H = gridHeightHint > 0 ? Mathf.Max(2, gridHeightHint) : Mathf.Clamp(Mathf.CeilToInt(n * 1.7f / W), 2, 6);
 
             var dirs = new[] { new Vector2Int(0, -1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
             var occupied = new HashSet<Vector2Int>();
