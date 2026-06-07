@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 namespace BusJam
 {
@@ -79,6 +80,9 @@ namespace BusJam
             ui.OnSkip = JokerSkip;
             ui.OnSwap = JokerSwap;
             ui.OnAddTime = JokerTime;
+            ui.OnHome = GoToMainMenu;            // settings -> HOME
+            ui.OnReplay = RetryLevel;            // settings -> REPLAY
+            ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
             ui.Build(SkipCost, SwapCost, TimeCost);
 
             if (autoStart) LoadLevel(SaveSystem.Level);
@@ -90,6 +94,18 @@ namespace BusJam
         public void NextLevel() { LoadLevel(SaveSystem.Level); }
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
+
+        // Settings panel: HOME button -> back to the main menu scene.
+        public void GoToMainMenu() { sfx.Click(); SceneManager.LoadScene("MainMenu"); }
+
+        // Success panel: grant the reward (base 20 / ad 40) then advance a level.
+        void ClaimWinReward(int amount)
+        {
+            if (state != GameState.Win) return;
+            AddCoins(amount);
+            sfx.Coin();
+            NextLevel(); // SaveSystem.Level was already advanced in Win()
+        }
 
         public void ContinueLevel()
         {
@@ -453,15 +469,15 @@ namespace BusJam
         {
             state = GameState.Win;
             int stars = timeLeft > level.timeLimit * 0.5f ? 3 : (timeLeft > level.timeLimit * 0.2f ? 2 : 1);
-            int bonus = 25 + currentLevel * 5 + stars * 10;
-            AddCoins(bonus);
+            // Level progression is locked in now; the actual coin reward is granted
+            // by the success panel (CLAIM = 20, WATCH AD x2 = 40) via ClaimWinReward.
             SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
             SaveSystem.BestLevel = currentLevel;
             sfx.Win();
             Juice.Confetti(this, boardRoot, new Vector3(0, 6, QueueFrontZ), confettiMats, 50);
             ui.HideHud();
             LevelCompleted?.Invoke(earnedThisLevel, stars);
-            if (autoAdvance && LevelCompleted == null) Invoke(nameof(NextLevel), 2.2f);
+            ui.ShowSuccess(); // 800x1000 "GOOD" panel with CLAIM / WATCH AD x2
         }
 
         void Lose(string reason)

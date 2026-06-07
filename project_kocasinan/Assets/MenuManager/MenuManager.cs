@@ -28,6 +28,11 @@ public class MenuManager : MonoBehaviour
 
         // Yazıları ilk durumlarına göre güncelle (Hepsi AÇIK başlayacak)
         UpdateSettingsTexts();
+
+        // NOTE: the runtime menu overlay (bottom nav, profile, currencies, store &
+        // skin) is now built automatically by MainMenuUI.Bootstrap() as soon as the
+        // MainMenu scene loads, so it appears before Play without relying on this
+        // component. (Kept here intentionally empty to document the change.)
     }
 
     // OYUNU BAŞLAT BUTONU İÇİN (Zaten yapmıştınız)

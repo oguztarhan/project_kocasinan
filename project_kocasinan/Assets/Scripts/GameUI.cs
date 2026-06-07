@@ -14,14 +14,21 @@ namespace BusJam
     {
         // Pause forwards to the project's own navigation; jokers drive gameplay actions.
         public System.Action OnMenu, OnSkip, OnSwap, OnAddTime;
+        // Settings panel navigation + win-reward claiming.
+        public System.Action OnHome, OnReplay;
+        public System.Action<int> OnClaimReward; // grants the gold amount, then advances
 
         Font font;
-        GameObject hudPanel;
+        Sprite knob;
+        GameObject hudPanel, settingsPanel, successPanel;
         Text hudCoins, hudLevel, hudTimer, hudTheme, comboText;
 
         public void Build(int skipCost, int swapCost, int timeCost)
         {
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            // Runtime-generated circle (no built-in "UI/Skin/Knob.psd" dependency,
+            // which is unavailable in Unity 6 players and logs a sprite error).
+            knob = UISprites.Circle();
 
             var canvasGo = new GameObject("UICanvas");
             canvasGo.transform.SetParent(transform, false);
@@ -43,6 +50,8 @@ namespace BusJam
             }
 
             BuildHud(canvasGo.transform, skipCost, swapCost, timeCost);
+            BuildSettingsPanel(canvasGo.transform);
+            BuildSuccessPanel(canvasGo.transform);
             ShowHud();
         }
 
@@ -50,19 +59,30 @@ namespace BusJam
         {
             hudPanel = Panel(parent, "Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
+            // NOTE: the old dark top "strip" bar was intentionally removed for a clean top HUD.
 
-            var bar = Image(hudPanel.transform, new Color(0.06f, 0.08f, 0.13f, 0.85f));
-            bar.raycastTarget = false;
-            bar.rectTransform.anchorMin = new Vector2(0, 1); bar.rectTransform.anchorMax = new Vector2(1, 1);
-            bar.rectTransform.pivot = new Vector2(0.5f, 1f);
-            bar.rectTransform.offsetMin = new Vector2(0, -150); bar.rectTransform.offsetMax = Vector2.zero;
+            // LEVEL indicator: TOP-LEFT corner, round/circular badge.
+            var levelBadge = Image(hudPanel.transform, new Color(0.30f, 0.35f, 0.45f, 0.95f));
+            levelBadge.sprite = knob; levelBadge.raycastTarget = false;
+            Anchor(levelBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(100, -100), new Vector2(150, 150));
+            hudLevel = TopLabel(hudPanel.transform, "1", new Vector2(0, 1), new Vector2(100, -100), new Vector2(150, 70), 48, Color.white, TextAnchor.MiddleCenter);
+            hudTheme = TopLabel(hudPanel.transform, "", new Vector2(0, 1), new Vector2(100, -185), new Vector2(260, 36), 24, new Color(0.8f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
 
+            // SETTINGS button: TOP-RIGHT corner.
+            var settingsBtn = Button(hudPanel.transform, "⚙", new Vector2(-90, -100), new Vector2(120, 120),
+                new Color(0.30f, 0.35f, 0.45f), () => ShowSettings(), 60);
+            var sbRt = settingsBtn.GetComponent<RectTransform>();
+            sbRt.anchorMin = sbRt.anchorMax = new Vector2(1, 1);
+            sbRt.anchoredPosition = new Vector2(-90, -100);
+
+            // TIMER/COUNTER: TOP-CENTER, between the Level and Settings elements.
+            hudTimer = TopLabel(hudPanel.transform, "0:00", new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(360, 80), 56, Color.white, TextAnchor.MiddleCenter);
+
+            // COIN indicator: directly BELOW the Settings button.
             var coinDot = Image(hudPanel.transform, Palette.Gold);
-            Anchor(coinDot.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(70, -75), new Vector2(48, 48));
-            hudCoins = TopLabel(hudPanel.transform, "0", new Vector2(0, 1), new Vector2(110, -75), new Vector2(280, 60), 42, Palette.Gold, TextAnchor.MiddleLeft);
-            hudLevel = TopLabel(hudPanel.transform, "Level 1", new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(500, 60), 46, Color.white, TextAnchor.MiddleCenter);
-            hudTheme = TopLabel(hudPanel.transform, "", new Vector2(0.5f, 1), new Vector2(0, -112), new Vector2(500, 40), 26, new Color(0.8f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
-            hudTimer = TopLabel(hudPanel.transform, "0:00", new Vector2(1, 1), new Vector2(-40, -75), new Vector2(260, 60), 46, Color.white, TextAnchor.MiddleRight);
+            coinDot.sprite = knob; coinDot.raycastTarget = false;
+            Anchor(coinDot.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-160, -215), new Vector2(50, 50));
+            hudCoins = TopLabel(hudPanel.transform, "0", new Vector2(1, 1), new Vector2(-60, -215), new Vector2(170, 56), 40, Palette.Gold, TextAnchor.MiddleRight);
 
             comboText = Label(hudPanel.transform, "", new Vector2(0, 360), new Vector2(900, 100), 70, Palette.Gold);
             comboText.gameObject.SetActive(false);
@@ -75,11 +95,102 @@ namespace BusJam
             var time = Button(hudPanel.transform, $"+TIME\n{timeCost}", new Vector2(340, 130), new Vector2(280, 150),
                 new Color(0.42f, 0.72f, 0.42f), () => OnAddTime?.Invoke(), 36);
             AnchorBottom(skip); AnchorBottom(swap); AnchorBottom(time);
+        }
 
-            var pause = Button(hudPanel.transform, "II", new Vector2(-70, -75), new Vector2(96, 96),
-                new Color(0.3f, 0.35f, 0.45f), () => OnMenu?.Invoke(), 40);
-            pause.GetComponent<RectTransform>().anchorMin = pause.GetComponent<RectTransform>().anchorMax = new Vector2(1, 1);
-            pause.GetComponent<RectTransform>().anchoredPosition = new Vector2(-70, -75);
+        // ---- Settings panel (800 x 600) -------------------------------------
+        void BuildSettingsPanel(Transform parent)
+        {
+            settingsPanel = Panel(parent, "SettingsScreen", new Color(0, 0, 0, 0.6f));
+
+            var card = Image(settingsPanel.transform, new Color(0.14f, 0.16f, 0.22f, 1f));
+            Center(card.rectTransform, new Vector2(800, 600));
+
+            Label(card.transform, "SETTINGS", new Vector2(0, 220), new Vector2(700, 90), 60, Color.white);
+
+            SettingRow(card.transform, "SOUND", 90, SaveSystem.Sound, ToggleSound);
+            SettingRow(card.transform, "MUSIC", -20, SaveSystem.Music, ToggleMusic);
+            SettingRow(card.transform, "VIBRATION", -130, SaveSystem.Vibration, ToggleVibration);
+
+            Button(card.transform, "CLOSE", new Vector2(0, -250), new Vector2(300, 110),
+                new Color(0.45f, 0.50f, 0.60f), () => HideSettings(), 40);
+
+            // Slightly BELOW the settings card: HOME and REPLAY.
+            Button(settingsPanel.transform, "HOME", new Vector2(-180, -400), new Vector2(320, 120),
+                new Color(0.42f, 0.72f, 0.42f), () => { HideSettings(); OnHome?.Invoke(); }, 42);
+            Button(settingsPanel.transform, "REPLAY", new Vector2(180, -400), new Vector2(320, 120),
+                new Color(0.88f, 0.62f, 0.32f), () => { HideSettings(); OnReplay?.Invoke(); }, 42);
+
+            settingsPanel.SetActive(false);
+        }
+
+        // One labelled on/off toggle row; returns the state Text so it can update.
+        Text SettingRow(Transform parent, string name, float y, bool on, System.Action<bool> onChange)
+        {
+            Label(parent, name, new Vector2(-200, y), new Vector2(360, 70), 40, Color.white, TextAnchor.MiddleLeft);
+            Text state = null;
+            var btn = Button(parent, "", new Vector2(220, y), new Vector2(220, 90),
+                new Color(0.22f, 0.24f, 0.32f), null, 0);
+            state = Label(btn.transform, on ? "ON" : "OFF", Vector2.zero, new Vector2(220, 90), 40,
+                on ? new Color(0.5f, 0.9f, 0.55f) : new Color(0.9f, 0.5f, 0.5f));
+            btn.onClick.AddListener(() =>
+            {
+                bool now = state.text != "ON";
+                state.text = now ? "ON" : "OFF";
+                state.color = now ? new Color(0.5f, 0.9f, 0.55f) : new Color(0.9f, 0.5f, 0.5f);
+                onChange?.Invoke(now);
+            });
+            return state;
+        }
+
+        // ---- Success / achievement panel (800 x 1000) -----------------------
+        void BuildSuccessPanel(Transform parent)
+        {
+            successPanel = Panel(parent, "SuccessScreen", new Color(0, 0, 0, 0.65f));
+
+            var card = Image(successPanel.transform, new Color(0.14f, 0.18f, 0.16f, 1f));
+            Center(card.rectTransform, new Vector2(800, 1000));
+
+            // Plain by request — no decorative art yet, just the "GOOD" text.
+            Label(card.transform, "GOOD", new Vector2(0, 250), new Vector2(700, 160), 120, Palette.Gold);
+
+            Button(card.transform, "CLAIM\n+20", new Vector2(0, -120), new Vector2(560, 160),
+                new Color(0.42f, 0.72f, 0.42f), () => ClaimReward(20), 46);
+            Button(card.transform, "WATCH AD  x2\n+40", new Vector2(0, -320), new Vector2(560, 160),
+                new Color(0.88f, 0.62f, 0.32f), () => WatchAdReward(40), 40);
+
+            successPanel.SetActive(false);
+        }
+
+        void ClaimReward(int amount)
+        {
+            successPanel.SetActive(false);
+            OnClaimReward?.Invoke(amount);
+        }
+
+        void WatchAdReward(int amount)
+        {
+            // TODO: integrate a real rewarded-ad SDK here. Grant the doubled reward
+            //       only from the ad's success/reward callback. For now we grant it
+            //       directly and proceed, leaving the ad link to be added later.
+            successPanel.SetActive(false);
+            OnClaimReward?.Invoke(amount);
+        }
+
+        // ---- Settings behaviour (persist + drive real audio/vibration) ------
+        void ToggleSound(bool on)     { SaveSystem.Sound = on; }
+        void ToggleMusic(bool on)     { SaveSystem.Music = on; }
+        void ToggleVibration(bool on)
+        {
+            SaveSystem.Vibration = on;
+            if (on) Vibrate(); // immediate feedback so the player feels it engage
+        }
+
+        public static void Vibrate()
+        {
+            if (!SaveSystem.Vibration) return;
+#if UNITY_ANDROID || UNITY_IOS
+            Handheld.Vibrate();
+#endif
         }
 
         // ---- API ------------------------------------------------------------
@@ -88,8 +199,14 @@ namespace BusJam
         public void ShowHud() { Toggle(hudPanel, true); }
         public void HideHud() { Toggle(hudPanel, false); }
 
+        public void ShowSettings() { Toggle(settingsPanel, true); }
+        public void HideSettings() { Toggle(settingsPanel, false); }
+
+        public void ShowSuccess() { Toggle(successPanel, true); }
+        public void HideSuccess() { Toggle(successPanel, false); }
+
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
-        public void SetLevel(int l) { if (hudLevel) hudLevel.text = "Level " + l; }
+        public void SetLevel(int l) { if (hudLevel) hudLevel.text = l.ToString(); }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
 
         public void SetTimer(float t)
@@ -170,14 +287,18 @@ namespace BusJam
             var colors = btn.colors; colors.highlightedColor = color * 1.1f; colors.pressedColor = color * 0.85f; btn.colors = colors;
             if (onClick != null) btn.onClick.AddListener(() => onClick());
 
-            var label = Label(img.transform, text, Vector2.zero, size, fontSize, Color.white);
-            Stretch(label.rectTransform, Vector2.zero, Vector2.one);
-            label.rectTransform.sizeDelta = Vector2.zero;
+            if (fontSize > 0)
+            {
+                var label = Label(img.transform, text, Vector2.zero, size, fontSize, Color.white);
+                Stretch(label.rectTransform, Vector2.zero, Vector2.one);
+                label.rectTransform.sizeDelta = Vector2.zero;
+            }
             return btn;
         }
 
         void Stretch(RectTransform rt, Vector2 min, Vector2 max) { rt.anchorMin = min; rt.anchorMax = max; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
         void Anchor(RectTransform rt, Vector2 min, Vector2 max, Vector2 pos, Vector2 size) { rt.anchorMin = min; rt.anchorMax = max; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
+        void Center(RectTransform rt, Vector2 size) { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.sizeDelta = size; }
 
         void AnchorBottom(Button b)
         {
