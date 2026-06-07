@@ -338,14 +338,18 @@ namespace BusJam
             if (busy > 0) return;
             if (visible.Count == 0) return;
 
+            // The front passenger can board one of the parked buses -> keep playing.
             if (FindParkedBus(visible[0].color) != null) return;
-            bool freeSlot = FirstFreeSlot() != null;
-            bool busesLeft = gridBuses.Count > 0;
-            if (freeSlot && busesLeft) return;
-            if (HasLockedSlot() && SaveSystem.Coins >= SlotUnlockCost) return;
-            if (visible.Count > 0 && SaveSystem.Coins >= SkipCost) return;
-            if (visible.Count >= 2 && SaveSystem.Coins >= SwapCost) return;
-            Lose("Stuck! No moves left.");
+
+            // There is still an OPEN (unlocked & empty) parking slot, so the player can
+            // place another bus that might match the front passenger -> not stuck yet.
+            if (FirstFreeSlot() != null) return;
+
+            // Front passenger matches NO parked bus AND the parking is full -> deadlock.
+            // Only "can the front passenger board right now?" matters here: locked slots,
+            // the number of remaining grid buses, and joker coins are intentionally NOT
+            // treated as an escape. Lose immediately so the Continue panel appears.
+            Lose("No matching bus - parking full.");
         }
 
         // ====================================================================

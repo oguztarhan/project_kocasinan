@@ -34,10 +34,14 @@ public class MainMenuUI : MonoBehaviour
     Transform root;
 
     // ---- Auto-bootstrap --------------------------------------------------
-    // Build the overlay as soon as the MainMenu scene loads — before the player
-    // presses Play — without depending on any other component's lifecycle. This
-    // runs in the editor and in players, and also re-builds when the player
-    // returns to the menu from gameplay.
+    // Build the overlay as soon as the MainMenu scene is active so the menu
+    // (profile, coin, diamond, store/home/skin) shows up WITHOUT pressing Play.
+    //
+    // Two entry points are needed because each covers a different mode:
+    //   * RuntimeInitializeOnLoadMethod -> runs ONLY in Play mode / built players.
+    //   * InitializeOnLoadMethod + EditorApplication.update (below, editor-only)
+    //     -> runs in the Editor's EDIT mode, which the runtime hook never does.
+    //     Without it the overlay only appeared after pressing Play.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
@@ -51,10 +55,78 @@ public class MainMenuUI : MonoBehaviour
     static void EnsureForActiveScene()
     {
         if (SceneManager.GetActiveScene().name != "MainMenu") return;
+#if UNITY_EDITOR
+        // A leftover edit-mode preview can survive into Play mode and overlap the
+        // real overlay (causing duplicate menus and stale on-screen numbers). Remove
+        // any such preview instances before building the single runtime overlay.
+        foreach (var ui in Resources.FindObjectsOfTypeAll<MainMenuUI>())
+            if (ui != null && ui.editorPreview && ui.gameObject != null) Destroy(ui.gameObject);
+#endif
         if (FindAnyObjectByType<MainMenuUI>() != null) return; // already present
         var go = new GameObject("MainMenuUI");
         go.AddComponent<MainMenuUI>().Build();
     }
+
+#if UNITY_EDITOR
+    bool editorPreview;          // this instance is the non-persistent edit-mode preview
+    static MainMenuUI s_preview; // the single live preview (survives editor update ticks)
+
+    // EDIT-MODE preview. RuntimeInitializeOnLoadMethod does NOT fire in edit mode,
+    // which is why the buttons only appeared after pressing Play. This builds ONE
+    // non-persistent (HideFlags.DontSave) copy in the open MainMenu scene so every
+    // element shows in the Hierarchy/Game view immediately — never saved to the
+    // .unity file and discarded the moment you enter Play.
+    //
+    // IMPORTANT: objects flagged HideFlags.DontSave are INVISIBLE to
+    // FindObjectsByType / FindAnyObjectByType (they carry DontSaveInEditor). Using
+    // Find for the dedup check therefore never saw the existing preview and spawned
+    // a fresh one every frame. We track the instance with a static field instead,
+    // and clean up with Resources.FindObjectsOfTypeAll (which DOES see hidden ones).
+    [UnityEditor.InitializeOnLoadMethod]
+    static void EditorBootstrap()
+    {
+        UnityEditor.EditorApplication.update -= EditorEnsurePreview;
+        UnityEditor.EditorApplication.update += EditorEnsurePreview;
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        UnityEditor.SceneManagement.EditorSceneManager.sceneOpened -= OnEditorSceneOpened;
+        UnityEditor.SceneManagement.EditorSceneManager.sceneOpened += OnEditorSceneOpened;
+    }
+
+    static void OnEditorSceneOpened(UnityEngine.SceneManagement.Scene s,
+        UnityEditor.SceneManagement.OpenSceneMode m) => EditorClearPreview();
+
+    static void OnPlayModeChanged(UnityEditor.PlayModeStateChange s)
+    {
+        // Remove the editor preview before entering Play so the runtime build is clean.
+        if (s == UnityEditor.PlayModeStateChange.ExitingEditMode) EditorClearPreview();
+    }
+
+    static void EditorEnsurePreview()
+    {
+        if (Application.isPlaying) return;
+        if (s_preview != null) return; // already have one (Unity fake-null aware)
+        if (SceneManager.GetActiveScene().name != "MainMenu") return;
+
+        EditorClearPreview(); // sweep any strays before creating the single preview
+
+        var go = new GameObject("MainMenuUI (Preview)") { hideFlags = HideFlags.DontSave };
+        var ui = go.AddComponent<MainMenuUI>();
+        ui.editorPreview = true;
+        s_preview = ui;
+        ui.Build();
+    }
+
+    static void EditorClearPreview()
+    {
+        // FindObjectsOfTypeAll also returns hidden / DontSave objects, so this
+        // reliably removes every preview (including any duplicates already spawned).
+        foreach (var ui in Resources.FindObjectsOfTypeAll<MainMenuUI>())
+            if (ui != null && ui.editorPreview && ui.gameObject != null)
+                DestroyImmediate(ui.gameObject);
+        s_preview = null;
+    }
+#endif
 
     GameObject storeScreen, skinScreen, profilePanel;
     Text coinText, diamondText;
@@ -75,7 +147,7 @@ public class MainMenuUI : MonoBehaviour
         // Render strictly ABOVE any pre-existing scene canvas (the menu's own UI),
         // whatever order it uses — compute the current top and sit above it.
         int topOrder = 0;
-        foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             if (c != canvas) topOrder = Mathf.Max(topOrder, c.sortingOrder);
         canvas.sortingOrder = Mathf.Max(1000, topOrder + 100);
         var scaler = canvasGo.AddComponent<CanvasScaler>();
@@ -83,12 +155,20 @@ public class MainMenuUI : MonoBehaviour
         scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
-        // Keep it at scene root so it can't be hidden/deactivated by a parent object.
-        canvasGo.transform.SetParent(null, false);
+        // Parent the canvas UNDER this host so the whole overlay is destroyed
+        // atomically with the host — on scene unload OR by the scene-guard in
+        // Update() — and can never be orphaned/left lingering in another scene.
+        // (ScreenSpaceOverlay ignores the parent transform, so layout is unaffected.)
+        canvasGo.transform.SetParent(transform, false);
+#if UNITY_EDITOR
+        if (editorPreview) canvasGo.hideFlags = HideFlags.DontSave; // never saved to the scene file
+#endif
         canvasGo.SetActive(true);
         root = canvasGo.transform;
 
-        if (EventSystem.current == null)
+        // An EventSystem (with the input module) is only needed for real clicks at
+        // runtime. The edit-mode preview is static, so skip it there.
+        if (Application.isPlaying && EventSystem.current == null)
         {
             var es = new GameObject("EventSystem");
             es.transform.SetParent(transform, false);
@@ -105,6 +185,37 @@ public class MainMenuUI : MonoBehaviour
         BuildBottomNav();
 
         ShowHome(); // default view
+
+#if UNITY_EDITOR
+        if (editorPreview)
+        {
+            // Mark the whole preview subtree non-persistent so saving the scene
+            // never writes these helper objects to the .unity file.
+            gameObject.hideFlags = HideFlags.DontSave;
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                t.gameObject.hideFlags = HideFlags.DontSave;
+        }
+#endif
+    }
+
+    // Hard guarantee that the menu overlay can NEVER linger on top of gameplay:
+    // this component only belongs in the MainMenu scene, so if we ever end up in
+    // any other scene we tear the whole overlay down immediately. (Runs only in
+    // play mode; the editor preview is not [ExecuteAlways] so this stays idle there.)
+    void Update()
+    {
+        // Scene guard: this overlay belongs ONLY to the MainMenu scene. Anywhere
+        // else (e.g. gameplay) remove it so it can never linger on top of the game.
+        if (SceneManager.GetActiveScene().name != "MainMenu")
+        {
+            Destroy(gameObject); // the canvas is a child, so it is destroyed too
+            return;
+        }
+
+        // Keep the on-screen Gold/Diamond counters in sync with SaveSystem every
+        // frame, so any balance change (e.g. a shop purchase) is reflected on the
+        // Game screen immediately — regardless of which instance handled the click.
+        RefreshCurrencies();
     }
 
     // ---- Top bar: profile button + currency indicators -------------------
@@ -155,14 +266,21 @@ public class MainMenuUI : MonoBehaviour
     {
         storeScreen = FullScreen("StoreScreen", new Color(0.10f, 0.12f, 0.18f, 0.98f));
         Label(storeScreen.transform, "STORE", new Vector2(0, 720), new Vector2(900, 100), 70, Color.white);
-        Label(storeScreen.transform, "Spend coins and diamonds here.", new Vector2(0, 600), new Vector2(900, 60), 34,
+        Label(storeScreen.transform, "Tap to add currency.", new Vector2(0, 600), new Vector2(900, 60), 34,
             new Color(0.8f, 0.84f, 0.92f));
 
-        // A couple of placeholder offers (purely cosmetic for now).
-        Button(storeScreen.transform, "100 Coins  -  10 Diamonds", new Vector2(0.5f, 0.5f), new Vector2(0, 360), new Vector2(760, 150),
-            new Color(0.35f, 0.56f, 0.88f), () => { if (SaveSystem.Diamonds >= 10) { SaveSystem.AddDiamonds(-10); SaveSystem.AddCoins(100); RefreshCurrencies(); } }, 36);
-        Button(storeScreen.transform, "Free Daily Diamond  (+1)", new Vector2(0.5f, 0.5f), new Vector2(0, 160), new Vector2(760, 150),
-            new Color(0.46f, 0.85f, 0.95f), () => { SaveSystem.AddDiamonds(1); RefreshCurrencies(); }, 36);
+        // Direct grant buttons — always work (no prerequisites), so the player can
+        // top up gold and diamonds. AddCoins/AddDiamonds persist via SaveSystem.
+        Button(storeScreen.transform, "+1000 GOLD", new Vector2(0.5f, 0.5f), new Vector2(0, 400), new Vector2(760, 150),
+            Gold, () => { SaveSystem.AddCoins(1000); RefreshCurrencies(); }, 44);
+        Button(storeScreen.transform, "+100 DIAMONDS", new Vector2(0.5f, 0.5f), new Vector2(0, 220), new Vector2(760, 150),
+            Diamond, () => { SaveSystem.AddDiamonds(100); RefreshCurrencies(); }, 44);
+
+        // Smaller top-ups.
+        Button(storeScreen.transform, "+100 Gold", new Vector2(0.5f, 0.5f), new Vector2(-200, 40), new Vector2(360, 130),
+            new Color(0.35f, 0.56f, 0.88f), () => { SaveSystem.AddCoins(100); RefreshCurrencies(); }, 34);
+        Button(storeScreen.transform, "+10 Diamonds", new Vector2(0.5f, 0.5f), new Vector2(200, 40), new Vector2(360, 130),
+            new Color(0.46f, 0.85f, 0.95f), () => { SaveSystem.AddDiamonds(10); RefreshCurrencies(); }, 34);
     }
 
     void BuildSkinScreen()
