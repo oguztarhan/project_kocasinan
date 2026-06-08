@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: fb490db095fc00c49832e986fd3b3aca
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 60072b568d64c40a485e0fc55012dc9f, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 381394
+  packageName: Low Poly Road Vehicles Free Package
+  packageVersion: 1.1.0
+  assetPath: Assets/YelScryptFireStudio/LowPolyRoadVehiclesFreePackage/Shaders/SubGraphs/subGraph_ColorMasking.shadersubgraph
+  uploadId: 924078

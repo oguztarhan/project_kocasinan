@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 3bef389525a078945b3100e96ba152f2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 381394
+  packageName: Low Poly Road Vehicles Free Package
+  packageVersion: 1.1.0
+  assetPath: Assets/YelScryptFireStudio/LowPolyRoadVehiclesFreePackage/Publisher/Publisher
+    Window/Inspector Info/Scripts/LPRVFPPublisherReadme.cs
+  uploadId: 924078

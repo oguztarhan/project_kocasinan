@@ -18,6 +18,10 @@ namespace BusJam
         [Min(4)] public int busCount = 4;
         [Min(10)] public float timeLimit = 60f;
 
+        [Header("Vehicles")]
+        [Tooltip("Which vehicle types appear (capacity = seats that fill as people board).")]
+        public VehicleMix vehicleMix = VehicleMix.BusOnly;
+
         [Header("Grid")]
         [Min(3)] public int gridWidth = 5;
         [Tooltip("0 = auto-size from bus count.")]

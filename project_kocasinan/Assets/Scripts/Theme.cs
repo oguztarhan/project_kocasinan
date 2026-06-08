@@ -68,5 +68,8 @@ namespace BusJam
             int idx = ((Mathf.Max(1, level) - 1) / LevelsPerTheme) % All.Length;
             return All[idx];
         }
+
+        /// <summary>All themes (used to generate per-theme material assets).</summary>
+        public static Theme[] AllThemes() => All;
     }
 }
