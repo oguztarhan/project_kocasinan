@@ -16,6 +16,7 @@ MonoBehaviour:
   colorCount: 3
   busCount: 6
   timeLimit: 65
+  vehicleMix: 0
   gridWidth: 5
   gridHeight: 3
   baseSlots: 3

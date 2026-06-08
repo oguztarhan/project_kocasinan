@@ -35,18 +35,29 @@ namespace BusJam
         const int SkipCost = 60, SwapCost = 40, TimeCost = 50, SlotUnlockCost = 80, AddTimeAmount = 15;
         const float ContinueTimeBonus = 20f;
 
-        const float CellSize = 1.3f, GridBaseZ = 7.0f, ParkingZ = 4.6f;
-        const float SlotSpacing = 1.3f, QueueFrontZ = 3.2f, FenceZ = 3.9f, QueueSpacing = 0.85f;
+        // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
+        // big bus grid (low Z) -> parking row -> thin people band (high Z).
+        const float CellSize = 1.2f;          // multi-cell vehicles (Car1/Bus2/Limo3) -> smaller cells keep the board on-screen
+        const float GridExitZ = 4.0f;         // grid row y=0 (exit edge, nearest parking); deeper rows go DOWN (toward camera)
+        const float ParkingZ = 6.2f;          // parking row, just above the grid
+        const float SlotSpacing = 1.7f;
+        const float PeopleZ = 9.0f;           // thin people band across the top
+        const float PeopleStartX = -3.8f, PeopleSpacing = 0.85f;
+        const float FenceZ = 7.9f;            // divider between people (top) and bus area
         const int VISIBLE = 10;
 
         GameState state = GameState.Boot;
         Camera cam;
         GameUI ui;
         Sfx sfx;
+        LevelSelect levelSelect;
+        PeopleCatalog peopleCatalog;
+        VehicleCatalog vehicleCatalog;
+        Font seatFont;
         Transform boardRoot;
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
-        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
+        Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat, boardMat, lineMat;
         Material[] confettiMats;
 
         LevelData level;
@@ -72,6 +83,9 @@ namespace BusJam
             Screen.orientation = ScreenOrientation.Portrait;
             cam = Camera.main;
             BuildMaterials();
+            peopleCatalog = Resources.Load<PeopleCatalog>("PeopleCatalog"); // null -> code-built people
+            vehicleCatalog = Resources.Load<VehicleCatalog>("VehicleCatalog"); // null -> code-built vehicles
+            seatFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // roof seat-count number
             PlaceCamera();
 
             sfx = gameObject.AddComponent<Sfx>();
@@ -85,6 +99,9 @@ namespace BusJam
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
             ui.Build(SkipCost, SwapCost, TimeCost);
 
+            levelSelect = gameObject.AddComponent<LevelSelect>();
+            levelSelect.Build(this);
+
             if (autoStart) LoadLevel(SaveSystem.Level);
             else { state = GameState.Menu; ui.HideHud(); }
         }
@@ -94,6 +111,7 @@ namespace BusJam
         public void NextLevel() { LoadLevel(SaveSystem.Level); }
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
+        public void OpenLevelSelect() { if (levelSelect != null) levelSelect.Open(); }
 
         // Settings panel: HOME button -> back to the main menu scene.
         public void GoToMainMenu() { sfx.Click(); SceneManager.LoadScene("MainMenu"); }
@@ -177,10 +195,10 @@ namespace BusJam
                 p += bus.dir;
             }
 
-            var slot = NearestFreeSlot(GridWorld(bus.cell).x);
+            var slot = NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x);
             if (slot == null) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; }
 
-            occ.Remove(bus.cell);
+            for (int i = 0; i < bus.length; i++) occ.Remove(bus.cell - bus.dir * i);
             gridBuses.Remove(bus);
             slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
             sfx.Deploy();
@@ -190,10 +208,11 @@ namespace BusJam
         IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
-            int dist = ExitDistance(bus.cell, bus.dir);
-            Vector3 exitPt = GridWorld(bus.cell) + new Vector3(bus.dir.x, 0, bus.dir.y) * (dist * CellSize);
-            yield return MoveTo(bus.transform, exitPt, 0.16f);
-            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.identity, 0.32f, 0.9f);
+            int dist = ExitDistance(bus.cell, bus.dir) + bus.length; // +length so the tail fully clears
+            // grid +y maps to world -z, so negate z when converting the grid dir to a world slide.
+            Vector3 exitPt = bus.transform.position + new Vector3(bus.dir.x, 0, -bus.dir.y) * (dist * CellSize);
+            yield return MoveTo(bus.transform, exitPt, 0.18f);
+            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.32f, 0.9f);
             bus.state = BusState.Parked;
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
             busy--;
@@ -314,7 +333,7 @@ namespace BusJam
             {
                 e += Time.deltaTime;
                 float k = e / dur;
-                bus.transform.position = start + new Vector3(0, 1.6f, -1.5f) * k;
+                bus.transform.position = start + new Vector3(0, 1.6f, 1.5f) * k; // drive away (toward the top) + lift
                 bus.transform.localScale = startScale * Mathf.Lerp(1f, 0.1f, k);
                 yield return null;
             }
@@ -478,7 +497,7 @@ namespace BusJam
             SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
             SaveSystem.BestLevel = currentLevel;
             sfx.Win();
-            Juice.Confetti(this, boardRoot, new Vector3(0, 6, QueueFrontZ), confettiMats, 50);
+            Juice.Confetti(this, boardRoot, new Vector3(0, 6, PeopleZ), confettiMats, 50);
             ui.HideHud();
             LevelCompleted?.Invoke(earnedThisLevel, stars);
             ui.ShowSuccess(); // 800x1000 "GOOD" panel with CLAIM / WATCH AD x2
@@ -536,10 +555,11 @@ namespace BusJam
             occ.Clear(); gridBuses.Clear();
             foreach (var gb in level.gridBuses)
             {
-                var bus = CreateBus(gb.color, gb.capacity, DirYaw(gb.dir));
-                bus.cell = gb.cell; bus.dir = gb.dir; bus.state = BusState.Queued;
-                bus.transform.position = GridWorld(gb.cell);
-                occ[gb.cell] = bus;
+                var bus = CreateBus(gb.color, gb.type, gb.capacity, DirYaw(gb.dir));
+                bus.cell = gb.cell; bus.dir = gb.dir; bus.length = Vehicles.CellLength(gb.type);
+                bus.state = BusState.Queued;
+                bus.transform.position = GridWorldCenter(gb.cell, gb.dir, bus.length);
+                for (int i = 0; i < bus.length; i++) occ[gb.cell - gb.dir * i] = bus;
                 gridBuses.Add(bus);
             }
         }
@@ -547,13 +567,9 @@ namespace BusJam
         // Visible board + faint cell-grid lines so the jam layout reads clearly.
         void BuildBoardBackground()
         {
-            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material boardMat = Mat(sh, new Color(0.20f, 0.22f, 0.28f), 0.08f);
-            Material lineMat = Mat(sh, new Color(0.36f, 0.40f, 0.50f), 0.1f, 0.12f);
-
             float w = gridW * CellSize;
             float d = gridH * CellSize;
-            float cz = GridBaseZ + (gridH - 1) * CellSize * 0.5f;
+            float cz = GridExitZ - (gridH - 1) * CellSize * 0.5f;
 
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.07f, cz), new Vector3(w + 0.3f, 0.12f, d + 0.3f), boardMat);
 
@@ -565,7 +581,7 @@ namespace BusJam
             for (int y = 0; y <= gridH; y++)
             {
                 var ln = MakeCube(boardRoot, lineMat, new Vector3(w, 0.03f, 0.04f));
-                ln.transform.position = new Vector3(0, 0f, GridBaseZ - CellSize * 0.5f + y * CellSize);
+                ln.transform.position = new Vector3(0, 0f, GridExitZ + CellSize * 0.5f - y * CellSize);
             }
         }
 
@@ -590,22 +606,242 @@ namespace BusJam
             go.transform.SetParent(boardRoot, false);
             var u = go.AddComponent<LineUnit>();
             u.color = g.color; u.golden = g.golden; u.mystery = g.mystery;
-            u.body = LowPolyBuilder.BuildPerson(go.transform, bodyMats[g.color], skinMat,
-                g.golden, g.mystery, mysteryMat, goldMat, out GameObject cover);
-            u.mysteryCover = cover;
+            BuildPersonVisual(u, go.transform, g.color, g.golden, g.mystery);
             return u;
         }
 
-        Bus CreateBus(PieceColor color, int capacity, float yaw)
+        // Random party-character model with its BODY tinted to the boarding color (face/hat kept),
+        // so the whole body reads as the color. Falls back to the code person if no catalog/model.
+        void BuildPersonVisual(LineUnit u, Transform root, PieceColor color, bool golden, bool mystery)
         {
-            var root = new GameObject("Bus_" + color);
+            GameObject prefab = peopleCatalog != null ? peopleCatalog.RandomPrefab() : null;
+            if (prefab == null)
+            {
+                u.body = LowPolyBuilder.BuildPerson(root, bodyMats[color], skinMat, golden, mystery, mysteryMat, goldMat, out GameObject cover);
+                u.bodyMaterialIndex = -1;
+                u.mysteryCover = cover;
+                return;
+            }
+
+            var model = Instantiate(prefab, root, false);
+            model.name = "Model";
+            float s = peopleCatalog.modelScale;
+            model.transform.localScale = new Vector3(s, s, s);
+            model.transform.localPosition = new Vector3(0, peopleCatalog.yOffset, 0);
+            model.transform.localRotation = Quaternion.Euler(0, peopleCatalog.yaw, 0);
+            var anim = model.GetComponent<Animator>();
+            if (anim != null) anim.applyRootMotion = false; // never let a clip walk the model away
+
+            // Tint the body (every non-face material slot) to the color; grey first if mystery.
+            Material colorMat = mystery ? mysteryMat : bodyMats[color];
+            var smr = model.GetComponentInChildren<SkinnedMeshRenderer>();
+            if (smr != null)
+            {
+                var mats = smr.sharedMaterials;
+                int bodyIndex = -1;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] != null && mats[i].name.ToLowerInvariant().Contains("face")) continue;
+                    mats[i] = colorMat;
+                    if (bodyIndex < 0) bodyIndex = i;
+                }
+                smr.sharedMaterials = mats;
+                u.body = smr;
+                u.bodyMaterialIndex = bodyIndex;
+            }
+
+            float mh = peopleCatalog.markerHeight;
+            if (mystery)
+            {
+                var q = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(q.GetComponent<Collider>());
+                q.name = "Mystery";
+                q.transform.SetParent(root, false);
+                q.transform.localPosition = new Vector3(0, mh, 0);
+                q.transform.localScale = Vector3.one * 0.18f;
+                q.transform.localRotation = Quaternion.Euler(0, 45, 0);
+                q.GetComponent<Renderer>().sharedMaterial = mysteryMat;
+                u.mysteryCover = q;
+            }
+            if (golden)
+            {
+                var crown = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(crown.GetComponent<Collider>());
+                crown.name = "Crown";
+                crown.transform.SetParent(root, false);
+                crown.transform.localPosition = new Vector3(0, mh, 0);
+                crown.transform.localScale = new Vector3(0.3f, 0.1f, 0.3f);
+                crown.transform.localRotation = Quaternion.Euler(0, 45, 0);
+                crown.GetComponent<Renderer>().sharedMaterial = goldMat;
+            }
+        }
+
+        Bus CreateBus(PieceColor color, VehicleType type, int capacity, float yaw)
+        {
+            var root = new GameObject(type + "_" + color);
             root.transform.SetParent(boardRoot, false);
             root.transform.rotation = Quaternion.Euler(0, yaw, 0);
             var bus = root.AddComponent<Bus>();
-            bus.color = color; bus.capacity = capacity; bus.filledMat = bodyMats[color];
-            bus.seatWindows = LowPolyBuilder.BuildBus(root.transform, capacity, CellSize,
-                bodyMats[color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
+            bus.color = color; bus.type = type; bus.capacity = capacity;
+
+            GameObject prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(type) : null;
+            if (prefab != null)
+            {
+                BuildImportedVehicle(bus, root.transform, prefab, color, capacity, type);
+            }
+            else
+            {
+                bus.filledMat = bodyMats[color];
+                bus.seatWindows = LowPolyBuilder.BuildVehicle(root.transform, type, capacity, CellSize,
+                    bodyMats[color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
+            }
             return bus;
+        }
+
+        // Instantiate an imported vehicle KEEPING its real look (URP shadergraph atlas), auto-face
+        // it forward, size it per type, and lay the boarding color on the ROOF (a big colored slab)
+        // with a white arrow + seat pips on top — so the model still reads as a real vehicle while
+        // the match color + direction + fill stay clear from the top-down camera.
+        void BuildImportedVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type)
+        {
+            var model = Instantiate(prefab, root, false);
+            model.name = "Model";
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw, 0);
+            model.transform.localScale = Vector3.one;
+
+            // Strip physics from the pack prefab — its root Rigidbody+gravity would make the
+            // model fall through the floor at Play (leaving only our roof decals visible).
+            foreach (var rb in model.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
+            foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);
+            // NOTE: materials are intentionally left as-is (keep the real vehicle look).
+
+            // Auto-face forward: rotate the model so its LONGEST horizontal axis runs along the
+            // root's local Z (the exit direction), regardless of the pack's native orientation.
+            var rends = model.GetComponentsInChildren<Renderer>();
+            if (rends.Length > 0)
+            {
+                Bounds wb = rends[0].bounds;
+                for (int i = 1; i < rends.Length; i++) wb.Encapsulate(rends[i].bounds);
+                Vector3 f = root.forward;
+                bool rootZalongWorldZ = Mathf.Abs(f.z) >= Mathf.Abs(f.x);
+                float alongRootZ = rootZalongWorldZ ? wb.size.z : wb.size.x;
+                float alongRootX = rootZalongWorldZ ? wb.size.x : wb.size.z;
+                if (alongRootX > alongRootZ)
+                    model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw + 90f, 0);
+            }
+
+            // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2 / Limo 3).
+            float target = Vehicles.CellLength(type) * CellSize * vehicleCatalog.fitFactor;
+
+            rends = model.GetComponentsInChildren<Renderer>();
+            float span = target, wid = target * 0.5f, roofY = CellSize * 0.5f;
+            if (rends.Length > 0)
+            {
+                Bounds b = rends[0].bounds;
+                for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+                float len = Mathf.Max(b.size.x, b.size.z, 0.01f);
+                float widRaw = Mathf.Max(Mathf.Min(b.size.x, b.size.z), 0.01f);
+                // Fit length to the L-cell span; cap width so a wide vehicle can't grossly overflow lanes.
+                float scl = Mathf.Min(target / len, (CellSize * 1.1f) / widRaw);
+                model.transform.localScale = Vector3.one * scl;
+                model.transform.localPosition = new Vector3(0, -(b.min.y - root.position.y) * scl + vehicleCatalog.yOffset, 0);
+                roofY = b.size.y * scl + vehicleCatalog.yOffset;
+                span = len * scl;
+                wid = Mathf.Min(b.size.x, b.size.z) * scl;
+            }
+
+            // True top of the model (recompute AFTER scaling/positioning) so the roof markers
+            // always sit ABOVE the body and never sink into it.
+            float topY = roofY;
+            {
+                var rr = model.GetComponentsInChildren<Renderer>();
+                if (rr.Length > 0)
+                {
+                    Bounds tb = rr[0].bounds;
+                    for (int i = 1; i < rr.Length; i++) tb.Encapsulate(rr[i].bounds);
+                    topY = tb.max.y - root.position.y; // root unscaled & only Y-rotated, so world maxY == local top
+                }
+            }
+
+            // Tappable box (the prefab's colliders were stripped).
+            var box = root.gameObject.AddComponent<BoxCollider>();
+            box.center = new Vector3(0, topY * 0.5f, 0);
+            box.size = new Vector3(Mathf.Max(wid, CellSize * 0.4f), Mathf.Max(topY, 0.5f), span);
+
+            // Layout: a clean chevron in the FRONT zone, then a reasonably-sized colored plate
+            // + number in the area behind it. Everything floats clearly above the body.
+            float markY = topY + 0.06f;
+            float frontZ = -span * 0.5f;
+            float arrowZoneEnd = frontZ + Mathf.Min(span * 0.34f, wid * 1.1f);
+
+            // White chevron arrow (two angled bars meeting at a forward tip), local -Z = exit dir.
+            float tipZ = frontZ + Mathf.Min(span * 0.05f, 0.08f);
+            float baseZ = arrowZoneEnd;
+            float ax = wid * 0.34f;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float dx = s * ax, dz = baseZ - tipZ;
+                float barLen = Mathf.Sqrt(dx * dx + dz * dz);
+                float ang = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
+                var bar = MakeCube(root, arrowMat, new Vector3(wid * 0.12f, 0.05f, barLen));
+                bar.transform.localPosition = new Vector3(dx * 0.5f, markY, (tipZ + baseZ) * 0.5f);
+                bar.transform.localRotation = Quaternion.Euler(0, ang, 0);
+            }
+
+            // Floating COLOR + NUMBER tag, camera-facing, ABOVE the vehicle: a colored panel
+            // (match color) with the empty-seat number on it. Always readable, never mirrored,
+            // and clearly above the body (can't sink into the mesh).
+            Color tagColor = bodyMats[color].HasProperty("_BaseColor")
+                ? bodyMats[color].GetColor("_BaseColor") : bodyMats[color].color;
+            float tagSize = Mathf.Clamp(wid * 0.95f, 0.42f, 0.95f);
+            float tagY = topY + tagSize * 0.55f + 0.08f;
+            bus.seatLabel = BuildSeatTag(root, tagColor, capacity, new Vector3(0, tagY, 0), tagSize);
+            bus.RefreshSeatLabel();
+        }
+
+        // Camera-facing world-space tag floating above a vehicle: colored panel + empty-seat number.
+        UnityEngine.UI.Text BuildSeatTag(Transform root, Color tagColor, int capacity, Vector3 localPos, float worldSize)
+        {
+            var go = new GameObject("SeatTag", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(root, false);
+            var canvas = go.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(100, 100);
+            go.transform.localPosition = localPos;
+            // Negative X cancels the horizontal flip the camera-facing rotation introduces, so the number reads correctly.
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (Mathf.Max(worldSize, 0.2f) / 100f);
+            go.AddComponent<BillboardUp>(); // faces the camera
+
+            // Colored panel = the match color.
+            var bgGo = new GameObject("BG", typeof(RectTransform));
+            bgGo.transform.SetParent(go.transform, false);
+            var bg = bgGo.AddComponent<UnityEngine.UI.Image>();
+            bg.color = tagColor;
+            Stretch(bg.rectTransform);
+
+            // Empty-seat number, colored to contrast the panel.
+            float lum = tagColor.r * 0.299f + tagColor.g * 0.587f + tagColor.b * 0.114f;
+            bool dark = lum < 0.55f;
+            var txtGo = new GameObject("Text", typeof(RectTransform));
+            txtGo.transform.SetParent(go.transform, false);
+            var txt = txtGo.AddComponent<UnityEngine.UI.Text>();
+            txt.font = seatFont;
+            txt.text = capacity.ToString();
+            txt.fontSize = 64;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = dark ? Color.white : Color.black;
+            Stretch(txt.rectTransform);
+            var outline = txtGo.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = dark ? Color.black : Color.white;
+            outline.effectDistance = new Vector2(2, 2);
+            return txt;
+        }
+
+        static void Stretch(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
         }
 
         // ====================================================================
@@ -613,16 +849,22 @@ namespace BusJam
         // ====================================================================
         float SlotX(int i) => (i - (totalSlots - 1) / 2f) * SlotSpacing;
         Vector3 ParkingWorld(int i) => new Vector3(SlotX(i), 0, ParkingZ);
-        Vector3 GridWorld(Vector2Int c) => new Vector3((c.x - (gridW - 1) / 2f) * CellSize, 0, GridBaseZ + c.y * CellSize);
-        Vector3 LinePos(int index) => new Vector3(0, 0, QueueFrontZ - index * QueueSpacing);
+        // Grid y=0 sits at GridExitZ (top of grid, nearest parking); deeper rows extend toward the camera.
+        Vector3 GridWorld(Vector2Int c) => new Vector3((c.x - (gridW - 1) / 2f) * CellSize, 0, GridExitZ - c.y * CellSize);
+        // Center of an L-cell vehicle whose leading cell is `anchor`, body extending back along -dir.
+        Vector3 GridWorldCenter(Vector2Int anchor, Vector2Int dir, int length) =>
+            GridWorld(anchor) - new Vector3(dir.x, 0, -dir.y) * ((length - 1) * 0.5f * CellSize);
+        // People: a single horizontal row across the top (index 0 = front, at the left).
+        Vector3 LinePos(int index) => new Vector3(PeopleStartX + index * PeopleSpacing, 0, PeopleZ);
 
         Vector3 BusDoorWorld(Bus bus)
         {
-            float len = LowPolyBuilder.BusLength(CellSize);
-            return bus.transform.position + new Vector3(0, 0.25f, -len * 0.4f);
+            float len = LowPolyBuilder.VehicleLength(bus.type, CellSize);
+            return bus.transform.position + new Vector3(0, 0.25f, len * 0.4f); // +Z = toward the people band
         }
 
-        float DirYaw(Vector2Int d) { if (d.x == -1) return 90f; if (d.x == 1) return -90f; return 0f; }
+        // Arrow yaw so a bus visually points the way it will exit (toward parking / sides).
+        float DirYaw(Vector2Int d) { if (d.x == -1) return 90f; if (d.x == 1) return -90f; return 180f; }
 
         ParkingSlot FirstFreeSlot() { foreach (var s in slots) if (s.IsFree) return s; return null; }
         ParkingSlot NearestFreeSlot(float x)
@@ -698,40 +940,28 @@ namespace BusJam
         // ====================================================================
         void BuildMaterials()
         {
-            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            // Editable .mat assets from Resources/Materials if present, else runtime fallbacks.
+            var lib = MaterialLibrary.BuildAll();
             var list = new List<Material>();
             foreach (PieceColor c in System.Enum.GetValues(typeof(PieceColor)))
             {
-                bodyMats[c] = Mat(sh, Palette.ToColor(c), 0.2f, 0.18f);
+                bodyMats[c] = lib[MaterialLibrary.BusKey(c)];
                 list.Add(bodyMats[c]);
             }
             confettiMats = list.ToArray();
 
-            glassMat     = Mat(sh, new Color(0.18f, 0.26f, 0.40f), 0.85f);
-            wheelMat     = Mat(sh, new Color(0.12f, 0.12f, 0.14f), 0.2f);
-            lightMat     = Mat(sh, new Color(1f, 0.96f, 0.72f), 0.6f, 0.5f);
-            skinMat      = Mat(sh, Palette.Skin, 0.1f);
-            seatEmptyMat = Mat(sh, Palette.SeatEmpty, 0.2f);
-            mysteryMat   = Mat(sh, Palette.Mystery, 0.2f);
-            goldMat      = Mat(sh, Palette.Gold, 0.7f, 0.4f);
-            arrowMat     = Mat(sh, new Color(0.99f, 0.99f, 0.99f), 0.3f, 0.25f);
-            lockMat      = Mat(sh, new Color(0.42f, 0.9f, 0.48f), 0.2f, 0.25f);
-        }
-
-        static Material Mat(Shader sh, Color col, float smooth, float emission = 0f)
-        {
-            var m = new Material(sh);
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
-            if (m.HasProperty("_Color")) m.SetColor("_Color", col);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
-            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
-            if (emission > 0f && m.HasProperty("_EmissionColor"))
-            {
-                m.EnableKeyword("_EMISSION");
-                m.SetColor("_EmissionColor", col * emission);
-            }
-            return m;
+            glassMat     = lib["Glass"];
+            wheelMat     = lib["Wheel"];
+            lightMat     = lib["Headlight"];
+            skinMat      = lib["Skin"];
+            seatEmptyMat = lib["SeatEmpty"];
+            mysteryMat   = lib["Mystery"];
+            goldMat      = lib["Gold"];
+            arrowMat     = lib["Arrow"];
+            lockMat      = lib["Lock"];
+            slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
+            boardMat     = lib["Board"];
+            lineMat      = lib["GridLine"];
         }
 
         GameObject MakeCube(Transform parent, Material mat, Vector3 scale)
@@ -746,29 +976,28 @@ namespace BusJam
 
         void ApplyTheme(Theme th)
         {
-            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-
             if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = th.ambient * 1.1f;
             var sun = Object.FindAnyObjectByType<Light>();
             if (sun != null && sun.type == LightType.Directional) sun.intensity = 1.75f;
 
-            Material ground = Mat(sh, th.ground, 0.05f);
-            Material field  = Mat(sh, th.field, 0.05f);
-            Material road   = Mat(sh, th.road, 0.05f);
-            Material accent = Mat(sh, th.accent, 0.2f);
-            Material main   = Mat(sh, th.propMain, 0.1f);
-            Material alt    = Mat(sh, th.propAlt, 0.1f);
-            Material foliage= Mat(sh, th.foliage, 0.05f);
-            Material trunk  = Mat(sh, th.trunk, 0.1f);
-            Material window = Mat(sh, new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f), 0.6f, 0.2f);
-            Material cloud  = Mat(sh, new Color(1f, 1f, 1f), 0f, 0.15f);
-            slotMat = accent;
+            // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
+            Material ground = MaterialLibrary.GetTheme(th.name, "Ground", th.ground, 0.05f);
+            Material field  = MaterialLibrary.GetTheme(th.name, "Field", th.field, 0.05f);
+            Material road   = MaterialLibrary.GetTheme(th.name, "Road", th.road, 0.05f);
+            Material accent = MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.2f);
+            Material main   = MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.1f);
+            Material alt    = MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.1f);
+            Material foliage= MaterialLibrary.GetTheme(th.name, "Foliage", th.foliage, 0.05f);
+            Material trunk  = MaterialLibrary.GetTheme(th.name, "Trunk", th.trunk, 0.1f);
+            Material window = MaterialLibrary.GetTheme(th.name, "Window", new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f), 0.6f, 0.2f);
+            Material cloud  = MaterialLibrary.GetTheme(th.name, "Cloud", new Color(1f, 1f, 1f), 0f, 0.15f);
+            // slotMat is now a stable, editable asset set in BuildMaterials (no theme override).
 
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 6f), new Vector3(46, 0.3f, 70), field);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 6f), new Vector3(11f, 0.2f, 26), ground);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.14f, -2.4f), new Vector3(11f, 0.2f, 6), road);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.14f, -6f), new Vector3(12f, 0.2f, 8), road);
 
             for (int i = -4; i <= 4; i++)
             {
@@ -784,7 +1013,7 @@ namespace BusJam
                 LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
                 LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
             }
-            float backZ = GridBaseZ + level.gridH * CellSize + 4f;
+            float backZ = PeopleZ + 4f;
             for (int i = 0; i < 5; i++)
                 LowPolyBuilder.BuildProp(boardRoot, th.prop, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
 
@@ -815,11 +1044,12 @@ namespace BusJam
         void PlaceCamera()
         {
             if (cam == null) return;
-            Vector3 pos = new Vector3(0f, 18f, -11f);
-            Vector3 target = new Vector3(0f, 0f, 5.5f);
+            // Fairly steep top-down so the grid reads as a flat tappable board. Tune in-editor.
+            Vector3 pos = new Vector3(0f, 21f, -7f);
+            Vector3 target = new Vector3(0f, 0f, 2.5f);
             cam.transform.position = pos;
             cam.transform.rotation = Quaternion.LookRotation(target - pos, Vector3.up);
-            cam.fieldOfView = 56f;
+            cam.fieldOfView = 58f;
         }
     }
 }

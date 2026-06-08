@@ -3,13 +3,16 @@ using UnityEngine;
 
 namespace BusJam
 {
-    public struct BusDef { public PieceColor color; public int capacity; }
+    public struct BusDef { public PieceColor color; public VehicleType type; public int capacity; }
 
-    /// <summary>A bus placed in the jam grid: cell + the direction its arrow points
-    /// (the edge it slides off toward parking). Down = (0,-1), Left = (-1,0), Right = (1,0).</summary>
+    /// <summary>A vehicle placed in the jam grid. `cell` = the LEADING cell (nearest the
+    /// edge it slides off toward parking); the body extends backward as cell - i*dir for
+    /// i in 0..CellLength(type)-1. `dir` = arrow/exit direction: Down (0,-1), Left (-1,0),
+    /// Right (1,0).</summary>
     public struct GridBus
     {
         public PieceColor color;
+        public VehicleType type;
         public int capacity;
         public Vector2Int cell;
         public Vector2Int dir;
@@ -49,11 +52,20 @@ namespace BusJam
             int colorCount = Mathf.Clamp(3 + (level - 1) / 4, 3, Palette.Count); // +1 color every 4 levels
             int busCount   = Mathf.Clamp(4 + level, 6, 16);
             float rate     = Mathf.Clamp(2.2f - level * 0.04f, 1.4f, 2.2f);       // seconds per person
-            float timeLimit = Mathf.Max(18f, busCount * 3 * rate);
             float goldenP  = Mathf.Min(0.10f, level * 0.01f);
             float mysteryP = Mathf.Min(0.30f, level * 0.025f);
 
-            return Build(rng, level, colorCount, busCount, 5, 0, BaseSlots, ExtraSlots, timeLimit, goldenP, mysteryP);
+            // timeLimit = 0 -> Build computes it from the actual total seats.
+            return Build(rng, level, colorCount, busCount, 5, 0, BaseSlots, ExtraSlots,
+                         0f, goldenP, mysteryP, MixForLevel(level), rate);
+        }
+
+        // Vehicle variety ramps in: bus → cars+buses → limos.
+        static VehicleMix MixForLevel(int level)
+        {
+            if (level <= 5) return VehicleMix.BusOnly;
+            if (level <= 9) return VehicleMix.CarsAndBuses;
+            return VehicleMix.WithLimo;
         }
 
         /// <summary>Authored levels. Parameters are tunable in the Inspector but still
@@ -71,19 +83,29 @@ namespace BusJam
 
             return Build(rng, def.levelNumber, colorCount, busCount, Mathf.Max(3, def.gridWidth), def.gridHeight,
                          baseSlots, extraSlots, timeLimit,
-                         Mathf.Clamp01(def.goldenChance), Mathf.Clamp01(def.mysteryChance));
+                         Mathf.Clamp01(def.goldenChance), Mathf.Clamp01(def.mysteryChance), def.vehicleMix, 2.0f);
         }
 
         // Shared solvable-by-construction core for both procedural and authored levels.
+        // timeLimit > 0 is used as-is (authored); otherwise it's derived from total seats.
         static LevelData Build(System.Random rng, int levelNumber, int colorCount, int busCount,
             int gridWidth, int gridHeightHint, int baseSlots, int extraSlots, float timeLimit,
-            float goldenP, float mysteryP)
+            float goldenP, float mysteryP, VehicleMix mix, float secondsPerPerson)
         {
-            const int capacity = 3;
             var buses = new List<BusDef>(busCount);
+            int totalSeats = 0;
             for (int i = 0; i < busCount; i++)
-                buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), capacity = capacity });
+            {
+                var type = PickType(mix, rng);
+                int cap = CapacityFor(type, mix, rng);
+                totalSeats += cap;
+                buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), type = type, capacity = cap });
+            }
 
+            float finalTime = timeLimit > 0f ? timeLimit : Mathf.Max(18f, totalSeats * secondsPerPerson);
+
+            // BuildQueue emits exactly `capacity` people per vehicle, so total people ==
+            // total seats per color -> every vehicle fills exactly -> always winnable.
             var groups    = BuildQueue(buses, rng, baseSlots, goldenP, mysteryP);
             var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, out int gridW, out int gridH);
 
@@ -95,9 +117,31 @@ namespace BusJam
                 gridW = gridW, gridH = gridH,
                 baseSlots = baseSlots,
                 extraSlots = extraSlots,
-                timeLimit = timeLimit,
+                timeLimit = finalTime,
                 colorCount = colorCount
             };
+        }
+
+        static VehicleType PickType(VehicleMix mix, System.Random rng)
+        {
+            switch (mix)
+            {
+                case VehicleMix.CarsOnly: return VehicleType.Car;
+                case VehicleMix.CarsAndBuses: return rng.Next(2) == 0 ? VehicleType.Car : VehicleType.Bus;
+                case VehicleMix.WithLimo:
+                    int r = rng.Next(10);
+                    if (r < 2) return VehicleType.Limo;   // ~20% limo
+                    if (r < 5) return VehicleType.Car;     // ~30% car
+                    return VehicleType.Bus;                // ~50% bus
+                default: return VehicleType.Bus;           // BusOnly / BusesVaried
+            }
+        }
+
+        static int CapacityFor(VehicleType type, VehicleMix mix, System.Random rng)
+        {
+            if (type == VehicleType.Bus && mix == VehicleMix.BusesVaried)
+                return 2 + rng.Next(3); // 2,3,4 — varied bus sizes
+            return Vehicles.DefaultCapacity(type);
         }
 
         // ---- Queue (window emission -> one single person per slot) -----------
@@ -139,11 +183,21 @@ namespace BusJam
         }
 
         // ---- Grid (reverse generation: always solvable) ----------------------
+        // Multi-cell: each vehicle occupies CellLength(type) cells in a line along its exit
+        // direction. Placing in reverse so that, for every k, the body cells are free AND the
+        // exit lane ahead is clear, guarantees forward extraction (0..n-1) is always solvable:
+        // when vehicle k leaves, all later-placed vehicles are still clear of its lane.
         static List<GridBus> BuildGrid(List<BusDef> buses, System.Random rng, int gridWidth, int gridHeightHint, out int W, out int H)
         {
             int n = buses.Count;
-            W = Mathf.Max(3, gridWidth);
-            H = gridHeightHint > 0 ? Mathf.Max(2, gridHeightHint) : Mathf.Clamp(Mathf.CeilToInt(n * 1.7f / W), 2, 6);
+            int totalCells = 0;
+            for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
+
+            // Size for ~1.7x total cells (room for exit lanes) while keeping the board within the
+            // camera envelope: widen first (W up to 7), then deepen (H up to 8).
+            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * 1.7f / 8f)), 4, 7);
+            H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 8)
+                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * 1.7f / W), 3, 8);
 
             var dirs = new[] { new Vector2Int(0, -1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
             var occupied = new HashSet<Vector2Int>();
@@ -151,35 +205,58 @@ namespace BusJam
 
             for (int k = n - 1; k >= 0; k--)
             {
+                int L = Vehicles.CellLength(buses[k].type);
                 bool placed = false;
                 int guard = 0;
                 while (!placed)
                 {
                     var cells = AllCells(W, H);
                     Shuffle(cells, rng);
-                    foreach (var cell in cells)
+                    foreach (var anchor in cells)
                     {
-                        if (occupied.Contains(cell)) continue;
                         var ds = new List<Vector2Int>(dirs);
                         Shuffle(ds, rng);
                         foreach (var d in ds)
                         {
-                            if (PathClear(cell, d, occupied, W, H))
+                            if (BodyFree(anchor, d, L, occupied, W, H) && PathClear(anchor, d, occupied, W, H))
                             {
-                                result[k] = new GridBus { color = buses[k].color, capacity = buses[k].capacity, cell = cell, dir = d };
-                                occupied.Add(cell);
+                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d };
+                                for (int i = 0; i < L; i++) occupied.Add(anchor - d * i);
                                 placed = true;
                                 break;
                             }
                         }
                         if (placed) break;
                     }
-                    if (!placed) { H++; if (guard++ > 8) { /* extreme fallback */ result[k] = new GridBus { color = buses[k].color, capacity = buses[k].capacity, cell = new Vector2Int(0, H), dir = new Vector2Int(-1, 0) }; occupied.Add(new Vector2Int(0, H)); H++; placed = true; } }
+                    if (!placed)
+                    {
+                        H++;
+                        if (guard++ > 8)
+                        {
+                            // extreme fallback: drop the whole vehicle into a fresh row, exiting left.
+                            var d = new Vector2Int(-1, 0);
+                            var anchor = new Vector2Int(0, H);
+                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d };
+                            for (int i = 0; i < L; i++) occupied.Add(anchor - d * i); // (0,H),(1,H),(2,H)
+                            H += 2; placed = true;
+                        }
+                    }
                 }
             }
 
-            var list = new List<GridBus>(result);
-            return list;
+            return new List<GridBus>(result);
+        }
+
+        // All L body cells (anchor, anchor-dir, ... anchor-(L-1)*dir) are in-grid and unoccupied.
+        static bool BodyFree(Vector2Int anchor, Vector2Int dir, int L, HashSet<Vector2Int> occ, int W, int H)
+        {
+            for (int i = 0; i < L; i++)
+            {
+                var c = anchor - dir * i;
+                if (c.x < 0 || c.x >= W || c.y < 0 || c.y >= H) return false;
+                if (occ.Contains(c)) return false;
+            }
+            return true;
         }
 
         static List<Vector2Int> AllCells(int W, int H)

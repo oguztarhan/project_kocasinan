@@ -23,18 +23,20 @@ namespace BusJam
             return go;
         }
 
-        /// <summary>Single source of truth: a bus body's length as a fraction of a
-        /// grid cell, so a bus always fits inside one cell with margin.</summary>
+        /// <summary>Body length as a fraction of a grid cell, per vehicle type. Every
+        /// type fits inside ONE cell with margin (keeps the grid overlap-free).</summary>
         public const float BusFit = 0.78f;
-        public static float BusLength(float cellSize) => cellSize * BusFit;
+        public static float LengthFactor(VehicleType type)
+            => type == VehicleType.Car ? 0.62f : type == VehicleType.Limo ? 0.88f : BusFit;
+        public static float VehicleLength(VehicleType type, float cellSize) => cellSize * LengthFactor(type);
 
-        public static Renderer[] BuildBus(Transform root, int capacity, float cellSize,
+        // Car = short & tall, Bus = standard, Limo = long & low. Seat count = capacity.
+        public static Renderer[] BuildVehicle(Transform root, VehicleType type, int capacity, float cellSize,
             Material body, Material glass, Material wheel, Material light, Material seatEmpty, Material arrowMat)
         {
-            // Everything derives from cellSize so the bus is guaranteed to fit one cell.
-            float len = cellSize * BusFit;   // along Z (arrow axis)
-            float w   = cellSize * 0.50f;    // along X
-            float h   = cellSize * 0.42f;
+            float len = cellSize * LengthFactor(type);                                   // along Z (arrow axis)
+            float w   = cellSize * (type == VehicleType.Limo ? 0.42f : 0.50f);           // along X
+            float h   = cellSize * (type == VehicleType.Car ? 0.46f : type == VehicleType.Limo ? 0.32f : 0.42f);
             float wr  = cellSize * 0.11f;    // wheel radius
             float bodyY = wr + h * 0.5f;
             float top = wr + h;

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ad53525e5696b5c478d6647bf39e16bc
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 342650
+  packageName: FREE - Party Game Characters
+  packageVersion: 1.1
+  assetPath: Assets/FREE/Pack_FREE_PartyCharacters/Editor/FreeCharacterCustomizerWindow.cs
+  uploadId: 825602

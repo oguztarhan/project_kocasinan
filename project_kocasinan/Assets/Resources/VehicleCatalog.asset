@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43279e2d5f649f4488459bc0538b0a1e, type: 3}
+  m_Name: VehicleCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::BusJam.VehicleCatalog
+  carPrefab: {fileID: 5900076134130803722, guid: 58eb628c852250d4a840b90af5ff828a, type: 3}
+  busPrefab: {fileID: 4502477006806161570, guid: 31015a79904de864c978fa4889f02db9, type: 3}
+  limoPrefab: {fileID: 5648631600715897500, guid: f383c95dcb913014b987530b8f1be726, type: 3}
+  fitFactor: 1
+  yaw: 180
+  yOffset: 0
