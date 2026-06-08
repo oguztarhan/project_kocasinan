@@ -253,12 +253,32 @@ public class MainMenuUI : MonoBehaviour
         bar.rectTransform.pivot = new Vector2(0.5f, 0);
         bar.rectTransform.offsetMin = new Vector2(0, 0); bar.rectTransform.offsetMax = new Vector2(0, 190);
 
-        Button(bar.transform, "STORE", new Vector2(0.5f, 0), new Vector2(-340, 95), new Vector2(300, 150),
-            new Color(0.35f, 0.56f, 0.88f), OpenStore, 40);
-        Button(bar.transform, "HOME", new Vector2(0.5f, 0), new Vector2(0, 95), new Vector2(300, 150),
-            new Color(0.42f, 0.72f, 0.42f), ShowHome, 40);
-        Button(bar.transform, "SKIN", new Vector2(0.5f, 0), new Vector2(340, 95), new Vector2(300, 150),
-            new Color(0.88f, 0.52f, 0.40f), OpenSkin, 40);
+        // STORE / HOME / SKIN: each shows a custom icon from Assets/Resources/Icons/
+        // (store.png / home.png / skin.png) when present, otherwise a plain text button.
+        NavButton(bar.transform, "store", "STORE", -340, new Color(0.35f, 0.56f, 0.88f), OpenStore);
+        NavButton(bar.transform, "home",  "HOME",     0, new Color(0.42f, 0.72f, 0.42f), ShowHome);
+        NavButton(bar.transform, "skin",  "SKIN",   340, new Color(0.88f, 0.52f, 0.40f), OpenSkin);
+    }
+
+    // One bottom-nav entry. If Resources/Icons/<iconKey> exists, show ONLY the icon
+    // on a transparent (still tappable) button; the icon is drawn at 600x300 with
+    // its aspect preserved. Otherwise fall back to a plain colored text button.
+    void NavButton(Transform bar, string iconKey, string label, float x, Color color, System.Action onClick)
+    {
+        var sprite = Resources.Load<Sprite>("Icons/" + iconKey);
+        if (sprite != null)
+        {
+            var btn = Button(bar, "", new Vector2(0.5f, 0), new Vector2(x, 95), new Vector2(300, 150),
+                Color.clear, onClick, 0);
+            var icon = Image(btn.transform, Color.white);
+            icon.sprite = sprite; icon.preserveAspect = true; icon.raycastTarget = false;
+            Center(icon.rectTransform, new Vector2(600, 300)); // standard nav-icon size
+        }
+        else
+        {
+            Button(bar, label, new Vector2(0.5f, 0), new Vector2(x, 95), new Vector2(300, 150),
+                color, onClick, 40);
+        }
     }
 
     // ---- Screens ---------------------------------------------------------
