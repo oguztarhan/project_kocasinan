@@ -15,11 +15,11 @@ MonoBehaviour:
   levelNumber: 2
   colorCount: 3
   busCount: 5
-  timeLimit: 70
-  vehicleMix: 0
+  timeLimit: 300
+  vehicleMix: 3
   gridWidth: 5
-  gridHeight: 2
-  baseSlots: 3
+  gridHeight: 0
+  baseSlots: 4
   extraSlots: 2
   goldenChance: 0
   mysteryChance: 0

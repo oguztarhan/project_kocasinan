@@ -13,7 +13,7 @@ namespace BusJam
     public class GameUI : MonoBehaviour
     {
         // Pause forwards to the project's own navigation; jokers drive gameplay actions.
-        public System.Action OnMenu, OnSkip, OnSwap, OnAddTime;
+        public System.Action OnMenu, OnSkip, OnSwap;
         // Settings panel navigation + win-reward claiming.
         public System.Action OnHome, OnReplay;
         public System.Action<int> OnClaimReward; // grants the gold amount, then advances
@@ -21,9 +21,9 @@ namespace BusJam
         Font font;
         Sprite knob;
         GameObject hudPanel, settingsPanel, successPanel;
-        Text hudCoins, hudLevel, hudTimer, hudTheme, comboText;
+        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft;
 
-        public void Build(int skipCost, int swapCost, int timeCost)
+        public void Build(int skipCost, int swapCost)
         {
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             // Runtime-generated circle (no built-in "UI/Skin/Knob.psd" dependency,
@@ -49,13 +49,13 @@ namespace BusJam
                 module.AssignDefaultActions();
             }
 
-            BuildHud(canvasGo.transform, skipCost, swapCost, timeCost);
+            BuildHud(canvasGo.transform, skipCost, swapCost);
             BuildSettingsPanel(canvasGo.transform);
             BuildSuccessPanel(canvasGo.transform);
             ShowHud();
         }
 
-        void BuildHud(Transform parent, int skipCost, int swapCost, int timeCost)
+        void BuildHud(Transform parent, int skipCost, int swapCost)
         {
             hudPanel = Panel(parent, "Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
@@ -68,6 +68,17 @@ namespace BusJam
             hudLevel = TopLabel(hudPanel.transform, "1", new Vector2(0, 1), new Vector2(100, -100), new Vector2(150, 70), 48, Color.white, TextAnchor.MiddleCenter);
             hudTheme = TopLabel(hudPanel.transform, "", new Vector2(0, 1), new Vector2(100, -185), new Vector2(260, 36), 24, new Color(0.8f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
 
+            // PEOPLE-LEFT booth: LEFT margin beside the people queue / bus stops, so the player
+            // easily sees how many passengers remain. Person-icon badge with the remaining total
+            // below it. (Screen-space over a fixed camera — nudge the -500/-600 Y to taste.)
+            var peopleBadge = Image(hudPanel.transform, new Color(0.30f, 0.55f, 0.85f, 0.95f));
+            peopleBadge.sprite = knob; peopleBadge.raycastTarget = false;
+            Anchor(peopleBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -500), new Vector2(120, 120));
+            var peopleIcon = Image(hudPanel.transform, Color.white);
+            peopleIcon.sprite = UISprites.Person(); peopleIcon.raycastTarget = false;
+            Anchor(peopleIcon.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -494), new Vector2(70, 70));
+            hudPeopleLeft = TopLabel(hudPanel.transform, "0", new Vector2(0, 1), new Vector2(105, -606), new Vector2(160, 70), 50, Color.white, TextAnchor.MiddleCenter);
+
             // SETTINGS button: TOP-RIGHT corner.
             var settingsBtn = Button(hudPanel.transform, "⚙", new Vector2(-90, -100), new Vector2(120, 120),
                 new Color(0.30f, 0.35f, 0.45f), () => ShowSettings(), 60);
@@ -75,8 +86,7 @@ namespace BusJam
             sbRt.anchorMin = sbRt.anchorMax = new Vector2(1, 1);
             sbRt.anchoredPosition = new Vector2(-90, -100);
 
-            // TIMER/COUNTER: TOP-CENTER, between the Level and Settings elements.
-            hudTimer = TopLabel(hudPanel.transform, "0:00", new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(360, 80), 56, Color.white, TextAnchor.MiddleCenter);
+            // (no timer — T7 removed the countdown; loss is parking-deadlock only.)
 
             // COIN indicator: directly BELOW the Settings button.
             var coinDot = Image(hudPanel.transform, Palette.Gold);
@@ -87,14 +97,12 @@ namespace BusJam
             comboText = Label(hudPanel.transform, "", new Vector2(0, 360), new Vector2(900, 100), 70, Palette.Gold);
             comboText.gameObject.SetActive(false);
 
-            // joker buttons across the bottom
-            var skip = Button(hudPanel.transform, $"SKIP\n{skipCost}", new Vector2(-340, 130), new Vector2(280, 150),
+            // joker buttons across the bottom (T8 will replace these with RECOLOR / SWAP / HELI)
+            var skip = Button(hudPanel.transform, $"SKIP\n{skipCost}", new Vector2(-200, 130), new Vector2(280, 150),
                 new Color(0.88f, 0.38f, 0.32f), () => OnSkip?.Invoke(), 36);
-            var swap = Button(hudPanel.transform, $"SWAP\n{swapCost}", new Vector2(0, 130), new Vector2(280, 150),
+            var swap = Button(hudPanel.transform, $"SWAP\n{swapCost}", new Vector2(200, 130), new Vector2(280, 150),
                 new Color(0.35f, 0.56f, 0.88f), () => OnSwap?.Invoke(), 36);
-            var time = Button(hudPanel.transform, $"+TIME\n{timeCost}", new Vector2(340, 130), new Vector2(280, 150),
-                new Color(0.42f, 0.72f, 0.42f), () => OnAddTime?.Invoke(), 36);
-            AnchorBottom(skip); AnchorBottom(swap); AnchorBottom(time);
+            AnchorBottom(skip); AnchorBottom(swap);
         }
 
         // ---- Settings panel (800 x 600) -------------------------------------
@@ -208,15 +216,7 @@ namespace BusJam
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
         public void SetLevel(int l) { if (hudLevel) hudLevel.text = l.ToString(); }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
-
-        public void SetTimer(float t)
-        {
-            if (!hudTimer) return;
-            t = Mathf.Max(0, t);
-            int m = (int)t / 60, s = (int)t % 60;
-            hudTimer.text = $"{m}:{s:00}";
-            hudTimer.color = t <= 10f ? new Color(1f, 0.4f, 0.4f) : Color.white;
-        }
+        public void SetPeopleLeft(int n) { if (hudPeopleLeft) hudPeopleLeft.text = n.ToString(); }
 
         public void ShowCombo(int combo)
         {

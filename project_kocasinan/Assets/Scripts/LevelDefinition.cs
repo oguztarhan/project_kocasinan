@@ -16,7 +16,6 @@ namespace BusJam
         [Header("Difficulty")]
         [Range(3, 8)] public int colorCount = 3;
         [Min(4)] public int busCount = 4;
-        [Min(10)] public float timeLimit = 60f;
 
         [Header("Vehicles")]
         [Tooltip("Which vehicle types appear (capacity = seats that fill as people board).")]
@@ -34,6 +33,12 @@ namespace BusJam
         [Header("Specials (chance per queue person)")]
         [Range(0f, 1f)] public float goldenChance = 0f;
         [Range(0f, 1f)] public float mysteryChance = 0f;
+
+        [Header("Special \"<<\" crawler vehicles")]
+        [Tooltip("Chance a grid vehicle is a special that advances N cells per tap instead of exiting in one.")]
+        [Range(0f, 1f)] public float specialChance = 0f;
+        [Tooltip("Max cells a special advances per tap (N is randomized 2..this). Min 2.")]
+        [Min(2)] public int specialMaxAdvance = 4;
 
         [Header("Layout")]
         [Tooltip("0 = derive a stable seed from levelNumber. Same seed = same layout every Play.")]

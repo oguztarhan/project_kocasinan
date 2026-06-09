@@ -11,10 +11,10 @@ namespace BusJam
 
     public static class Vehicles
     {
-        // Proposed seat counts.
-        public const int CarSeats = 2;
-        public const int BusSeats = 3;
-        public const int LimoSeats = 5;
+        // Seat counts: sedan/car 4, regular bus 10, "big bus" (Limo, 3-cell) 16.
+        public const int CarSeats = 4;
+        public const int BusSeats = 10;
+        public const int LimoSeats = 16;
 
         public static int DefaultCapacity(VehicleType t)
         {

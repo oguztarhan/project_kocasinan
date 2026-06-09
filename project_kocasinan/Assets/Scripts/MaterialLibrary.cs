@@ -32,7 +32,7 @@ namespace BusJam
         {
             var list = new List<Spec>();
             foreach (PieceColor c in System.Enum.GetValues(typeof(PieceColor)))
-                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.2f, 0.18f));
+                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.55f, 0.18f)); // glossy candy bodies
 
             list.Add(new Spec("Glass",     new Color(0.18f, 0.26f, 0.40f), 0.85f, 0f));
             list.Add(new Spec("Wheel",     new Color(0.12f, 0.12f, 0.14f), 0.2f,  0f));
@@ -50,11 +50,12 @@ namespace BusJam
         }
 
         // ---- Theme (environment) materials: one editable asset per theme × type ----
+        // Glossy candy look: smoothness lifted off matte + a soft emission pop on the colorful types.
         static readonly (string type, float smooth, float emission)[] ThemeTypes =
         {
-            ("Ground", 0.05f, 0f), ("Field", 0.05f, 0f), ("Road", 0.05f, 0f), ("Accent", 0.2f, 0f),
-            ("PropMain", 0.1f, 0f), ("PropAlt", 0.1f, 0f), ("Foliage", 0.05f, 0f), ("Trunk", 0.1f, 0f),
-            ("Window", 0.6f, 0.2f), ("Cloud", 0f, 0.15f)
+            ("Ground", 0.35f, 0.05f), ("Field", 0.28f, 0.03f), ("Road", 0.30f, 0f), ("Accent", 0.45f, 0.06f),
+            ("PropMain", 0.45f, 0.05f), ("PropAlt", 0.45f, 0.05f), ("Foliage", 0.35f, 0.06f), ("Trunk", 0.25f, 0f),
+            ("Window", 0.7f, 0.25f), ("Cloud", 0f, 0.18f), ("Grass", 0.30f, 0.06f)
         };
 
         static Color ThemeColor(Theme th, string type)
@@ -69,6 +70,7 @@ namespace BusJam
                 case "PropAlt":  return th.propAlt;
                 case "Foliage":  return th.foliage;
                 case "Trunk":    return th.trunk;
+                case "Grass":    return th.grass;
                 case "Window":   return new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f);
                 default:         return Color.white; // Cloud
             }

@@ -20,6 +20,10 @@ namespace BusJam
         public Vector2Int dir;
         public int length = 1;
 
+        // Special "<<" vehicle: 0 = normal (full exit in one tap); >0 = advances this many
+        // grid cells along its arrow per tap (crawls out over multiple taps).
+        public int advanceN;
+
         public Renderer[] seatWindows;       // code-built vehicles: seat pips that light up
         public Material filledMat;
         public UnityEngine.UI.Text seatLabel; // imported vehicles: roof number = EMPTY seats left

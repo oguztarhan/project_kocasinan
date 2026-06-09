@@ -158,10 +158,75 @@ namespace BusJam
         {
             switch (kind)
             {
-                case PropKind.Building: Building(parent, pos, scale, main, window); break;
-                case PropKind.Cactus:   Cactus(parent, pos, scale, foliage); break;
-                case PropKind.Pine:     Pine(parent, pos, scale, foliage, trunk); break;
-                case PropKind.Palm:     Palm(parent, pos, scale, foliage, trunk); break;
+                case PropKind.Building:  Building(parent, pos, scale, main, window); break;
+                case PropKind.Cactus:    Cactus(parent, pos, scale, foliage); break;
+                case PropKind.Pine:      Pine(parent, pos, scale, foliage, trunk); break;
+                case PropKind.Palm:      Palm(parent, pos, scale, foliage, trunk); break;
+                case PropKind.RoundTree: RoundTree(parent, pos, scale, foliage, trunk); break;
+                case PropKind.Bush:      Bush(parent, pos, scale, foliage); break;
+                case PropKind.House:     House(parent, pos, scale, main, alt, window); break;
+            }
+        }
+
+        // Cute rounded tree: short trunk + a blob canopy of 3 overlapping spheres.
+        static void RoundTree(Transform parent, Vector3 pos, float scale, Material leaves, Material trunk)
+        {
+            var t = Prim(PrimitiveType.Cylinder, parent, trunk);
+            t.transform.position = pos + new Vector3(0, 0.5f * scale, 0);
+            t.transform.localScale = new Vector3(0.2f * scale, 0.5f * scale, 0.2f * scale);
+            var c1 = Prim(PrimitiveType.Sphere, parent, leaves);
+            c1.transform.position = pos + new Vector3(0, 1.3f * scale, 0);
+            c1.transform.localScale = Vector3.one * 1.35f * scale;
+            var c2 = Prim(PrimitiveType.Sphere, parent, leaves);
+            c2.transform.position = pos + new Vector3(0.42f * scale, 1.5f * scale, 0.12f * scale);
+            c2.transform.localScale = Vector3.one * 0.95f * scale;
+            var c3 = Prim(PrimitiveType.Sphere, parent, leaves);
+            c3.transform.position = pos + new Vector3(-0.38f * scale, 1.46f * scale, -0.12f * scale);
+            c3.transform.localScale = Vector3.one * 1.0f * scale;
+        }
+
+        // Low rounded bush: two squashed spheres.
+        static void Bush(Transform parent, Vector3 pos, float scale, Material leaves)
+        {
+            var a = Prim(PrimitiveType.Sphere, parent, leaves);
+            a.transform.position = pos + new Vector3(0, 0.36f * scale, 0);
+            a.transform.localScale = new Vector3(1.0f * scale, 0.7f * scale, 1.0f * scale);
+            var b = Prim(PrimitiveType.Sphere, parent, leaves);
+            b.transform.position = pos + new Vector3(0.46f * scale, 0.30f * scale, 0.06f * scale);
+            b.transform.localScale = new Vector3(0.72f * scale, 0.56f * scale, 0.72f * scale);
+        }
+
+        // Cute cottage: body box + wider roof block + door + two windows (front = -Z, toward camera).
+        static void House(Transform parent, Vector3 pos, float scale, Material body, Material roof, Material window)
+        {
+            float w = 2.3f * scale, h = 1.7f * scale, d = 2.3f * scale;
+            var b = Prim(PrimitiveType.Cube, parent, body);
+            b.transform.position = pos + new Vector3(0, h * 0.5f, 0);
+            b.transform.localScale = new Vector3(w, h, d);
+            var rf = Prim(PrimitiveType.Cube, parent, roof);
+            rf.transform.position = pos + new Vector3(0, h + 0.32f * scale, 0);
+            rf.transform.localScale = new Vector3(w * 1.18f, 0.64f * scale, d * 1.18f);
+            var door = Prim(PrimitiveType.Cube, parent, roof);
+            door.transform.position = pos + new Vector3(0, 0.55f * scale, -d * 0.5f - 0.03f);
+            door.transform.localScale = new Vector3(0.55f * scale, 1.0f * scale, 0.08f);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var win = Prim(PrimitiveType.Cube, parent, window);
+                win.transform.position = pos + new Vector3(s * 0.62f * scale, h * 0.62f, -d * 0.5f - 0.03f);
+                win.transform.localScale = new Vector3(0.5f * scale, 0.5f * scale, 0.08f);
+            }
+        }
+
+        /// <summary>A small clump of grass blades (cheap) for dressing the lawn.</summary>
+        public static void GrassTuft(Transform parent, Vector3 pos, float scale, Material grass)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var blade = Prim(PrimitiveType.Cube, parent, grass);
+                float ox = (i - 1) * 0.10f * scale;
+                blade.transform.position = pos + new Vector3(ox, 0.16f * scale, 0);
+                blade.transform.localScale = new Vector3(0.06f * scale, 0.32f * scale, 0.06f * scale);
+                blade.transform.localRotation = Quaternion.Euler(0, 0, (i - 1) * 12f);
             }
         }
 

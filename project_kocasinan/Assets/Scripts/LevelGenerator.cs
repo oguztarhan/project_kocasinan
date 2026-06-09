@@ -3,12 +3,12 @@ using UnityEngine;
 
 namespace BusJam
 {
-    public struct BusDef { public PieceColor color; public VehicleType type; public int capacity; }
+    public struct BusDef { public PieceColor color; public VehicleType type; public int capacity; public int advanceN; }
 
     /// <summary>A vehicle placed in the jam grid. `cell` = the LEADING cell (nearest the
     /// edge it slides off toward parking); the body extends backward as cell - i*dir for
-    /// i in 0..CellLength(type)-1. `dir` = arrow/exit direction: Down (0,-1), Left (-1,0),
-    /// Right (1,0).</summary>
+    /// i in 0..CellLength(type)-1. `dir` = arrow/exit direction: Down (0,-1), Up (0,1),
+    /// Left (-1,0), Right (1,0). `advanceN` &gt; 0 = special "&lt;&lt;" crawler (cells/tap).</summary>
     public struct GridBus
     {
         public PieceColor color;
@@ -16,6 +16,7 @@ namespace BusJam
         public int capacity;
         public Vector2Int cell;
         public Vector2Int dir;
+        public int advanceN;
     }
 
     /// <summary>One queue slot: a single waiting person.</summary>
@@ -34,30 +35,30 @@ namespace BusJam
         public int gridW, gridH;
         public int baseSlots;
         public int extraSlots;
-        public float timeLimit;
         public int colorCount;
     }
 
     public static class LevelGenerator
     {
-        public const int BaseSlots = 3;
-        public const int ExtraSlots = 2;
+        public const int BaseSlots = 5;   // unlocked parking == BuildQueue servability window
+        public const int ExtraSlots = 3;  // locked, unlock for coins -> ~8 total pads
 
         /// <summary>Procedural levels (used for 6+ and as the fallback). Gets harder
-        /// as the level rises: more colors, more buses, less time per person.</summary>
+        /// as the level rises: more colors, more buses, more specials.</summary>
         public static LevelData Generate(int level)
         {
             var rng = new System.Random(level * 9176 + 4242);
 
             int colorCount = Mathf.Clamp(3 + (level - 1) / 4, 3, Palette.Count); // +1 color every 4 levels
             int busCount   = Mathf.Clamp(4 + level, 6, 16);
-            float rate     = Mathf.Clamp(2.2f - level * 0.04f, 1.4f, 2.2f);       // seconds per person
             float goldenP  = Mathf.Min(0.10f, level * 0.01f);
             float mysteryP = Mathf.Min(0.30f, level * 0.025f);
 
-            // timeLimit = 0 -> Build computes it from the actual total seats.
+            // Special "<<" crawlers ramp in from level 8 (none earlier so the mechanic introduces cleanly).
+            float specialP = level < 8 ? 0f : Mathf.Min(0.22f, (level - 7) * 0.035f);
+
             return Build(rng, level, colorCount, busCount, 5, 0, BaseSlots, ExtraSlots,
-                         0f, goldenP, mysteryP, MixForLevel(level), rate);
+                         goldenP, mysteryP, MixForLevel(level), specialP, 4);
         }
 
         // Vehicle variety ramps in: bus → cars+buses → limos.
@@ -79,30 +80,29 @@ namespace BusJam
             int busCount   = Mathf.Max(4, def.busCount);
             int baseSlots  = Mathf.Max(1, def.baseSlots);
             int extraSlots = Mathf.Max(0, def.extraSlots);
-            float timeLimit = Mathf.Max(10f, def.timeLimit);
 
             return Build(rng, def.levelNumber, colorCount, busCount, Mathf.Max(3, def.gridWidth), def.gridHeight,
-                         baseSlots, extraSlots, timeLimit,
-                         Mathf.Clamp01(def.goldenChance), Mathf.Clamp01(def.mysteryChance), def.vehicleMix, 2.0f);
+                         baseSlots, extraSlots,
+                         Mathf.Clamp01(def.goldenChance), Mathf.Clamp01(def.mysteryChance), def.vehicleMix,
+                         Mathf.Clamp01(def.specialChance), def.specialMaxAdvance);
         }
 
         // Shared solvable-by-construction core for both procedural and authored levels.
-        // timeLimit > 0 is used as-is (authored); otherwise it's derived from total seats.
         static LevelData Build(System.Random rng, int levelNumber, int colorCount, int busCount,
-            int gridWidth, int gridHeightHint, int baseSlots, int extraSlots, float timeLimit,
-            float goldenP, float mysteryP, VehicleMix mix, float secondsPerPerson)
+            int gridWidth, int gridHeightHint, int baseSlots, int extraSlots,
+            float goldenP, float mysteryP, VehicleMix mix,
+            float specialChance, int specialMaxAdvance)
         {
+            int maxAdvance = Mathf.Max(2, specialMaxAdvance); // N >= 2 so a special always makes progress on a clear lane
             var buses = new List<BusDef>(busCount);
-            int totalSeats = 0;
             for (int i = 0; i < busCount; i++)
             {
                 var type = PickType(mix, rng);
                 int cap = CapacityFor(type, mix, rng);
-                totalSeats += cap;
-                buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), type = type, capacity = cap });
+                // advanceN is ORTHOGONAL to placement/capacity, so it never affects solvability.
+                int advanceN = (specialChance > 0f && rng.NextDouble() < specialChance) ? rng.Next(2, maxAdvance + 1) : 0;
+                buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), type = type, capacity = cap, advanceN = advanceN });
             }
-
-            float finalTime = timeLimit > 0f ? timeLimit : Mathf.Max(18f, totalSeats * secondsPerPerson);
 
             // BuildQueue emits exactly `capacity` people per vehicle, so total people ==
             // total seats per color -> every vehicle fills exactly -> always winnable.
@@ -117,7 +117,6 @@ namespace BusJam
                 gridW = gridW, gridH = gridH,
                 baseSlots = baseSlots,
                 extraSlots = extraSlots,
-                timeLimit = finalTime,
                 colorCount = colorCount
             };
         }
@@ -129,10 +128,11 @@ namespace BusJam
                 case VehicleMix.CarsOnly: return VehicleType.Car;
                 case VehicleMix.CarsAndBuses: return rng.Next(2) == 0 ? VehicleType.Car : VehicleType.Bus;
                 case VehicleMix.WithLimo:
-                    int r = rng.Next(10);
-                    if (r < 2) return VehicleType.Limo;   // ~20% limo
-                    if (r < 5) return VehicleType.Car;     // ~30% car
-                    return VehicleType.Bus;                // ~50% bus
+                    // Bias toward FEWER-but-BIGGER vehicles (bigger people totals, not vehicle spam).
+                    int r = rng.Next(100);
+                    if (r < 35) return VehicleType.Limo;   // 35% big bus (16)
+                    if (r < 85) return VehicleType.Bus;     // 50% bus (10)
+                    return VehicleType.Car;                 // 15% car (4)
                 default: return VehicleType.Bus;           // BusOnly / BusesVaried
             }
         }
@@ -140,7 +140,7 @@ namespace BusJam
         static int CapacityFor(VehicleType type, VehicleMix mix, System.Random rng)
         {
             if (type == VehicleType.Bus && mix == VehicleMix.BusesVaried)
-                return 2 + rng.Next(3); // 2,3,4 — varied bus sizes
+                return 6 + rng.Next(7); // 6..12 — varied bus sizes
             return Vehicles.DefaultCapacity(type);
         }
 
@@ -193,13 +193,14 @@ namespace BusJam
             int totalCells = 0;
             for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
 
-            // Size for ~1.7x total cells (room for exit lanes) while keeping the board within the
-            // camera envelope: widen first (W up to 7), then deepen (H up to 8).
-            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * 1.7f / 8f)), 4, 7);
+            // Size for ~1.5x total cells (room for exit lanes) while keeping the board within the
+            // camera envelope: widen first (W up to 7), then deepen (H up to 8). 1.5 (was 1.7) lets the
+            // bigger multi-cell vehicles (now up to 16-seat 3-cell limos) still fit W7xH8.
+            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * 1.5f / 8f)), 4, 7);
             H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 8)
-                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * 1.7f / W), 3, 8);
+                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * 1.5f / W), 3, 8);
 
-            var dirs = new[] { new Vector2Int(0, -1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
+            var dirs = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
             var occupied = new HashSet<Vector2Int>();
             var result = new GridBus[n];
 
@@ -220,7 +221,7 @@ namespace BusJam
                         {
                             if (BodyFree(anchor, d, L, occupied, W, H) && PathClear(anchor, d, occupied, W, H))
                             {
-                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d };
+                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
                                 for (int i = 0; i < L; i++) occupied.Add(anchor - d * i);
                                 placed = true;
                                 break;
@@ -236,7 +237,7 @@ namespace BusJam
                             // extreme fallback: drop the whole vehicle into a fresh row, exiting left.
                             var d = new Vector2Int(-1, 0);
                             var anchor = new Vector2Int(0, H);
-                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d };
+                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
                             for (int i = 0; i < L; i++) occupied.Add(anchor - d * i); // (0,H),(1,H),(2,H)
                             H += 2; placed = true;
                         }
