@@ -13,7 +13,7 @@ namespace BusJam
     public class GameUI : MonoBehaviour
     {
         // Pause forwards to the project's own navigation; jokers drive gameplay actions.
-        public System.Action OnMenu, OnSkip, OnSwap;
+        public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
         // Settings panel navigation + win-reward claiming.
         public System.Action OnHome, OnReplay;
         public System.Action<int> OnClaimReward; // grants the gold amount, then advances
@@ -23,7 +23,13 @@ namespace BusJam
         GameObject hudPanel, settingsPanel, successPanel;
         Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft;
 
-        public void Build(int skipCost, int swapCost)
+        // Level-gated joker buttons (RECOLOR / SWAP / HELI) + their gating metadata.
+        Button[] jokerBtns;
+        int[] jokerUnlock, jokerCost;
+        string[] jokerName;
+        Color[] jokerColor;
+
+        public void Build(int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
         {
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             // Runtime-generated circle (no built-in "UI/Skin/Knob.psd" dependency,
@@ -49,13 +55,13 @@ namespace BusJam
                 module.AssignDefaultActions();
             }
 
-            BuildHud(canvasGo.transform, skipCost, swapCost);
+            BuildHud(canvasGo.transform, recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
             BuildSettingsPanel(canvasGo.transform);
             BuildSuccessPanel(canvasGo.transform);
             ShowHud();
         }
 
-        void BuildHud(Transform parent, int skipCost, int swapCost)
+        void BuildHud(Transform parent, int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
         {
             hudPanel = Panel(parent, "Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
@@ -97,12 +103,40 @@ namespace BusJam
             comboText = Label(hudPanel.transform, "", new Vector2(0, 360), new Vector2(900, 100), 70, Palette.Gold);
             comboText.gameObject.SetActive(false);
 
-            // joker buttons across the bottom (T8 will replace these with RECOLOR / SWAP / HELI)
-            var skip = Button(hudPanel.transform, $"SKIP\n{skipCost}", new Vector2(-200, 130), new Vector2(280, 150),
-                new Color(0.88f, 0.38f, 0.32f), () => OnSkip?.Invoke(), 36);
-            var swap = Button(hudPanel.transform, $"SWAP\n{swapCost}", new Vector2(200, 130), new Vector2(280, 150),
-                new Color(0.35f, 0.56f, 0.88f), () => OnSwap?.Invoke(), 36);
-            AnchorBottom(skip); AnchorBottom(swap);
+            // Level-gated joker buttons across the bottom: RECOLOR (Lv5) / SWAP (Lv10) / HELI (Lv15).
+            var recolorCol = new Color(0.80f, 0.45f, 0.85f);
+            var swapCol = new Color(0.35f, 0.56f, 0.88f);
+            var heliCol = new Color(0.42f, 0.72f, 0.55f);
+            var recolor = Button(hudPanel.transform, "", new Vector2(-340, 130), new Vector2(280, 150), recolorCol, () => OnRecolor?.Invoke(), 34);
+            var swap = Button(hudPanel.transform, "", new Vector2(0, 130), new Vector2(280, 150), swapCol, () => OnSwap?.Invoke(), 34);
+            var heli = Button(hudPanel.transform, "", new Vector2(340, 130), new Vector2(280, 150), heliCol, () => OnHeli?.Invoke(), 34);
+            AnchorBottom(recolor); AnchorBottom(swap); AnchorBottom(heli);
+
+            jokerBtns = new[] { recolor, swap, heli };
+            jokerUnlock = new[] { j1Lvl, j2Lvl, j3Lvl };
+            jokerCost = new[] { recolorCost, swapCost, heliCost };
+            jokerName = new[] { "RECOLOR", "SWAP", "HELI" };
+            jokerColor = new[] { recolorCol, swapCol, heliCol };
+            RefreshJokerLocks();
+        }
+
+        /// <summary>Grey out + label "Lv N" any joker not yet unlocked by SaveSystem.Level; restore the
+        /// rest to NAME + cost. Call when the player level may have changed (e.g. each StartLevel).</summary>
+        public void RefreshJokerLocks()
+        {
+            if (jokerBtns == null) return;
+            int lvl = SaveSystem.Level;
+            var locked = new Color(0.24f, 0.26f, 0.31f, 1f);
+            for (int i = 0; i < jokerBtns.Length; i++)
+            {
+                bool open = lvl >= jokerUnlock[i];
+                var b = jokerBtns[i];
+                b.interactable = open;
+                var img = b.GetComponent<Image>();
+                if (img != null) img.color = open ? jokerColor[i] : locked;
+                var label = b.GetComponentInChildren<Text>();
+                if (label != null) label.text = open ? $"{jokerName[i]}\n{jokerCost[i]}" : $"{jokerName[i]}\nLv {jokerUnlock[i]}";
+            }
         }
 
         // ---- Settings panel (800 x 600) -------------------------------------

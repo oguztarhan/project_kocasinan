@@ -30,13 +30,28 @@ namespace BusJam
 
         public bool IsFull => seatsFilled >= capacity;
 
-        public void FillNextSeat()
+        // In-flight passengers who reserved a seat but haven't visually arrived yet. The bus may only
+        // drive off once it is full AND everyone has arrived, so no walker is ever left heading to nothing.
+        public int arrivalsPending;
+        public bool ReadyToLeave => IsFull && arrivalsPending <= 0;
+
+        // Reserve the next seat LOGICALLY at dispatch time (so overlapping boards can't over-assign past
+        // capacity) and tick the roof number down immediately. The seat WINDOW lights later, on arrival.
+        public int ReserveSeat()
         {
             int i = seatsFilled;
+            seatsFilled++;
+            arrivalsPending++;
+            RefreshSeatLabel();
+            return i;
+        }
+
+        // Visual catch-up when the passenger reaches the door: light their seat pip, clear the reservation.
+        public void LightSeat(int i)
+        {
             if (seatWindows != null && i >= 0 && i < seatWindows.Length && filledMat != null)
                 seatWindows[i].sharedMaterial = filledMat;
-            seatsFilled++;
-            RefreshSeatLabel();
+            arrivalsPending = Mathf.Max(0, arrivalsPending - 1);
         }
 
         public void RefreshSeatLabel()

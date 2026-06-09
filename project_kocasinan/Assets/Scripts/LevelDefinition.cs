@@ -30,6 +30,10 @@ namespace BusJam
         [Min(1)] public int baseSlots = 3;
         [Min(0)] public int extraSlots = 2;
 
+        [Header("Queue")]
+        [Tooltip("Minimum same-color RUN length emitted per pick. Higher = longer clustered color stretches (less choppy). Clamped to each bus's remaining capacity, so totals are unchanged.")]
+        [Min(1)] public int minRunLength = 4;
+
         [Header("Specials (chance per queue person)")]
         [Range(0f, 1f)] public float goldenChance = 0f;
         [Range(0f, 1f)] public float mysteryChance = 0f;

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: VehicleCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.VehicleCatalog
   carPrefab: {fileID: 5900076134130803722, guid: 58eb628c852250d4a840b90af5ff828a, type: 3}
-  busPrefab: {fileID: 4502477006806161570, guid: 31015a79904de864c978fa4889f02db9, type: 3}
-  limoPrefab: {fileID: 5648631600715897500, guid: f383c95dcb913014b987530b8f1be726, type: 3}
+  busPrefab: {fileID: 2628587844900464725, guid: 13f172f703fc2fd418b69a0f711e8117, type: 3}
+  limoPrefab: {fileID: 4502477006806161570, guid: 31015a79904de864c978fa4889f02db9, type: 3}
   fitFactor: 1
   yaw: 180
   yOffset: 0
