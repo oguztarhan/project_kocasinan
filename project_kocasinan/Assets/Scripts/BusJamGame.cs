@@ -107,6 +107,19 @@ namespace BusJam
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
+            ui.OnContinuePay = () =>             // Continue panel: pay 100 gold
+            {
+                if (SaveSystem.TrySpend(100))
+                {
+                    ui.SetCoins(SaveSystem.Coins);
+                    CoinsChanged?.Invoke(SaveSystem.Coins);
+                    ui.HideContinue();
+                    ContinueLevel();
+                }
+                else sfx.Error();
+            };
+            ui.OnContinueAd = () => { ui.HideContinue(); ContinueLevel(); };   // TODO: gate behind a real rewarded ad
+            ui.OnContinueDeclined = () => { ui.HideContinue(); ui.ShowFailed(); };
             ui.Build(RecolorCost, SwapCost, HeliCost, J1UnlockLevel, J2UnlockLevel, J3UnlockLevel);
 
             levelSelect = gameObject.AddComponent<LevelSelect>();
@@ -464,20 +477,14 @@ namespace BusJam
             // The front passenger can board one of the parked buses -> keep playing.
             if (FindParkedBus(visible[0].color) != null) return;
 
-            // There is still an OPEN (unlocked & empty) parking slot, so the player can
-            // extract a matching grid bus (one always exists by construction while that color
-            // still has people) -> not stuck.
+            // There is still an OPEN (unlocked & empty) parking slot, so the player can place
+            // another bus that might match -> parking is NOT full yet, so this is not a deadlock.
             if (FirstFreeSlot() != null) return;
 
-            // A locked slot the player can still AFFORD to unlock -> they can open it and bring a
-            // matching bus -> not stuck. (Loosened so we don't declare a FALSE deadlock while a
-            // winning move exists — levels are solvable-by-construction.)
-            if (HasLockedSlot() && SaveSystem.Coins >= SlotUnlockCost) return;
-
-            // Genuinely wedged: front passenger matches no parked bus, every unlocked slot is full of
-            // non-matching non-full buses, and no affordable locked slot remains. By construction this
-            // is only reachable by player mistakes (parking the wrong buses); the design is otherwise
-            // effectively no-lose (jokers in T8 are the deliberate get-unstuck path). Show Continue.
+            // Otherwise: the front passenger matches NO parked bus AND the parking is full.
+            // This is a genuine deadlock -> lose. Locked slots, the number of remaining grid buses
+            // and joker coins are intentionally NOT treated as an escape (per design: the front
+            // passenger being unable to board with a full parking == loss -> Continue panel).
             Lose("No matching bus - parking full.");
         }
 
@@ -695,10 +702,27 @@ namespace BusJam
             SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
             SaveSystem.BestLevel = currentLevel;
             sfx.Win();
-            Juice.Confetti(this, boardRoot, new Vector3(0, 6, PeopleZ), confettiMats, 50);
             ui.HideHud();
+            ConfettiFromCorners(); // confetti shoots UP from the bottom-left & bottom-right corners
             LevelCompleted?.Invoke(earnedThisLevel, stars);
-            ui.ShowSuccess(); // 800x1000 "GOOD" panel with CLAIM / WATCH AD x2
+            ui.ShowSuccess(stars); // white box + blue stripe + animated 1-3 stars + claim/ad
+        }
+
+        // Two upward confetti bursts from the bottom-left and bottom-right screen corners.
+        void ConfettiFromCorners()
+        {
+            if (cam == null)
+            {
+                Juice.Confetti(this, boardRoot, new Vector3(0, 6, PeopleZ), confettiMats, 50);
+                return;
+            }
+            float depth = Mathf.Abs(cam.transform.position.z - PeopleZ);
+            // Exact bottom-LEFT and bottom-RIGHT corners, bursting DIAGONALLY upward
+            // toward the middle of the screen (dirX +1 from the left, -1 from the right).
+            Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0.02f, 0.02f, depth));
+            Vector3 br = cam.ViewportToWorldPoint(new Vector3(0.98f, 0.02f, depth));
+            Juice.Confetti(this, boardRoot, bl, confettiMats, 35, +1f);
+            Juice.Confetti(this, boardRoot, br, confettiMats, 35, -1f);
         }
 
         void Lose(string reason)
@@ -707,6 +731,7 @@ namespace BusJam
             state = GameState.Lose;
             sfx.Lose();
             ui.HideHud();
+            ui.ShowContinue(); // runtime Continue panel (decline -> Failed). GameManager is neutralized to avoid a 2nd panel.
             LevelFailed?.Invoke(reason);
             OnGameOver?.Invoke(reason);
             bool handledExternally = OnGameOver != null || LevelFailed != null;
