@@ -62,7 +62,7 @@ namespace BusJam
 
             BuildHud(recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
             BuildSettings();
-            BuildShop();
+            SetupShop();
             BuildContinue();
             BuildFailed();
             BuildSuccess();
@@ -76,10 +76,12 @@ namespace BusJam
         void DisableOldCanvases()
         {
             if (!Application.isPlaying) return;
+            var shopCanvas = InGameShop.Instance != null ? InGameShop.Instance.GetComponent<Canvas>() : null;
             foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (c == null) continue;
                 if (c.transform.root == transform.root) continue; // ours
+                if (shopCanvas != null && c == shopCanvas) continue; // baked in-game shop
                 c.gameObject.SetActive(false);
             }
         }
@@ -201,50 +203,142 @@ namespace BusJam
             });
         }
 
-        // ---- In-game shop (transparent backdrop; 56/57 boxes) ----------------
+        // ---- Shop setup -----------------------------------------------------
+        // Prefer the Inspector-editable scene shop baked via
+        // "Tools ▸ 300Mind UI ▸ Bake In-Game Shop"; otherwise build the code shop.
+        void SetupShop()
+        {
+            if (InGameShop.Instance != null && InGameShop.Instance.panel != null)
+            {
+                shopPanel = InGameShop.Instance.panel;
+                WireSceneShop(shopPanel.transform);
+                shopPanel.SetActive(false);
+            }
+            else BuildShop();
+        }
+
+        // Wire the baked shop's tagged buttons to live actions (the visuals stay in the scene).
+        void WireSceneShop(Transform shopRoot)
+        {
+            foreach (var b in shopRoot.GetComponentsInChildren<InGameShopButton>(true))
+            {
+                var btn = b.GetComponent<Button>();
+                if (btn == null) continue;
+                switch (b.action)
+                {
+                    case InGameShopButton.Act.GrantCoins:
+                        int amt = b.amount;
+                        btn.onClick.AddListener(() => { SaveSystem.AddCoins(amt); SetCoins(SaveSystem.Coins); });
+                        break;
+                    case InGameShopButton.Act.SpendJoker:
+                        btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) SetCoins(SaveSystem.Coins); });
+                        break;
+                    case InGameShopButton.Act.Close:
+                        btn.onClick.AddListener(HideShop);
+                        break;
+                }
+            }
+        }
+
+        // ---- In-game shop (coin tap) — identical to the main-menu shop -------
+        // Code fallback used only when no baked shop exists. Mirrors the baker:
+        // dim backdrop + tall card + scrollable list (Remove-Ads → gold grid → jokers).
         void BuildShop()
         {
-            shopPanel = Panel("Shop", new Color(0, 0, 0, 0.45f));
+            shopPanel = Panel("Shop", new Color(0, 0, 0, 0.6f));
+
             var card = Img(shopPanel.transform, UIKit.PanelTall(), new Color(0.30f, 0.25f, 0.55f));
-            Center(card.rectTransform, new Vector2(900, 1200));
-            Label(card.transform, "SHOP", title, new Vector2(0, 480), new Vector2(700, 110), 70, White);
-
-            // 3 gold sections on atlas1_56/57 boxes.
-            int[] amt = { 100, 500, 1000 };
-            int[] pr  = { 100, 250, 500 };
-            float[] cx = { -270, 0, 270 };
-            for (int i = 0; i < 3; i++)
-            {
-                int a = amt[i], p = pr[i];
-                var box = Btn(card.transform, i % 2 == 0 ? UIKit.ShopIconBgA() : UIKit.ShopIconBgB(), new Color(0.55f, 0.40f, 0.75f),
-                    new Vector2(0.5f, 0.5f), new Vector2(cx[i], 250), new Vector2(250, 260),
-                    () => { SaveSystem.AddCoins(a); SetCoins(SaveSystem.Coins); });
-                var ico = Img(box.transform, i == 2 ? UIKit.CoinPackBig() : UIKit.ShopCoinA(), Gold); ico.raycastTarget = false;
-                Center(ico.rectTransform, new Vector2(130, 130)); ico.rectTransform.anchoredPosition = new Vector2(0, 25);
-                Label(box.transform, "+" + a, num, new Vector2(0, 80), new Vector2(230, 40), 30, White);
-                Label(box.transform, "$ " + p, num, new Vector2(0, -100), new Vector2(230, 50), 34, Gold);
-            }
-            // Joker rows; buy buttons on 56/57.
-            ShopJoker(card.transform, 0,    "SWAP",       UIKit.JokerSwap(),    UIKit.ShopIconBgA(), 40);
-            ShopJoker(card.transform, -150, "RECOLOR",    UIKit.JokerRecolor(), UIKit.ShopIconBgB(), 60);
-            ShopJoker(card.transform, -300, "HELICOPTER", UIKit.JokerHeli(),    UIKit.ShopIconBgA(), 80);
-
+            Center(card.rectTransform, new Vector2(960, 1500));
+            Label(card.transform, "SHOP", title, new Vector2(0, 680), new Vector2(700, 120), 74, White);
             RedClose(card.transform, HideShop);
+
+            // ---- Scroll view ----
+            var svGo = new GameObject("ScrollView", typeof(RectTransform));
+            svGo.transform.SetParent(card.transform, false);
+            var svRt = svGo.GetComponent<RectTransform>();
+            svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
+            svRt.anchoredPosition = new Vector2(0, 20); svRt.sizeDelta = new Vector2(880, 1120);
+            var scroll = svGo.AddComponent<ScrollRect>();
+            scroll.horizontal = false; scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Elastic; scroll.scrollSensitivity = 28;
+
+            var vpGo = new GameObject("Viewport", typeof(RectTransform));
+            vpGo.transform.SetParent(svGo.transform, false);
+            var vpRt = vpGo.GetComponent<RectTransform>();
+            vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one; vpRt.offsetMin = Vector2.zero; vpRt.offsetMax = Vector2.zero;
+            var vpImg = vpGo.AddComponent<Image>(); vpImg.color = new Color(1, 1, 1, 0.01f); // catches drags over empty space
+            vpGo.AddComponent<RectMask2D>();
+
+            var ctGo = new GameObject("Content", typeof(RectTransform));
+            ctGo.transform.SetParent(vpGo.transform, false);
+            var ctRt = ctGo.GetComponent<RectTransform>();
+            ctRt.anchorMin = new Vector2(0, 1); ctRt.anchorMax = new Vector2(1, 1); ctRt.pivot = new Vector2(0.5f, 1);
+            ctRt.anchoredPosition = Vector2.zero; ctRt.sizeDelta = Vector2.zero;
+            var vlg = ctGo.AddComponent<VerticalLayoutGroup>();
+            vlg.spacing = 24; vlg.padding = new RectOffset(15, 15, 15, 15);
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.childControlWidth = true; vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+            var fit = ctGo.AddComponent<ContentSizeFitter>();
+            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            scroll.viewport = vpRt; scroll.content = ctRt;
+
+            // 1) Remove-ads bar (atlas1_44 bg, no-ads icon left, price button right).
+            var adsRow = Img(ctGo.transform, UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
+            var adsLe = adsRow.gameObject.AddComponent<LayoutElement>(); adsLe.preferredHeight = 160; adsLe.minHeight = 160;
+            var adsIco = Img(adsRow.transform, UIKit.NoAds(), new Color(0.85f, 0.3f, 0.3f)); adsIco.raycastTarget = false;
+            Place(adsIco.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(95, 0), new Vector2(110, 110));
+            var adsPrice = Img(adsRow.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = false;
+            Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
+            Label(adsPrice.transform, "TRY 249,99", num, Vector2.zero, new Vector2(360, 60), 36, White);
+
+            // 2) Gold packs (3-column grid, icons 11,12,13,29,30,31).
+            var gridGo = new GameObject("CoinGrid", typeof(RectTransform));
+            gridGo.transform.SetParent(ctGo.transform, false);
+            var gl = gridGo.AddComponent<GridLayoutGroup>();
+            gl.cellSize = new Vector2(275, 360); gl.spacing = new Vector2(15, 20);
+            gl.childAlignment = TextAnchor.UpperCenter;
+            gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount; gl.constraintCount = 3;
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinA(),     "100",   "$ 100",   100);
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinB(),     "500",   "$ 250",   500);
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinC(),     "1000",  "$ 500",   1000);
+            ShopCoinCard(gridGo.transform, UIKit.ShopGold(),      "2000",  "$ 800",   2000);
+            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "5000",  "$ 1200",  5000);
+            ShopCoinCard(gridGo.transform, UIKit.CoinPackBig(),   "10000", "$ 2100",  10000);
+
+            // 3) Joker bars (atlas1_44 bg, icon left, buy for 100 gold).
+            ShopJokerBar(ctGo.transform, UIKit.JokerRecolor());
+            ShopJokerBar(ctGo.transform, UIKit.JokerSwap());
+            ShopJokerBar(ctGo.transform, UIKit.JokerHeli());
+
             shopPanel.SetActive(false);
         }
 
-        void ShopJoker(Transform parent, float y, string name, Sprite icon, Sprite buyBg, int price)
+        // One purple coin-pack card: coin icon + amount + green price button (grants coins).
+        void ShopCoinCard(Transform parent, Sprite icon, string amount, string price, int coins)
         {
-            var row = Img(parent, UIKit.ShopBoxB(), new Color(0.35f, 0.40f, 0.65f));
-            Center(row.rectTransform, new Vector2(820, 130)); row.rectTransform.anchoredPosition = new Vector2(0, y);
-            var ico = Img(row.transform, icon, new Color(0.9f, 0.9f, 1f)); ico.raycastTarget = false;
-            Place(ico.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(80, 0), new Vector2(95, 95));
-            Label(row.transform, name, title, new Vector2(30, 0), new Vector2(400, 50), 34, White, TextAnchor.MiddleLeft);
-            var buy = Btn(row.transform, buyBg, new Color(0.3f, 0.75f, 0.35f), new Vector2(1, 0.5f), new Vector2(-120, 0), new Vector2(210, 100),
-                () => { if (SaveSystem.TrySpend(price)) SetCoins(SaveSystem.Coins); });
+            var card = Img(parent, UIKit.ShopIconBgA(), new Color(0.55f, 0.40f, 0.78f));
+            var ico = Img(card.transform, icon, Gold); ico.raycastTarget = false;
+            Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(150, 150));
+            Label(card.transform, amount, num, new Vector2(0, 132), new Vector2(255, 50), 34, White);
+            var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(245, 92),
+                () => { SaveSystem.AddCoins(coins); SetCoins(SaveSystem.Coins); });
+            Label(buy.transform, price, num, Vector2.zero, new Vector2(245, 56), 32, White);
+        }
+
+        // A full-width joker bar: icon on the dark-orange left + a "100 gold" buy button.
+        void ShopJokerBar(Transform parent, Sprite icon)
+        {
+            var row = Img(parent, UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
+            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 160; le.minHeight = 160;
+            var ico = Img(row.transform, icon, White); ico.raycastTarget = false;
+            Place(ico.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(120, 120));
+            var buy = Btn(row.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110),
+                () => { if (SaveSystem.TrySpend(100)) SetCoins(SaveSystem.Coins); });
             var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
-            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(46, 46));
-            Label(buy.transform, price.ToString(), num, new Vector2(20, 0), new Vector2(140, 50), 30, White);
+            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(56, 56));
+            Label(buy.transform, "100", num, new Vector2(30, 0), new Vector2(360, 60), 36, White);
         }
 
         // ---- Continue panel (56/57 buttons; ad icon atlas1_61) ---------------

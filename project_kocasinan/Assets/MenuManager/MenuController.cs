@@ -7,8 +7,10 @@ using BusJam;
 /// Behaviour driver for the SCENE-AUTHORED main menu produced by the editor tool
 /// "Tools ▸ 300Mind UI ▸ Bake Main Menu". The bake step creates the visual objects
 /// and assigns the references below, so you can freely edit every element's colour,
-/// size, position and font in the Inspector — this script only handles the logic
-/// (open/close panels, currency text, PLAY). Nothing here generates graphics.
+/// size, position and font in the Inspector — this script only handles the logic.
+///
+/// While any pop-up panel (Daily / Shop / …) is open, the home-only elements
+/// (gold counter, settings, no-ads, PLAY) are hidden; the bottom nav stays visible.
 /// </summary>
 public class MenuController : MonoBehaviour
 {
@@ -30,16 +32,38 @@ public class MenuController : MonoBehaviour
     [Header("Scene")]
     [SerializeField] public string gameSceneName = "SampleScene";
 
-    void Start() { CloseAll(); SelHome(); Refresh(); }
+    // Home-only elements (found by name in the baked hierarchy); hidden while a panel is open.
+    GameObject[] homeOnly;
+
+    void Start()
+    {
+        homeOnly = new[]
+        {
+            FindByName("Coin_Bar"),    // gold counter
+            FindByName("Btn_Settings"),// settings gear
+            FindByName("Btn_NoAds"),   // no-ads icon
+            FindByName("Btn_Play"),    // PLAY button
+        };
+        CloseAll();
+        Refresh();
+    }
+
     void Update() { Refresh(); }
 
     public void Refresh() { if (coinText) coinText.text = SaveSystem.Coins.ToString(); }
 
     void Set(GameObject g, bool on) { if (g) g.SetActive(on); }
-    public void CloseAll()
+
+    void HidePanels()
     {
         Set(dailyPanel, false); Set(shopPanel, false); Set(profilePanel, false);
         Set(settingsPanel, false); Set(removeAdsPanel, false);
+    }
+
+    void SetHomeOnly(bool on)
+    {
+        if (homeOnly == null) return;
+        foreach (var g in homeOnly) if (g) g.SetActive(on);
     }
 
     void Sel(GameObject g)
@@ -48,17 +72,36 @@ public class MenuController : MonoBehaviour
         Set(navHomeSel,  g == navHomeSel);
         Set(navShopSel,  g == navShopSel);
     }
-    void SelHome() { Sel(navHomeSel); }
+
+    GameObject FindByName(string n)
+    {
+        foreach (var t in GetComponentsInChildren<Transform>(true))
+            if (t.name == n) return t.gameObject;
+        return null;
+    }
+
+    // Open a panel: hide panels + home-only elements, show this panel, set nav.
+    void Open(GameObject panel, GameObject navSel)
+    {
+        HidePanels();
+        Set(panel, true);
+        SetHomeOnly(false);   // hide gold/settings/no-ads/PLAY while the panel is open
+        Sel(navSel);
+    }
 
     // ---- Button hooks (wired by the baker as persistent OnClick events) ----
-    public void ShowHome()      { CloseAll(); Sel(navHomeSel); }
-    public void OpenDaily()     { CloseAll(); Set(dailyPanel, true);   Sel(navDailySel); }
-    public void OpenShop()      { CloseAll(); Set(shopPanel, true);    Sel(navShopSel); }
-    public void OpenProfile()   { CloseAll(); Set(profilePanel, true); }
-    public void OpenSettings()  { CloseAll(); Set(settingsPanel, true); }
-    public void OpenRemoveAds() { CloseAll(); Set(removeAdsPanel, true); }
+    public void CloseAll()      { HidePanels(); SetHomeOnly(true); Sel(navHomeSel); }
+    public void ShowHome()      { CloseAll(); }
+    public void OpenDaily()     { Open(dailyPanel, navDailySel); }
+    public void OpenShop()      { Open(shopPanel, navShopSel); }
+    public void OpenProfile()   { Open(profilePanel, null); }
+    public void OpenSettings()  { Open(settingsPanel, null); }
+    public void OpenRemoveAds() { Open(removeAdsPanel, null); }
 
     public void Play() { SceneManager.LoadScene(gameSceneName); }
+
+    // Spend 100 gold (joker purchase). Returns silently if not enough.
+    public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }
 
     // Currency cheats / store buttons can call these directly from the Inspector.
     public void AddCoins100()  { SaveSystem.AddCoins(100);  Refresh(); }
