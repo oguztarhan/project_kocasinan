@@ -32,7 +32,8 @@ namespace BusJam
         public int CurrentLevel => currentLevel;
         public int Coins => SaveSystem.Coins;
 
-        const int SkipCost = 60, SwapCost = 40, SlotUnlockCost = 80;
+        const int RecolorCost = 80, SwapCost = 40, HeliCost = 100, SlotUnlockCost = 80;
+        const int J1UnlockLevel = 5, J2UnlockLevel = 10, J3UnlockLevel = 15; // RECOLOR / SWAP / HELI
 
         // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
@@ -43,7 +44,13 @@ namespace BusJam
         const float PeopleZ = 9.0f;           // thin people band across the top
         const float PeopleStartX = -3.8f, PeopleSpacing = 0.85f;
         const float FenceZ = 7.9f;            // divider between people (top) and bus area
+        const float FacadeZ = 10.9f;          // closed mall/terminal wall center (behind the people band at PeopleZ)
+        const float DoorSpawnZ = 10.2f;       // people are born just in front of the facade doors, then walk into the queue
         const int VISIBLE = 10;
+        // Boarding pacing (T2): the pump DISPATCHES one front passenger every BoardGap (their walks
+        // overlap), so throughput is BoardGap/person — far below the old ~0.32s serial cost.
+        const float BoardGap = 0.07f;         // dispatch cadence between successive boarders
+        const float BoardWalkDur = 0.20f;     // each passenger's async walk to the door
 
         GameState state = GameState.Boot;
         Camera cam;
@@ -62,6 +69,7 @@ namespace BusJam
         LevelData level;
         int currentLevel = 1;
         int totalSlots, gridW, gridH;
+        float[] doorXs;       // facade door world-X positions (set in BuildFacade); people emerge from the nearest one
         int earnedThisLevel, combo, maxCombo;
         float lastBoardTime = -10f;
         int busy;
@@ -91,8 +99,9 @@ namespace BusJam
             sfx = gameObject.AddComponent<Sfx>();
             ui = gameObject.AddComponent<GameUI>();
             ui.OnMenu = () => { sfx.Click(); PauseRequested?.Invoke(); };
-            ui.OnSkip = JokerSkip;
-            ui.OnSwap = JokerSwap;
+            ui.OnRecolor = JokerRecolor;
+            ui.OnSwap = JokerSwapPeople;
+            ui.OnHeli = JokerHelicopter;
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
@@ -146,6 +155,7 @@ namespace BusJam
             foreach (var s in slots)
                 if (s != null && s.locked) { s.Unlock(); break; }
             state = GameState.Playing;
+            StartCoroutine(LineLayoutLoop()); // restart queue re-spacing (it exited when state left Playing)
             ui.ShowHud();
             sfx.Click();
             TryStartBoardingPump();
@@ -196,17 +206,15 @@ namespace BusJam
         {
             if (bus.state != BusState.Queued) return; // already leaving / parked
 
-            var p = bus.cell + bus.dir;
-            while (InGrid(p))
-            {
-                if (occ.ContainsKey(p)) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // blocked
-                p += bus.dir;
-            }
+            // Same footprint + diagonal corner-sweep the generator used to PLACE this vehicle, so a
+            // solvable-by-construction lane is always tappable (4-way and 8-way alike).
+            if (!LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH))
+            { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // blocked
 
             var slot = NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x);
             if (slot == null) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; }
 
-            for (int i = 0; i < bus.length; i++) occ.Remove(bus.cell - bus.dir * i);
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
             gridBuses.Remove(bus);
             slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
             sfx.Deploy();
@@ -255,7 +263,7 @@ namespace BusJam
                 if (slot != null)
                 {
                     // Full exit — identical to the normal tail (free ALL body cells, then ExitRoutine).
-                    for (int i = 0; i < bus.length; i++) occ.Remove(bus.cell - bus.dir * i);
+                    foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                     gridBuses.Remove(bus);
                     slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
                     sfx.Deploy();
@@ -268,9 +276,9 @@ namespace BusJam
             else if (step == 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // immediately blocked
 
             // Reposition (partial crawl): remove ALL old body cells, THEN add ALL new — synchronously, no leak.
-            for (int i = 0; i < bus.length; i++) occ.Remove(bus.cell - bus.dir * i);
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
             bus.cell = lead;
-            for (int i = 0; i < bus.length; i++) occ[bus.cell - bus.dir * i] = bus;
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus;
             bus.state = BusState.Staging; // not tappable until the crawl animation finishes
             sfx.Deploy();
             StartCoroutine(CrawlMove(bus));
@@ -313,10 +321,12 @@ namespace BusJam
                 pumpDirty = false;
                 progressed = false;
 
+                // Drive off buses that are full AND whose reserved passengers have ALL arrived (so a bus
+                // never leaves while someone is still walking to it).
                 foreach (var slot in slots)
                 {
                     var b = slot.occupant;
-                    if (b != null && b.state == BusState.Parked && b.IsFull)
+                    if (b != null && b.state == BusState.Parked && b.ReadyToLeave)
                     {
                         b.state = BusState.Leaving;
                         StartCoroutine(DispatchRoutine(b, slot));
@@ -324,6 +334,8 @@ namespace BusJam
                     }
                 }
 
+                // Dispatch the FRONT passenger: reserve their seat NOW (capacity can't be over-assigned),
+                // run the walk ASYNC, and advance after just BoardGap so successive walks overlap.
                 if (visible.Count > 0)
                 {
                     var u = visible[0];
@@ -331,14 +343,12 @@ namespace BusJam
                     if (bus != null)
                     {
                         visible.RemoveAt(0);
-                        yield return MoveTo(u.transform, BusDoorWorld(bus), 0.22f, ease: true);
-                        bus.FillNextSeat();
-                        StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
-                        OnBoarded(u.golden, u.transform.position);
-                        Destroy(u.gameObject);
+                        int seat = bus.ReserveSeat();
+                        OnBoarded(u.golden, BusDoorWorld(bus)); // combo/coins in dispatch order, once each
+                        StartCoroutine(BoardWalk(u, bus, seat));
                         StreamNext();
-                        yield return RepositionLine();
                         progressed = true;
+                        yield return new WaitForSeconds(BoardGap); // cadence, NOT the full walk
                     }
                 }
             }
@@ -347,12 +357,29 @@ namespace BusJam
             CheckEnd();
         }
 
+        // One passenger walks to their reserved seat independently of the pump, so many can be in flight
+        // at once. busy is bracketed so CheckEnd/Win can't fire while anyone is still walking.
+        IEnumerator BoardWalk(LineUnit u, Bus bus, int seat)
+        {
+            busy++;
+            if (u != null) yield return MoveTo(u.transform, BusDoorWorld(bus), BoardWalkDur, ease: true);
+            if (bus != null)
+            {
+                bus.LightSeat(seat);
+                StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
+            }
+            if (u != null) Destroy(u.gameObject);
+            busy--;
+            TryStartBoardingPump(); // this arrival may have made the bus ReadyToLeave
+            CheckEnd();
+        }
+
         void StreamNext()
         {
             if (nextGroupIndex < groups.Count)
             {
                 var u = CreateUnit(groups[nextGroupIndex++]);
-                u.transform.position = LinePos(visible.Count + 3); // walk in from off-screen
+                u.transform.position = DoorSpawn(LinePos(visible.Count).x); // emerge from the nearest facade door
                 visible.Add(u);
             }
             UpdatePeopleLeft(); // a person was just served (or skipped) -> refresh the counter
@@ -412,18 +439,30 @@ namespace BusJam
             CheckEnd();
         }
 
-        IEnumerator RepositionLine()
+        // Continuously eases the visible queue to its slot positions, so people streaming in and boarders
+        // leaving re-space SMOOTHLY without an awaited per-board reposition (replaces RepositionLine on the
+        // boarding path). One owner of each person's position -> no overlapping MoveTo coroutines fighting.
+        IEnumerator LineLayoutLoop()
         {
-            for (int i = 0; i < visible.Count; i++)
-                if (visible[i] != null) StartCoroutine(MoveTo(visible[i].transform, LinePos(i), 0.18f, ease: true));
-            yield return new WaitForSeconds(0.1f);
+            while (state == GameState.Playing)
+            {
+                float k = 1f - Mathf.Exp(-14f * Time.deltaTime); // frame-rate-independent ease
+                for (int i = 0; i < visible.Count; i++)
+                {
+                    var t = visible[i] != null ? visible[i].transform : null;
+                    if (t != null) t.position = Vector3.Lerp(t.position, LinePos(i), k);
+                }
+                yield return null;
+            }
         }
 
         void CheckEnd()
         {
             if (state != GameState.Playing) return;
-            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { Win(); return; }
+            // Defer ALL end-decisions until in-flight walks/drive-offs settle (busy brackets every async
+            // boarder), so Win can't pop while the last passengers are still walking to their bus.
             if (busy > 0) return;
+            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { Win(); return; }
             if (visible.Count == 0) return;
 
             // The front passenger can board one of the parked buses -> keep playing.
@@ -452,41 +491,130 @@ namespace BusJam
             TryStartBoardingPump();
         }
 
-        void JokerSkip()
+        // ---- Jokers: level-gated (locked buttons are greyed + non-interactable; the early guards
+        // here are a safety net) and coin-costed. All three keep the level winnable. ----
+
+        // J1 @ Lv5 RECOLOR: re-tint EVERY jam vehicle. Permutes colors WITHIN each capacity group, so
+        // each color's total jam seats is unchanged -> remaining_people[c]==remaining_seats[c] stays
+        // balanced -> still winnable; an accessible vehicle can take on a needed color.
+        void JokerRecolor()
         {
-            if (state != GameState.Playing || visible.Count == 0) { sfx.Error(); return; }
-            if (!Spend(SkipCost)) { sfx.Error(); return; }
-            sfx.Click();
-            var u = visible[0]; visible.RemoveAt(0);
-            if (u != null) StartCoroutine(LeaveAndDestroy(u.transform));
-            StreamNext();
+            if (state != GameState.Playing || gridBuses.Count == 0) { sfx.Error(); return; }
+            if (SaveSystem.Level < J1UnlockLevel) { sfx.Error(); return; }
+            if (!Spend(RecolorCost)) { sfx.Error(); return; }
+            sfx.Coin();
+
+            var byCap = new Dictionary<int, List<Bus>>();
+            foreach (var b in gridBuses)
+            {
+                if (!byCap.TryGetValue(b.capacity, out var l)) { l = new List<Bus>(); byCap[b.capacity] = l; }
+                l.Add(b);
+            }
+            foreach (var kv in byCap)
+            {
+                var list = kv.Value;
+                var colors = new PieceColor[list.Count];
+                for (int i = 0; i < list.Count; i++) colors[i] = list[i].color;
+                for (int i = list.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (colors[i], colors[j]) = (colors[j], colors[i]); }
+                for (int i = 0; i < list.Count; i++) RecolorBus(list[i], colors[i]);
+            }
             StartCoroutine(AfterJoker());
         }
 
-        void JokerSwap()
+        // J2 @ Lv10 SWAP: shuffle the visible queue. Any permutation keeps the color multiset and the
+        // people total -> solvability-safe; brings a servable color to the front.
+        void JokerSwapPeople()
         {
             if (state != GameState.Playing || visible.Count < 2) { sfx.Error(); return; }
+            if (SaveSystem.Level < J2UnlockLevel) { sfx.Error(); return; }
             if (!Spend(SwapCost)) { sfx.Error(); return; }
             sfx.Click();
-            (visible[0], visible[1]) = (visible[1], visible[0]);
+            for (int i = visible.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (visible[i], visible[j]) = (visible[j], visible[i]); }
             StartCoroutine(AfterJoker());
+        }
+
+        // J3 @ Lv15 HELICOPTER: airlift ONE jam vehicle straight onto a free slot, ignoring blockers.
+        // Only relocates a vehicle that had to be parked eventually -> per-color balance unchanged.
+        void JokerHelicopter()
+        {
+            if (state != GameState.Playing || gridBuses.Count == 0) { sfx.Error(); return; }
+            if (SaveSystem.Level < J3UnlockLevel) { sfx.Error(); return; }
+            var slot = FirstFreeSlot();
+            if (slot == null) { sfx.Error(); return; } // no free slot -> nothing spent
+
+            // Prefer a vehicle matching the front passenger (directly unsticks), else any queued one.
+            Bus pick = null;
+            if (visible.Count > 0)
+            {
+                var want = visible[0].color;
+                foreach (var b in gridBuses) if (b.state == BusState.Queued && b.color == want) { pick = b; break; }
+            }
+            if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }
+            if (pick == null) { sfx.Error(); return; }
+            if (!Spend(HeliCost)) { sfx.Error(); return; }
+            sfx.Deploy();
+
+            foreach (var c in LevelGenerator.OccCells(pick.cell, pick.dir, pick.length)) occ.Remove(c); // free ALL body cells (no phantom)
+            gridBuses.Remove(pick);
+            slot.occupant = pick; pick.slotIndex = slot.index; pick.state = BusState.MovingToSlot;
+            StartCoroutine(HeliRoutine(pick, slot));
+        }
+
+        IEnumerator HeliRoutine(Bus bus, ParkingSlot slot)
+        {
+            busy++;
+            // big arc -> the vehicle lifts and flies OVER the jam to its slot, ignoring obstacles.
+            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.55f, 2.6f);
+            bus.state = BusState.Parked;
+            StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
+            busy--;
+            TryStartBoardingPump();
+            CheckEnd();
+        }
+
+        // Re-tint a jam bus to a new match-color (body + roof number) for RECOLOR.
+        void RecolorBus(Bus bus, PieceColor newColor)
+        {
+            bus.color = newColor;
+            var modelTf = bus.transform.Find("Model");
+            var prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(bus.type) : null;
+            if (modelTf != null && prefab != null)
+            {
+                // Tint each model slot against its ORIGINAL prefab material (same as the build path) so
+                // multi-material vehicles keep windows/wheels, and the cache key stays bounded.
+                var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
+                var prefabRends = prefab.GetComponentsInChildren<Renderer>(true);
+                for (int r = 0; r < modelRends.Length; r++)
+                {
+                    var m = modelRends[r].sharedMaterials;
+                    var baseMats = r < prefabRends.Length ? prefabRends[r].sharedMaterials : null;
+                    for (int i = 0; i < m.Length; i++)
+                    {
+                        Material baseM = (baseMats != null && i < baseMats.Length) ? baseMats[i] : null;
+                        if (baseM != null) m[i] = TintedVehicleMat(baseM, newColor);
+                    }
+                    modelRends[r].sharedMaterials = m;
+                }
+            }
+            else if (bus.seatWindows != null) // code-built fallback
+            {
+                var bodyTf = bus.transform.Find("Body");
+                if (bodyTf != null) { var br = bodyTf.GetComponent<Renderer>(); if (br != null) br.sharedMaterial = bodyMats[newColor]; }
+                bus.filledMat = bodyMats[newColor];
+                for (int i = 0; i < bus.seatsFilled && i < bus.seatWindows.Length; i++)
+                    if (bus.seatWindows[i] != null) bus.seatWindows[i].sharedMaterial = bodyMats[newColor];
+            }
+            if (bus.seatLabel != null) bus.seatLabel.color = PeopleColor(newColor);
         }
 
         IEnumerator AfterJoker()
         {
             busy++;
-            yield return RepositionLine();
+            yield return new WaitForSeconds(0.12f); // let the layout loop re-space the shuffled queue
             busy--;
-            UpdatePeopleLeft(); // defensive: a joker may have removed/changed queue people
+            UpdatePeopleLeft();
             TryStartBoardingPump();
             CheckEnd();
-        }
-
-        IEnumerator LeaveAndDestroy(Transform t)
-        {
-            if (t == null) yield break;
-            yield return MoveTo(t, t.position + new Vector3(0, 0, -4f), 0.3f);
-            if (t != null) Destroy(t.gameObject);
         }
 
         // ====================================================================
@@ -532,10 +660,12 @@ namespace BusJam
             earnedThisLevel = 0; combo = 0; maxCombo = 0; lastBoardTime = -10f;
 
             state = GameState.Playing;
+            StartCoroutine(LineLayoutLoop()); // continuous queue re-spacing for the duration of the level
             ui.ShowHud();
             ui.SetLevel(levelNumber);
             ui.SetTheme(theme.name);
             ui.SetCoins(SaveSystem.Coins);
+            ui.RefreshJokerLocks();  // unlock RECOLOR/SWAP/HELI as SaveSystem.Level rises
             UpdatePeopleLeft(); // initial total (this level's real people count, not the visible window)
             LevelStarted?.Invoke(levelNumber);
             CheckEnd(); // detect an immediately-stuck board (no-op normally: free slots exist at start)
@@ -645,7 +775,7 @@ namespace BusJam
                 bus.cell = gb.cell; bus.dir = gb.dir; bus.length = Vehicles.CellLength(gb.type);
                 bus.state = BusState.Queued;
                 bus.transform.position = GridWorldCenter(gb.cell, gb.dir, bus.length);
-                for (int i = 0; i < bus.length; i++) occ[gb.cell - gb.dir * i] = bus;
+                foreach (var c in LevelGenerator.OccCells(gb.cell, gb.dir, bus.length)) occ[c] = bus;
                 gridBuses.Add(bus);
             }
         }
@@ -663,6 +793,54 @@ namespace BusJam
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.07f, cz), new Vector3(w + 0.6f, 0.12f, d + 0.6f), lot);
         }
 
+        // Wide closed mall/terminal facade behind the people band. Themed (Facade/Trim/Door materials),
+        // deterministic, parented to boardRoot (torn down each level). Records door world-X's in doorXs so
+        // people emerge from the nearest door. Sign + door-glass reuse the accent/window mats.
+        void BuildFacade(Theme th, Material sign, Material window)
+        {
+            Material body = MaterialLibrary.GetTheme(th.name, "Facade", th.propMain, 0.40f, 0.05f);
+            Material trim = MaterialLibrary.GetTheme(th.name, "FacadeTrim", th.propAlt, 0.45f, 0.06f);
+            Material door = MaterialLibrary.GetTheme(th.name, "FacadeDoor",
+                new Color(th.accent.r * 0.35f, th.accent.g * 0.35f, th.accent.b * 0.35f, 1f), 0.55f, 0.12f);
+
+            const float wallW = 10.5f, wallH = 3.0f, wallD = 1.0f; // 10.5 keeps the ends on-screen on tall 20:9 phones
+            float frontZ = FacadeZ - wallD * 0.5f; // wall face toward the camera
+
+            // wall + roof cornice (no front plinth — it would clip the door spawn/walk path)
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, wallH * 0.5f, FacadeZ), new Vector3(wallW, wallH, wallD), body);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, wallH + 0.12f, FacadeZ), new Vector3(wallW + 0.7f, 0.32f, wallD + 0.5f), trim);
+
+            // doors across the band + a glass transom above each
+            const int doorCount = 4;
+            const float doorSpread = 8.0f, doorW = 1.0f, doorH = 1.9f; // doors at x ~ {-3,-1,1,3}, under the band ends
+            var xs = new float[doorCount];
+            for (int j = 0; j < doorCount; j++)
+            {
+                float dx = -doorSpread * 0.5f + (doorSpread / doorCount) * (j + 0.5f);
+                xs[j] = dx;
+                LowPolyBuilder.Slab(boardRoot, new Vector3(dx, doorH * 0.5f, frontZ - 0.05f), new Vector3(doorW, doorH, 0.16f), door);          // dark doorway
+                LowPolyBuilder.Slab(boardRoot, new Vector3(dx, doorH + 0.42f, frontZ - 0.04f), new Vector3(doorW * 1.12f, 0.55f, 0.10f), window); // glass transom
+            }
+            doorXs = xs;
+
+            // sign band over the entrance
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, wallH - 0.35f, frontZ - 0.06f), new Vector3(doorSpread * 0.8f, 0.55f, 0.14f), sign);
+        }
+
+        // Where a new person is born so they appear to step OUT of a facade door: the nearest door to their
+        // target queue x, just in front of the wall. Falls back to the old off-screen-right spawn (no facade).
+        Vector3 DoorSpawn(float targetX)
+        {
+            if (doorXs == null || doorXs.Length == 0) return new Vector3(targetX + 3f * PeopleSpacing, 0, PeopleZ);
+            float bestX = doorXs[0], bestD = Mathf.Abs(targetX - doorXs[0]);
+            for (int i = 1; i < doorXs.Length; i++)
+            {
+                float d = Mathf.Abs(targetX - doorXs[i]);
+                if (d < bestD) { bestD = d; bestX = doorXs[i]; }
+            }
+            return new Vector3(bestX, 0, DoorSpawnZ);
+        }
+
         void BuildLine()
         {
             groups = level.groups;
@@ -672,7 +850,7 @@ namespace BusJam
             for (int i = 0; i < init; i++)
             {
                 var u = CreateUnit(groups[i]);
-                u.transform.position = LinePos(i);
+                u.transform.position = DoorSpawn(LinePos(i).x); // at level start, people pour out of the doors
                 visible.Add(u);
             }
             nextGroupIndex = init;
@@ -1001,7 +1179,9 @@ namespace BusJam
         }
 
         // Arrow yaw so a bus visually points the way it will exit (toward parking / sides).
-        float DirYaw(Vector2Int d) { if (d.x == -1) return 90f; if (d.x == 1) return -90f; if (d.y == 1) return 0f; return 180f; } // (0,-1) down->180, (0,1) up->0
+        // World exit dir = (d.x,0,-d.y); model nose points local -Z. Atan2 handles all 8 dirs (cardinals
+        // verify: (0,-1)->180, (0,1)->0, (-1,0)->90, (1,0)->-90; diagonals (1,1)->-45, (-1,1)->45, etc.).
+        float DirYaw(Vector2Int d) => Mathf.Atan2(-d.x, d.y) * Mathf.Rad2Deg;
 
         ParkingSlot FirstFreeSlot() { foreach (var s in slots) if (s.IsFree) return s; return null; }
         ParkingSlot NearestFreeSlot(float x)
@@ -1160,9 +1340,15 @@ namespace BusJam
                 LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
             }
 
-            // Back row: a house centerpiece (hero) flanked by trees + bushes, else a row of props.
+            // Behind the people band: a closed mall/terminal FACADE (people emerge from its doors), else
+            // the legacy house centerpiece / prop row.
+            doorXs = null;
             float backZ = PeopleZ + 4f;
-            if (th.hasHouse)
+            if (th.hasFacade)
+            {
+                BuildFacade(th, accent, window);
+            }
+            else if (th.hasHouse)
             {
                 LowPolyBuilder.BuildProp(boardRoot, PropKind.House, new Vector3(0, 0, backZ + 0.6f), main, alt, foliage, trunk, window, 1.8f);
                 LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(-4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
@@ -1179,13 +1365,15 @@ namespace BusJam
                 }
             }
 
-            // Grass tufts dressing the back lawn (deterministic; behind the people band, off the board).
-            for (int i = 0; i < 12; i++)
-            {
-                float gx = -7.5f + (i * 1.45f) % 15f;
-                float gz = (PeopleZ + 1.8f) + (i % 3) * 1.1f;
-                LowPolyBuilder.GrassTuft(boardRoot, new Vector3(gx, 0, gz), 1.0f, grass);
-            }
+            // Grass tufts dressing the back lawn — skipped behind the closed facade (paved terminal plaza,
+            // and they would otherwise poke through the wall front).
+            if (!th.hasFacade)
+                for (int i = 0; i < 12; i++)
+                {
+                    float gx = -7.5f + (i * 1.45f) % 15f;
+                    float gz = (PeopleZ + 1.8f) + (i % 3) * 1.1f;
+                    LowPolyBuilder.GrassTuft(boardRoot, new Vector3(gx, 0, gz), 1.0f, grass);
+                }
 
             for (int k = 0; k < 4; k++)
                 MakeCloud(new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f), cloud, k);

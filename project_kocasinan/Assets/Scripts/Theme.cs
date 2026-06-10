@@ -20,6 +20,7 @@ namespace BusJam
         public PropKind prop;   // primary side scatter
         public PropKind prop2;  // secondary scatter (bushes / trees)
         public bool hasHouse;   // build a house centerpiece (Park hero)
+        public bool hasFacade;  // build the closed mall/terminal facade behind the people band (people emerge from its doors)
         public Color ambient;
         public Color lightColor;
         public float lightIntensity;
@@ -38,7 +39,7 @@ namespace BusJam
                 accent = new Color(0.92f,0.93f,0.80f), propMain = new Color(0.96f,0.72f,0.56f),
                 propAlt = new Color(0.86f,0.45f,0.40f), foliage = new Color(0.40f,0.73f,0.43f),
                 trunk = new Color(0.50f,0.36f,0.24f), grass = new Color(0.50f,0.79f,0.43f),
-                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = true,
+                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = true, hasFacade = true,
                 ambient = new Color(0.64f,0.68f,0.62f), lightColor = new Color(1f,0.97f,0.88f), lightIntensity = 1.35f
             },
             new Theme {
@@ -47,7 +48,7 @@ namespace BusJam
                 accent = new Color(0.56f,0.63f,0.73f), propMain = new Color(0.83f,0.58f,0.55f),
                 propAlt = new Color(0.60f,0.68f,0.80f), foliage = new Color(0.43f,0.71f,0.46f),
                 trunk = new Color(0.45f,0.32f,0.22f), grass = new Color(0.50f,0.73f,0.47f),
-                prop = PropKind.Building, prop2 = PropKind.RoundTree, hasHouse = false,
+                prop = PropKind.Building, prop2 = PropKind.RoundTree, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.58f,0.60f,0.64f), lightColor = new Color(1f,0.98f,0.92f), lightIntensity = 1.3f
             },
             new Theme {
@@ -56,7 +57,7 @@ namespace BusJam
                 accent = new Color(0.98f,0.71f,0.52f), propMain = new Color(0.96f,0.55f,0.71f),
                 propAlt = new Color(0.70f,0.85f,0.96f), foliage = new Color(0.71f,0.90f,0.71f),
                 trunk = new Color(0.80f,0.56f,0.46f), grass = new Color(0.85f,0.92f,0.71f),
-                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false,
+                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.72f,0.64f,0.70f), lightColor = new Color(1f,0.95f,0.96f), lightIntensity = 1.35f
             },
             new Theme {
@@ -65,7 +66,7 @@ namespace BusJam
                 accent = new Color(0.62f,0.72f,0.50f), propMain = new Color(0.52f,0.41f,0.30f),
                 propAlt = new Color(0.41f,0.61f,0.41f), foliage = new Color(0.27f,0.59f,0.35f),
                 trunk = new Color(0.42f,0.30f,0.20f), grass = new Color(0.37f,0.63f,0.37f),
-                prop = PropKind.Pine, prop2 = PropKind.RoundTree, hasHouse = false,
+                prop = PropKind.Pine, prop2 = PropKind.RoundTree, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.50f,0.58f,0.50f), lightColor = new Color(0.95f,0.98f,0.88f), lightIntensity = 1.2f
             },
             new Theme {
@@ -74,7 +75,7 @@ namespace BusJam
                 accent = new Color(0.98f,0.79f,0.51f), propMain = new Color(0.81f,0.46f,0.51f),
                 propAlt = new Color(0.61f,0.46f,0.66f), foliage = new Color(0.56f,0.56f,0.46f),
                 trunk = new Color(0.45f,0.32f,0.28f), grass = new Color(0.67f,0.59f,0.43f),
-                prop = PropKind.Palm, prop2 = PropKind.Bush, hasHouse = false,
+                prop = PropKind.Palm, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.63f,0.53f,0.53f), lightColor = new Color(1f,0.80f,0.62f), lightIntensity = 1.3f
             },
             new Theme {
@@ -83,7 +84,7 @@ namespace BusJam
                 accent = new Color(0.80f,0.72f,0.52f), propMain = new Color(0.94f,0.80f,0.54f),
                 propAlt = new Color(0.52f,0.80f,0.82f), foliage = new Color(0.42f,0.74f,0.48f),
                 trunk = new Color(0.55f,0.42f,0.28f), grass = new Color(0.80f,0.84f,0.55f),
-                prop = PropKind.Palm, prop2 = PropKind.Bush, hasHouse = false,
+                prop = PropKind.Palm, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.64f,0.68f,0.66f), lightColor = new Color(1f,0.98f,0.88f), lightIntensity = 1.4f
             },
             new Theme {
@@ -92,7 +93,7 @@ namespace BusJam
                 accent = new Color(0.82f,0.68f,0.46f), propMain = new Color(0.88f,0.64f,0.40f),
                 propAlt = new Color(0.80f,0.57f,0.36f), foliage = new Color(0.50f,0.70f,0.42f),
                 trunk = new Color(0.52f,0.42f,0.30f), grass = new Color(0.78f,0.72f,0.45f),
-                prop = PropKind.Cactus, prop2 = PropKind.Cactus, hasHouse = false,
+                prop = PropKind.Cactus, prop2 = PropKind.Cactus, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.68f,0.62f,0.50f), lightColor = new Color(1f,0.95f,0.78f), lightIntensity = 1.45f
             },
             new Theme {
@@ -101,7 +102,7 @@ namespace BusJam
                 accent = new Color(0.70f,0.82f,0.92f), propMain = new Color(0.85f,0.90f,0.96f),
                 propAlt = new Color(0.60f,0.74f,0.88f), foliage = new Color(0.40f,0.62f,0.50f),
                 trunk = new Color(0.42f,0.32f,0.26f), grass = new Color(0.86f,0.92f,0.96f),
-                prop = PropKind.Pine, prop2 = PropKind.RoundTree, hasHouse = false,
+                prop = PropKind.Pine, prop2 = PropKind.RoundTree, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.66f,0.70f,0.78f), lightColor = new Color(0.92f,0.95f,1f), lightIntensity = 1.25f
             },
             new Theme {
@@ -110,7 +111,7 @@ namespace BusJam
                 accent = new Color(0.50f,0.55f,0.80f), propMain = new Color(0.32f,0.36f,0.55f),
                 propAlt = new Color(0.45f,0.50f,0.72f), foliage = new Color(0.30f,0.55f,0.42f),
                 trunk = new Color(0.32f,0.28f,0.24f), grass = new Color(0.30f,0.46f,0.40f),
-                prop = PropKind.Building, prop2 = PropKind.RoundTree, hasHouse = false,
+                prop = PropKind.Building, prop2 = PropKind.RoundTree, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.42f,0.45f,0.58f), lightColor = new Color(0.70f,0.74f,0.95f), lightIntensity = 1.0f
             },
             new Theme {
@@ -119,7 +120,7 @@ namespace BusJam
                 accent = new Color(0.88f,0.66f,0.42f), propMain = new Color(0.80f,0.50f,0.34f),
                 propAlt = new Color(0.86f,0.58f,0.34f), foliage = new Color(0.85f,0.52f,0.30f),
                 trunk = new Color(0.44f,0.32f,0.24f), grass = new Color(0.72f,0.62f,0.40f),
-                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false,
+                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.62f,0.56f,0.48f), lightColor = new Color(1f,0.90f,0.72f), lightIntensity = 1.3f
             },
         };

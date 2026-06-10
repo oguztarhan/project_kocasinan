@@ -55,7 +55,8 @@ namespace BusJam
         {
             ("Ground", 0.35f, 0.05f), ("Field", 0.28f, 0.03f), ("Road", 0.30f, 0f), ("Accent", 0.45f, 0.06f),
             ("PropMain", 0.45f, 0.05f), ("PropAlt", 0.45f, 0.05f), ("Foliage", 0.35f, 0.06f), ("Trunk", 0.25f, 0f),
-            ("Window", 0.7f, 0.25f), ("Cloud", 0f, 0.18f), ("Grass", 0.30f, 0.06f)
+            ("Window", 0.7f, 0.25f), ("Cloud", 0f, 0.18f), ("Grass", 0.30f, 0.06f),
+            ("Facade", 0.40f, 0.05f), ("FacadeTrim", 0.45f, 0.06f), ("FacadeDoor", 0.55f, 0.12f)
         };
 
         static Color ThemeColor(Theme th, string type)
@@ -72,6 +73,9 @@ namespace BusJam
                 case "Trunk":    return th.trunk;
                 case "Grass":    return th.grass;
                 case "Window":   return new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f);
+                case "Facade":     return th.propMain;
+                case "FacadeTrim": return th.propAlt;
+                case "FacadeDoor": return new Color(th.accent.r * 0.35f, th.accent.g * 0.35f, th.accent.b * 0.35f, 1f); // dark doorway
                 default:         return Color.white; // Cloud
             }
         }

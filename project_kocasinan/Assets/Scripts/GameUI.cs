@@ -39,7 +39,13 @@ namespace BusJam
         Joker jRecolor, jSwap, jHeli;
         int level = 1;
 
-        public void Build(int skipCost, int swapCost)
+        // Level-gated joker buttons (RECOLOR / SWAP / HELI) + their gating metadata.
+        Button[] jokerBtns;
+        int[] jokerUnlock, jokerCost;
+        string[] jokerName;
+        Color[] jokerColor;
+
+        public void Build(int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
         {
             title = UIKit.Title();
             num   = UIKit.Num();
