@@ -105,7 +105,6 @@ namespace BusJam
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
-            ui.OnRecolor = () => { sfx.Click(); }; // TODO: real recolor-joker gameplay (visual placeholder for now)
             ui.OnContinuePay = () =>             // Continue panel: pay 100 gold
             {
                 if (SaveSystem.TrySpend(100))
@@ -119,7 +118,7 @@ namespace BusJam
             };
             ui.OnContinueAd = () => { ui.HideContinue(); ContinueLevel(); };   // TODO: gate behind a real rewarded ad
             ui.OnContinueDeclined = () => { ui.HideContinue(); ui.ShowFailed(); };
-            ui.Build(SkipCost, SwapCost);
+            ui.Build(RecolorCost, SwapCost, HeliCost, J1UnlockLevel, J2UnlockLevel, J3UnlockLevel);
 
             levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);

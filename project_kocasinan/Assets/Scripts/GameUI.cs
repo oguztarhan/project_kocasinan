@@ -15,13 +15,10 @@ namespace BusJam
     /// </summary>
     public class GameUI : MonoBehaviour
     {
-        public System.Action OnMenu, OnSkip, OnSwap, OnRecolor;
+        public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
         public System.Action OnHome, OnReplay;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
-
-        // Joker unlock levels (recolor / swap-people / helicopter).
-        const int RecolorLevel = 5, SwapLevel = 10, HeliLevel = 15;
 
         static readonly Color White = Color.white;
         static readonly Color Gold  = new Color(1f, 0.85f, 0.30f);
@@ -38,12 +35,6 @@ namespace BusJam
         struct Joker { public Button btn; public GameObject lockGo; public int unlock; }
         Joker jRecolor, jSwap, jHeli;
         int level = 1;
-
-        // Level-gated joker buttons (RECOLOR / SWAP / HELI) + their gating metadata.
-        Button[] jokerBtns;
-        int[] jokerUnlock, jokerCost;
-        string[] jokerName;
-        Color[] jokerColor;
 
         public void Build(int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
         {
@@ -69,7 +60,7 @@ namespace BusJam
                 es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
 
-            BuildHud(skipCost, swapCost);
+            BuildHud(recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
             BuildSettings();
             BuildShop();
             BuildContinue();
@@ -94,7 +85,7 @@ namespace BusJam
         }
 
         // ---- HUD ------------------------------------------------------------
-        void BuildHud(int skipCost, int swapCost)
+        void BuildHud(int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
         {
             hudPanel = Panel("Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
@@ -130,9 +121,9 @@ namespace BusJam
             comboText.gameObject.SetActive(false);
 
             // 3 jokers across the bottom on atlas1_56/57 boxes: RECOLOR / SWAP / HELI.
-            jRecolor = JokerButton(-260, "RECOLOR", UIKit.JokerRecolor(), UIKit.ShopIconBgA(), RecolorLevel, () => OnRecolor?.Invoke());
-            jSwap    = JokerButton(0,    swapCost.ToString(), UIKit.JokerSwap(), UIKit.ShopIconBgB(), SwapLevel, () => OnSwap?.Invoke());
-            jHeli    = JokerButton(260,  skipCost.ToString(), UIKit.JokerHeli(), UIKit.ShopIconBgA(), HeliLevel, () => OnSkip?.Invoke());
+            jRecolor = JokerButton(-260, recolorCost.ToString(), UIKit.JokerRecolor(), UIKit.ShopIconBgA(), j1Lvl, () => OnRecolor?.Invoke());
+            jSwap    = JokerButton(0,    swapCost.ToString(),    UIKit.JokerSwap(),    UIKit.ShopIconBgB(), j2Lvl, () => OnSwap?.Invoke());
+            jHeli    = JokerButton(260,  heliCost.ToString(),    UIKit.JokerHeli(),    UIKit.ShopIconBgA(), j3Lvl, () => OnHeli?.Invoke());
             RefreshJokers();
         }
 
@@ -160,22 +151,31 @@ namespace BusJam
             if (j.lockGo) j.lockGo.SetActive(!unlocked);
         }
 
-        // ---- Settings (sound/music draggable sliders; home/replay 36-37) -----
+        // ---- Settings (atlas2_0 WHITE panel; blue title tile; 18-icon toggles; 36 buttons) ----
         void BuildSettings()
         {
             settingsPanel = Panel("Settings", Dim);
-            var card = Img(settingsPanel.transform, UIKit.EmptyBoxBlue(), new Color(0.25f, 0.55f, 0.90f));
+
+            // Panel background = atlas2_0, tinted WHITE.
+            var card = Img(settingsPanel.transform, UIKit.EmptyBoxBlue(), White);
+            card.color = White;
             Center(card.rectTransform, new Vector2(820, 1000));
-            Label(card.transform, "SETTINGS", title, new Vector2(0, 400), new Vector2(700, 100), 62, White);
 
-            SliderRow(card.transform, 210, "SOUND", UIKit.IconSound(), SaveSystem.Sound, v => SaveSystem.Sound = v);
-            SliderRow(card.transform, 60,  "MUSIC", UIKit.IconMusic(), SaveSystem.Music, v => SaveSystem.Music = v);
+            // Blue TEXT TILE on top of the rectangle, with the title on it.
+            var tile = Img(card.transform, UIKit.TitleBarA(), new Color(0.25f, 0.55f, 0.90f));
+            tile.color = new Color(0.25f, 0.55f, 0.90f); tile.raycastTarget = false;
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 410), new Vector2(580, 130));
+            Label(card.transform, "SETTINGS", title, new Vector2(0, 410), new Vector2(560, 100), 56, White);
 
-            // HOME + REPLAY on the kit's price-bar sprites (atlas1_36 / 37).
+            // SOUND / MUSIC: tap to toggle. Button image = atlas1_36, on/off icon = atlas1_18.
+            ToggleRow(card.transform, 210, "SOUND", SaveSystem.Sound, v => SaveSystem.Sound = v);
+            ToggleRow(card.transform, 60,  "MUSIC", SaveSystem.Music, v => SaveSystem.Music = v);
+
+            // HOME + REPLAY: ALL settings buttons use atlas1_36.
             var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -160), new Vector2(310, 115),
                 () => { HideSettings(); OnHome?.Invoke(); });
             Label(home.transform, "HOME", title, Vector2.zero, new Vector2(310, 80), 40, White);
-            var replay = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -160), new Vector2(310, 115),
+            var replay = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -160), new Vector2(310, 115),
                 () => { HideSettings(); OnReplay?.Invoke(); });
             Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(310, 80), 38, White);
 
@@ -183,41 +183,21 @@ namespace BusJam
             settingsPanel.SetActive(false);
         }
 
-        void SliderRow(Transform parent, float y, string name, Sprite icon, bool initial, System.Action<bool> onChange)
+        // Sound/Music row: label + a tap-toggle button (bg = atlas1_36 PriceBtnA,
+        // on/off icon = atlas1_18 CircleGreen → green when ON, grey when OFF).
+        void ToggleRow(Transform parent, float y, string name, bool initial, System.Action<bool> onChange)
         {
-            var ico = Img(parent, icon, new Color(0.85f, 0.9f, 1f)); ico.raycastTarget = false;
-            Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-270, y), new Vector2(80, 80));
-            Label(parent, name, num, new Vector2(-50, y), new Vector2(340, 60), 38, White, TextAnchor.MiddleLeft);
-            ToggleSlider(parent, new Vector2(230, y), initial, onChange);
-        }
-
-        // Draggable on/off slider on the kit's slider-track sprite (atlas1_9).
-        void ToggleSlider(Transform parent, Vector2 pos, bool initial, System.Action<bool> onChange)
-        {
-            var track = Img(parent, UIKit.SliderTrack(), new Color(0.18f, 0.22f, 0.35f));
-            Place(track.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(220, 70));
-
-            var area = new GameObject("Area", typeof(RectTransform));
-            area.transform.SetParent(track.transform, false);
-            var art = area.GetComponent<RectTransform>();
-            art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-            art.offsetMin = new Vector2(34, 0); art.offsetMax = new Vector2(-34, 0);
-
-            var handle = Img(area.transform, UISprites.Circle(), initial ? OnCol : OffCol);
-            handle.color = initial ? OnCol : OffCol;
-            handle.rectTransform.sizeDelta = new Vector2(56, 56);
-
-            var slider = track.gameObject.AddComponent<Slider>();
-            slider.transition = Selectable.Transition.None;
-            slider.handleRect = handle.rectTransform;
-            slider.targetGraphic = handle;
-            slider.minValue = 0f; slider.maxValue = 1f;
-            slider.value = initial ? 1f : 0f;
-            slider.onValueChanged.AddListener(v =>
+            Label(parent, name, num, new Vector2(-140, y), new Vector2(300, 60), 38, Dark, TextAnchor.MiddleLeft);
+            bool[] st = { initial };
+            var btn = Btn(parent, UIKit.PriceBtnA(), new Color(0.5f, 0.7f, 0.9f), new Vector2(0.5f, 0.5f), new Vector2(220, y), new Vector2(200, 100), null);
+            var ico = Img(btn.transform, UIKit.CircleGreen(), OffCol); ico.raycastTarget = false;
+            Center(ico.rectTransform, new Vector2(76, 76));
+            ico.color = st[0] ? OnCol : OffCol;
+            btn.onClick.AddListener(() =>
             {
-                bool on = v > 0.5f;
-                handle.color = on ? OnCol : OffCol;
-                onChange?.Invoke(on);
+                st[0] = !st[0];
+                ico.color = st[0] ? OnCol : OffCol;
+                onChange?.Invoke(st[0]);
             });
         }
 
@@ -361,7 +341,16 @@ namespace BusJam
         public void HideSuccess() { Toggle(successPanel, false); }
 
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
-        public void SetLevel(int l) { level = l; if (hudLevel) hudLevel.text = l.ToString(); RefreshJokers(); }
+        public void SetLevel(int l) { if (hudLevel) hudLevel.text = l.ToString(); }
+
+        /// <summary>Re-evaluate the joker lock overlays against the player's
+        /// progression (SaveSystem.Level), so RECOLOR/SWAP/HELI unlock as it rises —
+        /// even when replaying an earlier level.</summary>
+        public void RefreshJokerLocks()
+        {
+            level = SaveSystem.Level;
+            RefreshJokers();
+        }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
         public void SetPeopleLeft(int n) { if (hudPeopleLeft) hudPeopleLeft.text = n.ToString(); }
 

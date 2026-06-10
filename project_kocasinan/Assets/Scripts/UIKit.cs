@@ -65,7 +65,8 @@ namespace BusJam
         public static Sprite NavHome()    => A(2);
         public static Sprite NavDaily()   => A(3);   // calendar
         public static Sprite Gear()       => A(4);   // settings
-        public static Sprite NavBtnBg()   => A(15);  // background behind a nav icon (selected holder)
+        public static Sprite NavBtnBg()   => A(15);  // ORANGE backing: behind the SELECTED nav icon
+        public static Sprite NavBtnOff()  => A(14);  // BLUE backing: behind unselected nav icons
         public static Sprite NavStrip()   => A(35);  // bottom blue nav strip
         public static Sprite CheckMark()  => A(5);   // claimed check (daily)
 
