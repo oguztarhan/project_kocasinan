@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -6,192 +7,329 @@ using UnityEngine.InputSystem.UI;
 namespace BusJam
 {
     /// <summary>
-    /// Runtime-built portrait uGUI in-game HUD (coins, level, timer, joker buttons).
-    /// The Main Menu, Level Complete, and Game Over screens are provided by the
-    /// project's own custom canvases/managers, so they are intentionally not built here.
+    /// Runtime-built in-game HUD + Settings / Shop / Continue / Failed / Success panels,
+    /// styled with the 300Mind "2D Game UI Kit" (sprites via <see cref="UIKit"/>).
+    /// All pop-up windows use the kit's big blue panel (atlas 2, sprite 0). The old
+    /// scene-authored canvas is disabled at runtime so legacy white backgrounds, the
+    /// old coin display and stray texts never show during gameplay.
     /// </summary>
     public class GameUI : MonoBehaviour
     {
-        // Pause forwards to the project's own navigation; jokers drive gameplay actions.
-        public System.Action OnMenu, OnSkip, OnSwap;
-        // Settings panel navigation + win-reward claiming.
+        public System.Action OnMenu, OnSkip, OnSwap, OnRecolor;
         public System.Action OnHome, OnReplay;
-        public System.Action<int> OnClaimReward; // grants the gold amount, then advances
+        public System.Action<int> OnClaimReward;
+        public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
 
-        Font font;
-        Sprite knob;
-        GameObject hudPanel, settingsPanel, successPanel;
-        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft;
+        // Joker unlock levels (recolor / swap-people / helicopter).
+        const int RecolorLevel = 5, SwapLevel = 10, HeliLevel = 15;
+
+        static readonly Color White = Color.white;
+        static readonly Color Gold  = new Color(1f, 0.85f, 0.30f);
+        static readonly Color Dark  = new Color(0.16f, 0.20f, 0.30f);
+        static readonly Color Dim   = new Color(0, 0, 0, 0.6f);
+        static readonly Color OnCol = new Color(0.35f, 0.85f, 0.40f);
+        static readonly Color OffCol= new Color(0.65f, 0.65f, 0.70f);
+
+        Font title, num;
+        Transform root;
+        GameObject hudPanel, settingsPanel, successPanel, continuePanel, failedPanel, shopPanel;
+        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward;
+
+        struct Joker { public Button btn; public GameObject lockGo; public int unlock; }
+        Joker jRecolor, jSwap, jHeli;
+        int level = 1;
 
         public void Build(int skipCost, int swapCost)
         {
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            // Runtime-generated circle (no built-in "UI/Skin/Knob.psd" dependency,
-            // which is unavailable in Unity 6 players and logs a sprite error).
-            knob = UISprites.Circle();
+            title = UIKit.Title();
+            num   = UIKit.Num();
 
             var canvasGo = new GameObject("UICanvas");
             canvasGo.transform.SetParent(transform, false);
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
+            var sc = canvasGo.AddComponent<CanvasScaler>();
+            sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            sc.referenceResolution = new Vector2(1080, 1920);
+            sc.matchWidthOrHeight = 0.5f;
             canvasGo.AddComponent<GraphicRaycaster>();
+            root = canvasGo.transform;
 
             if (EventSystem.current == null)
             {
                 var es = new GameObject("EventSystem");
                 es.transform.SetParent(transform, false);
                 es.AddComponent<EventSystem>();
-                var module = es.AddComponent<InputSystemUIInputModule>();
-                module.AssignDefaultActions();
+                es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
 
-            BuildHud(canvasGo.transform, skipCost, swapCost);
-            BuildSettingsPanel(canvasGo.transform);
-            BuildSuccessPanel(canvasGo.transform);
+            BuildHud(skipCost, swapCost);
+            BuildSettings();
+            BuildShop();
+            BuildContinue();
+            BuildFailed();
+            BuildSuccess();
             ShowHud();
+            DisableOldCanvases(); // hide legacy scene canvas (white bg / old coin / texts)
         }
 
-        void BuildHud(Transform parent, int skipCost, int swapCost)
+        // Hide every canvas that doesn't belong to this game object's hierarchy
+        // (runtime only). LevelSelect/GameUI canvases live under the same root, so
+        // they survive; the legacy scene canvas does not.
+        void DisableOldCanvases()
         {
-            hudPanel = Panel(parent, "Hud", new Color(0, 0, 0, 0));
+            if (!Application.isPlaying) return;
+            foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (c == null) continue;
+                if (c.transform.root == transform.root) continue; // ours
+                c.gameObject.SetActive(false);
+            }
+        }
+
+        // ---- HUD ------------------------------------------------------------
+        void BuildHud(int skipCost, int swapCost)
+        {
+            hudPanel = Panel("Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
-            // NOTE: the old dark top "strip" bar was intentionally removed for a clean top HUD.
 
-            // LEVEL indicator: TOP-LEFT corner, round/circular badge.
-            var levelBadge = Image(hudPanel.transform, new Color(0.30f, 0.35f, 0.45f, 0.95f));
-            levelBadge.sprite = knob; levelBadge.raycastTarget = false;
-            Anchor(levelBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(100, -100), new Vector2(150, 150));
-            hudLevel = TopLabel(hudPanel.transform, "1", new Vector2(0, 1), new Vector2(100, -100), new Vector2(150, 70), 48, Color.white, TextAnchor.MiddleCenter);
-            hudTheme = TopLabel(hudPanel.transform, "", new Vector2(0, 1), new Vector2(100, -185), new Vector2(260, 36), 24, new Color(0.8f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
+            // LEVEL badge: TOP-LEFT, round yellow circle (atlas1_19).
+            var badge = Img(hudPanel.transform, UIKit.CircleYellow(), new Color(0.95f, 0.78f, 0.30f));
+            Place(badge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(110, -110), new Vector2(170, 170));
+            badge.raycastTarget = false;
+            Label(badge.transform, "LEVEL", num, new Vector2(0, 42), new Vector2(160, 36), 24, Dark);
+            hudLevel = Label(badge.transform, "1", title, new Vector2(0, -16), new Vector2(160, 90), 64, Dark);
+            hudTheme = Label(hudPanel.transform, "", num, new Vector2(110, -210), new Vector2(260, 36), 22, new Color(0.85f, 0.9f, 1f));
+            hudTheme.rectTransform.anchorMin = hudTheme.rectTransform.anchorMax = new Vector2(0, 1);
+            hudTheme.rectTransform.anchoredPosition = new Vector2(110, -210);
 
-            // PEOPLE-LEFT booth: LEFT margin beside the people queue / bus stops, so the player
-            // easily sees how many passengers remain. Person-icon badge with the remaining total
-            // below it. (Screen-space over a fixed camera — nudge the -500/-600 Y to taste.)
-            var peopleBadge = Image(hudPanel.transform, new Color(0.30f, 0.55f, 0.85f, 0.95f));
-            peopleBadge.sprite = knob; peopleBadge.raycastTarget = false;
-            Anchor(peopleBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -500), new Vector2(120, 120));
-            var peopleIcon = Image(hudPanel.transform, Color.white);
-            peopleIcon.sprite = UISprites.Person(); peopleIcon.raycastTarget = false;
-            Anchor(peopleIcon.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -494), new Vector2(70, 70));
-            hudPeopleLeft = TopLabel(hudPanel.transform, "0", new Vector2(0, 1), new Vector2(105, -606), new Vector2(160, 70), 50, Color.white, TextAnchor.MiddleCenter);
+            // COIN display: TOP-CENTER (atlas1_20 bar), opens the in-game shop.
+            var coinBtn = Btn(hudPanel.transform, UIKit.CoinBar(), Dark, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(300, 96), ShowShop);
+            var ci = Img(coinBtn.transform, UIKit.Coin(), Gold); ci.raycastTarget = false;
+            Place(ci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(74, 74));
+            hudCoins = Label(coinBtn.transform, "0", num, new Vector2(35, 0), new Vector2(180, 60), 44, White);
 
-            // SETTINGS button: TOP-RIGHT corner.
-            var settingsBtn = Button(hudPanel.transform, "⚙", new Vector2(-90, -100), new Vector2(120, 120),
-                new Color(0.30f, 0.35f, 0.45f), () => ShowSettings(), 60);
-            var sbRt = settingsBtn.GetComponent<RectTransform>();
-            sbRt.anchorMin = sbRt.anchorMax = new Vector2(1, 1);
-            sbRt.anchoredPosition = new Vector2(-90, -100);
+            // SETTINGS gear: TOP-RIGHT.
+            Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
 
-            // (no timer — T7 removed the countdown; loss is parking-deadlock only.)
+            // PEOPLE-LEFT badge: left margin, round green circle (atlas1_18).
+            var pBadge = Img(hudPanel.transform, UIKit.CircleGreen(), new Color(0.35f, 0.70f, 0.40f));
+            Place(pBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -440), new Vector2(140, 140));
+            pBadge.raycastTarget = false;
+            var pIco = Img(pBadge.transform, UISprites.Person(), White); pIco.raycastTarget = false;
+            Center(pIco.rectTransform, new Vector2(66, 66)); pIco.rectTransform.anchoredPosition = new Vector2(0, 16);
+            hudPeopleLeft = Label(pBadge.transform, "0", num, new Vector2(0, -38), new Vector2(140, 50), 36, White);
 
-            // COIN indicator: directly BELOW the Settings button.
-            var coinDot = Image(hudPanel.transform, Palette.Gold);
-            coinDot.sprite = knob; coinDot.raycastTarget = false;
-            Anchor(coinDot.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-160, -215), new Vector2(50, 50));
-            hudCoins = TopLabel(hudPanel.transform, "0", new Vector2(1, 1), new Vector2(-60, -215), new Vector2(170, 56), 40, Palette.Gold, TextAnchor.MiddleRight);
-
-            comboText = Label(hudPanel.transform, "", new Vector2(0, 360), new Vector2(900, 100), 70, Palette.Gold);
+            comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
             comboText.gameObject.SetActive(false);
 
-            // joker buttons across the bottom (T8 will replace these with RECOLOR / SWAP / HELI)
-            var skip = Button(hudPanel.transform, $"SKIP\n{skipCost}", new Vector2(-200, 130), new Vector2(280, 150),
-                new Color(0.88f, 0.38f, 0.32f), () => OnSkip?.Invoke(), 36);
-            var swap = Button(hudPanel.transform, $"SWAP\n{swapCost}", new Vector2(200, 130), new Vector2(280, 150),
-                new Color(0.35f, 0.56f, 0.88f), () => OnSwap?.Invoke(), 36);
-            AnchorBottom(skip); AnchorBottom(swap);
+            // 3 jokers across the bottom on atlas1_56/57 boxes: RECOLOR / SWAP / HELI.
+            jRecolor = JokerButton(-260, "RECOLOR", UIKit.JokerRecolor(), UIKit.ShopIconBgA(), RecolorLevel, () => OnRecolor?.Invoke());
+            jSwap    = JokerButton(0,    swapCost.ToString(), UIKit.JokerSwap(), UIKit.ShopIconBgB(), SwapLevel, () => OnSwap?.Invoke());
+            jHeli    = JokerButton(260,  skipCost.ToString(), UIKit.JokerHeli(), UIKit.ShopIconBgA(), HeliLevel, () => OnSkip?.Invoke());
+            RefreshJokers();
         }
 
-        // ---- Settings panel (800 x 600) -------------------------------------
-        void BuildSettingsPanel(Transform parent)
+        Joker JokerButton(float x, string costText, Sprite icon, Sprite boxBg, int unlock, System.Action onClick)
         {
-            settingsPanel = Panel(parent, "SettingsScreen", new Color(0, 0, 0, 0.6f));
+            var btn = Btn(hudPanel.transform, boxBg, new Color(0.30f, 0.45f, 0.70f), new Vector2(0.5f, 0), new Vector2(x, 70), new Vector2(180, 180), onClick);
+            var rt = btn.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0); rt.pivot = new Vector2(0.5f, 0);
+            rt.anchoredPosition = new Vector2(x, 70);
+            var ico = Img(btn.transform, icon, new Color(0.9f, 0.9f, 1f)); ico.raycastTarget = false;
+            Center(ico.rectTransform, new Vector2(110, 110)); ico.rectTransform.anchoredPosition = new Vector2(0, 12);
+            Label(btn.transform, costText, num, new Vector2(0, -64), new Vector2(170, 44), 30, White);
+            var lk = Img(btn.transform, null, new Color(0, 0, 0, 0.55f)); lk.raycastTarget = false;
+            Center(lk.rectTransform, new Vector2(180, 180));
+            Label(lk.transform, "LV " + unlock, num, Vector2.zero, new Vector2(170, 60), 34, White);
+            return new Joker { btn = btn, lockGo = lk.gameObject, unlock = unlock };
+        }
 
-            var card = Image(settingsPanel.transform, new Color(0.14f, 0.16f, 0.22f, 1f));
-            Center(card.rectTransform, new Vector2(800, 600));
+        void RefreshJokers() { SetJoker(jRecolor); SetJoker(jSwap); SetJoker(jHeli); }
+        void SetJoker(Joker j)
+        {
+            if (j.btn == null) return;
+            bool unlocked = level >= j.unlock;
+            j.btn.interactable = unlocked;
+            if (j.lockGo) j.lockGo.SetActive(!unlocked);
+        }
 
-            Label(card.transform, "SETTINGS", new Vector2(0, 220), new Vector2(700, 90), 60, Color.white);
+        // ---- Settings (sound/music draggable sliders; home/replay 36-37) -----
+        void BuildSettings()
+        {
+            settingsPanel = Panel("Settings", Dim);
+            var card = Img(settingsPanel.transform, UIKit.EmptyBoxBlue(), new Color(0.25f, 0.55f, 0.90f));
+            Center(card.rectTransform, new Vector2(820, 1000));
+            Label(card.transform, "SETTINGS", title, new Vector2(0, 400), new Vector2(700, 100), 62, White);
 
-            SettingRow(card.transform, "SOUND", 90, SaveSystem.Sound, ToggleSound);
-            SettingRow(card.transform, "MUSIC", -20, SaveSystem.Music, ToggleMusic);
-            SettingRow(card.transform, "VIBRATION", -130, SaveSystem.Vibration, ToggleVibration);
+            SliderRow(card.transform, 210, "SOUND", UIKit.IconSound(), SaveSystem.Sound, v => SaveSystem.Sound = v);
+            SliderRow(card.transform, 60,  "MUSIC", UIKit.IconMusic(), SaveSystem.Music, v => SaveSystem.Music = v);
 
-            Button(card.transform, "CLOSE", new Vector2(0, -250), new Vector2(300, 110),
-                new Color(0.45f, 0.50f, 0.60f), () => HideSettings(), 40);
+            // HOME + REPLAY on the kit's price-bar sprites (atlas1_36 / 37).
+            var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -160), new Vector2(310, 115),
+                () => { HideSettings(); OnHome?.Invoke(); });
+            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(310, 80), 40, White);
+            var replay = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -160), new Vector2(310, 115),
+                () => { HideSettings(); OnReplay?.Invoke(); });
+            Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(310, 80), 38, White);
 
-            // Slightly BELOW the settings card: HOME and REPLAY.
-            Button(settingsPanel.transform, "HOME", new Vector2(-180, -400), new Vector2(320, 120),
-                new Color(0.42f, 0.72f, 0.42f), () => { HideSettings(); OnHome?.Invoke(); }, 42);
-            Button(settingsPanel.transform, "REPLAY", new Vector2(180, -400), new Vector2(320, 120),
-                new Color(0.88f, 0.62f, 0.32f), () => { HideSettings(); OnReplay?.Invoke(); }, 42);
-
+            RedClose(card.transform, HideSettings);
             settingsPanel.SetActive(false);
         }
 
-        // One labelled on/off toggle row; returns the state Text so it can update.
-        Text SettingRow(Transform parent, string name, float y, bool on, System.Action<bool> onChange)
+        void SliderRow(Transform parent, float y, string name, Sprite icon, bool initial, System.Action<bool> onChange)
         {
-            Label(parent, name, new Vector2(-200, y), new Vector2(360, 70), 40, Color.white, TextAnchor.MiddleLeft);
-            Text state = null;
-            var btn = Button(parent, "", new Vector2(220, y), new Vector2(220, 90),
-                new Color(0.22f, 0.24f, 0.32f), null, 0);
-            state = Label(btn.transform, on ? "ON" : "OFF", Vector2.zero, new Vector2(220, 90), 40,
-                on ? new Color(0.5f, 0.9f, 0.55f) : new Color(0.9f, 0.5f, 0.5f));
-            btn.onClick.AddListener(() =>
+            var ico = Img(parent, icon, new Color(0.85f, 0.9f, 1f)); ico.raycastTarget = false;
+            Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-270, y), new Vector2(80, 80));
+            Label(parent, name, num, new Vector2(-50, y), new Vector2(340, 60), 38, White, TextAnchor.MiddleLeft);
+            ToggleSlider(parent, new Vector2(230, y), initial, onChange);
+        }
+
+        // Draggable on/off slider on the kit's slider-track sprite (atlas1_9).
+        void ToggleSlider(Transform parent, Vector2 pos, bool initial, System.Action<bool> onChange)
+        {
+            var track = Img(parent, UIKit.SliderTrack(), new Color(0.18f, 0.22f, 0.35f));
+            Place(track.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(220, 70));
+
+            var area = new GameObject("Area", typeof(RectTransform));
+            area.transform.SetParent(track.transform, false);
+            var art = area.GetComponent<RectTransform>();
+            art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
+            art.offsetMin = new Vector2(34, 0); art.offsetMax = new Vector2(-34, 0);
+
+            var handle = Img(area.transform, UISprites.Circle(), initial ? OnCol : OffCol);
+            handle.color = initial ? OnCol : OffCol;
+            handle.rectTransform.sizeDelta = new Vector2(56, 56);
+
+            var slider = track.gameObject.AddComponent<Slider>();
+            slider.transition = Selectable.Transition.None;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.minValue = 0f; slider.maxValue = 1f;
+            slider.value = initial ? 1f : 0f;
+            slider.onValueChanged.AddListener(v =>
             {
-                bool now = state.text != "ON";
-                state.text = now ? "ON" : "OFF";
-                state.color = now ? new Color(0.5f, 0.9f, 0.55f) : new Color(0.9f, 0.5f, 0.5f);
-                onChange?.Invoke(now);
+                bool on = v > 0.5f;
+                handle.color = on ? OnCol : OffCol;
+                onChange?.Invoke(on);
             });
-            return state;
         }
 
-        // ---- Success / achievement panel (800 x 1000) -----------------------
-        void BuildSuccessPanel(Transform parent)
+        // ---- In-game shop (transparent backdrop; 56/57 boxes) ----------------
+        void BuildShop()
         {
-            successPanel = Panel(parent, "SuccessScreen", new Color(0, 0, 0, 0.65f));
+            shopPanel = Panel("Shop", new Color(0, 0, 0, 0.45f));
+            var card = Img(shopPanel.transform, UIKit.PanelTall(), new Color(0.30f, 0.25f, 0.55f));
+            Center(card.rectTransform, new Vector2(900, 1200));
+            Label(card.transform, "SHOP", title, new Vector2(0, 480), new Vector2(700, 110), 70, White);
 
-            var card = Image(successPanel.transform, new Color(0.14f, 0.18f, 0.16f, 1f));
-            Center(card.rectTransform, new Vector2(800, 1000));
+            // 3 gold sections on atlas1_56/57 boxes.
+            int[] amt = { 100, 500, 1000 };
+            int[] pr  = { 100, 250, 500 };
+            float[] cx = { -270, 0, 270 };
+            for (int i = 0; i < 3; i++)
+            {
+                int a = amt[i], p = pr[i];
+                var box = Btn(card.transform, i % 2 == 0 ? UIKit.ShopIconBgA() : UIKit.ShopIconBgB(), new Color(0.55f, 0.40f, 0.75f),
+                    new Vector2(0.5f, 0.5f), new Vector2(cx[i], 250), new Vector2(250, 260),
+                    () => { SaveSystem.AddCoins(a); SetCoins(SaveSystem.Coins); });
+                var ico = Img(box.transform, i == 2 ? UIKit.CoinPackBig() : UIKit.ShopCoinA(), Gold); ico.raycastTarget = false;
+                Center(ico.rectTransform, new Vector2(130, 130)); ico.rectTransform.anchoredPosition = new Vector2(0, 25);
+                Label(box.transform, "+" + a, num, new Vector2(0, 80), new Vector2(230, 40), 30, White);
+                Label(box.transform, "$ " + p, num, new Vector2(0, -100), new Vector2(230, 50), 34, Gold);
+            }
+            // Joker rows; buy buttons on 56/57.
+            ShopJoker(card.transform, 0,    "SWAP",       UIKit.JokerSwap(),    UIKit.ShopIconBgA(), 40);
+            ShopJoker(card.transform, -150, "RECOLOR",    UIKit.JokerRecolor(), UIKit.ShopIconBgB(), 60);
+            ShopJoker(card.transform, -300, "HELICOPTER", UIKit.JokerHeli(),    UIKit.ShopIconBgA(), 80);
 
-            // Plain by request — no decorative art yet, just the "GOOD" text.
-            Label(card.transform, "GOOD", new Vector2(0, 250), new Vector2(700, 160), 120, Palette.Gold);
+            RedClose(card.transform, HideShop);
+            shopPanel.SetActive(false);
+        }
 
-            Button(card.transform, "CLAIM\n+20", new Vector2(0, -120), new Vector2(560, 160),
-                new Color(0.42f, 0.72f, 0.42f), () => ClaimReward(20), 46);
-            Button(card.transform, "WATCH AD  x2\n+40", new Vector2(0, -320), new Vector2(560, 160),
-                new Color(0.88f, 0.62f, 0.32f), () => WatchAdReward(40), 40);
+        void ShopJoker(Transform parent, float y, string name, Sprite icon, Sprite buyBg, int price)
+        {
+            var row = Img(parent, UIKit.ShopBoxB(), new Color(0.35f, 0.40f, 0.65f));
+            Center(row.rectTransform, new Vector2(820, 130)); row.rectTransform.anchoredPosition = new Vector2(0, y);
+            var ico = Img(row.transform, icon, new Color(0.9f, 0.9f, 1f)); ico.raycastTarget = false;
+            Place(ico.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(80, 0), new Vector2(95, 95));
+            Label(row.transform, name, title, new Vector2(30, 0), new Vector2(400, 50), 34, White, TextAnchor.MiddleLeft);
+            var buy = Btn(row.transform, buyBg, new Color(0.3f, 0.75f, 0.35f), new Vector2(1, 0.5f), new Vector2(-120, 0), new Vector2(210, 100),
+                () => { if (SaveSystem.TrySpend(price)) SetCoins(SaveSystem.Coins); });
+            var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
+            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(46, 46));
+            Label(buy.transform, price.ToString(), num, new Vector2(20, 0), new Vector2(140, 50), 30, White);
+        }
 
+        // ---- Continue panel (56/57 buttons; ad icon atlas1_61) ---------------
+        void BuildContinue()
+        {
+            continuePanel = Panel("Continue", Dim);
+            var card = Img(continuePanel.transform, UIKit.EmptyBoxBlue(), new Color(0.25f, 0.55f, 0.90f));
+            Center(card.rectTransform, new Vector2(820, 1000));
+            Label(card.transform, "CONTINUE?", title, new Vector2(0, 360), new Vector2(700, 100), 62, White);
+
+            var ad = Btn(card.transform, UIKit.ShopIconBgA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(580, 160), () => OnContinueAd?.Invoke());
+            var adi = Img(ad.transform, UIKit.WatchAd(), new Color(0.5f, 0.7f, 0.9f)); adi.raycastTarget = false;
+            Place(adi.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(85, 0), new Vector2(95, 95));
+            Label(ad.transform, "WATCH AD", title, new Vector2(45, 0), new Vector2(420, 70), 40, White);
+
+            var pay = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.95f, 0.6f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(580, 160), () => OnContinuePay?.Invoke());
+            var payc = Img(pay.transform, UIKit.Coin(), Gold); payc.raycastTarget = false;
+            Place(payc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(70, 70));
+            Label(pay.transform, "100", title, new Vector2(40, 0), new Vector2(440, 70), 44, White);
+
+            RedClose(card.transform, () => { HideContinue(); OnContinueDeclined?.Invoke(); });
+            continuePanel.SetActive(false);
+        }
+
+        // ---- Failed panel (title tile atlas1_50; 56/57 buttons) --------------
+        void BuildFailed()
+        {
+            failedPanel = Panel("Failed", Dim);
+            var card = Img(failedPanel.transform, UIKit.EmptyBoxBlue(), new Color(0.25f, 0.55f, 0.90f));
+            Center(card.rectTransform, new Vector2(820, 1000));
+
+            var tile = Img(card.transform, UIKit.TitleBarB(), new Color(0.85f, 0.2f, 0.2f)); tile.raycastTarget = false;
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 360), new Vector2(560, 150));
+            Label(card.transform, "FAIL", title, new Vector2(0, 360), new Vector2(540, 110), 72, White);
+
+            var home = Btn(card.transform, UIKit.ShopIconBgA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-170, -100), new Vector2(300, 170),
+                () => { HideFailed(); OnHome?.Invoke(); });
+            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(300, 90), 40, White);
+            var replay = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.95f, 0.6f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(170, -100), new Vector2(300, 170),
+                () => { HideFailed(); OnReplay?.Invoke(); });
+            Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(300, 90), 38, White);
+            failedPanel.SetActive(false);
+        }
+
+        // ---- Success / achievement (title tile atlas1_53; 56/57 buttons) -----
+        void BuildSuccess()
+        {
+            successPanel = Panel("Success", new Color(0, 0, 0, 0.65f));
+            var card = Img(successPanel.transform, UIKit.EmptyBoxBlue(), new Color(0.25f, 0.55f, 0.90f));
+            Center(card.rectTransform, new Vector2(820, 1000));
+
+            var tile = Img(card.transform, UIKit.TitleBarC(), new Color(0.30f, 0.65f, 0.95f)); tile.raycastTarget = false;
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 380), new Vector2(660, 150));
+            Label(card.transform, "ACHIEVEMENT", title, new Vector2(0, 380), new Vector2(640, 110), 56, White);
+
+            // Reward coin in the center of the box.
+            var rc = Img(card.transform, UIKit.Coin(), Gold); rc.raycastTarget = false;
+            Center(rc.rectTransform, new Vector2(180, 180)); rc.rectTransform.anchoredPosition = new Vector2(0, 130);
+            successReward = Label(card.transform, "+20", title, new Vector2(0, -10), new Vector2(600, 90), 64, Gold);
+
+            var next = Btn(card.transform, UIKit.ShopIconBgA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -180), new Vector2(580, 150), () => ClaimReward(20));
+            Label(next.transform, "NEXT", title, Vector2.zero, new Vector2(580, 90), 46, White);
+
+            var ad = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.95f, 0.6f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(0, -345), new Vector2(580, 145), () => ClaimReward(40));
+            var adi = Img(ad.transform, UIKit.WatchAd(), new Color(0.5f, 0.7f, 0.9f)); adi.raycastTarget = false;
+            Place(adi.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(80, 0), new Vector2(85, 85));
+            Label(ad.transform, "AD  x2", title, new Vector2(40, 0), new Vector2(440, 70), 40, White);
             successPanel.SetActive(false);
         }
 
-        void ClaimReward(int amount)
-        {
-            successPanel.SetActive(false);
-            OnClaimReward?.Invoke(amount);
-        }
-
-        void WatchAdReward(int amount)
-        {
-            // TODO: integrate a real rewarded-ad SDK here. Grant the doubled reward
-            //       only from the ad's success/reward callback. For now we grant it
-            //       directly and proceed, leaving the ad link to be added later.
-            successPanel.SetActive(false);
-            OnClaimReward?.Invoke(amount);
-        }
-
-        // ---- Settings behaviour (persist + drive real audio/vibration) ------
-        void ToggleSound(bool on)     { SaveSystem.Sound = on; }
-        void ToggleMusic(bool on)     { SaveSystem.Music = on; }
-        void ToggleVibration(bool on)
-        {
-            SaveSystem.Vibration = on;
-            if (on) Vibrate(); // immediate feedback so the player feels it engage
-        }
+        void ClaimReward(int amount) { successPanel.SetActive(false); OnClaimReward?.Invoke(amount); }
 
         public static void Vibrate()
         {
@@ -202,19 +340,22 @@ namespace BusJam
         }
 
         // ---- API ------------------------------------------------------------
-        // Only the in-game HUD is managed here. Win/Lose/Menu screens live in the
-        // project's own canvases, which react to BusJamGame's gameplay events.
         public void ShowHud() { Toggle(hudPanel, true); }
         public void HideHud() { Toggle(hudPanel, false); }
-
         public void ShowSettings() { Toggle(settingsPanel, true); }
         public void HideSettings() { Toggle(settingsPanel, false); }
-
-        public void ShowSuccess() { Toggle(successPanel, true); }
+        public void ShowShop() { Toggle(shopPanel, true); }
+        public void HideShop() { Toggle(shopPanel, false); }
+        public void ShowContinue() { Toggle(continuePanel, true); }
+        public void HideContinue() { Toggle(continuePanel, false); }
+        public void ShowFailed() { Toggle(failedPanel, true); }
+        public void HideFailed() { Toggle(failedPanel, false); }
+        public void ShowSuccess() { ShowSuccess(3); }
+        public void ShowSuccess(int stars) { Toggle(successPanel, true); }
         public void HideSuccess() { Toggle(successPanel, false); }
 
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
-        public void SetLevel(int l) { if (hudLevel) hudLevel.text = l.ToString(); }
+        public void SetLevel(int l) { level = l; if (hudLevel) hudLevel.text = l.ToString(); RefreshJokers(); }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
         public void SetPeopleLeft(int n) { if (hudPeopleLeft) hudPeopleLeft.text = n.ToString(); }
 
@@ -229,42 +370,25 @@ namespace BusJam
         void ClearCombo() { if (comboText) comboText.gameObject.SetActive(false); }
 
         // ---- Builders -------------------------------------------------------
-        GameObject Panel(Transform parent, string name, Color bg)
+        GameObject Panel(string name, Color bg)
         {
-            var img = Image(parent, bg);
+            var img = Img(root, null, bg);
             img.gameObject.name = name;
-            Stretch(img.rectTransform, Vector2.zero, Vector2.one);
+            Stretch(img.rectTransform);
             return img.gameObject;
         }
 
-        Image Image(Transform parent, Color color)
+        Image Img(Transform parent, Sprite sprite, Color fallback)
         {
             var go = new GameObject("Img", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var img = go.AddComponent<Image>();
-            img.color = color;
+            if (sprite != null) { img.sprite = sprite; img.color = White; }
+            else img.color = fallback;
             return img;
         }
 
-        Text Label(Transform parent, string text, Vector2 pos, Vector2 size, int fontSize, Color color, TextAnchor align = TextAnchor.MiddleCenter)
-        {
-            var t = MakeText(parent, text, fontSize, color, align);
-            var rt = t.rectTransform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos; rt.sizeDelta = size;
-            return t;
-        }
-
-        Text TopLabel(Transform parent, string text, Vector2 anchor, Vector2 pos, Vector2 size, int fontSize, Color color, TextAnchor align)
-        {
-            var t = MakeText(parent, text, fontSize, color, align);
-            var rt = t.rectTransform;
-            rt.anchorMin = rt.anchorMax = anchor; rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos; rt.sizeDelta = size;
-            return t;
-        }
-
-        Text MakeText(Transform parent, string text, int fontSize, Color color, TextAnchor align)
+        Text Label(Transform parent, string text, Font font, Vector2 pos, Vector2 size, int fontSize, Color color, TextAnchor align = TextAnchor.MiddleCenter)
         {
             var go = new GameObject("Text", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -272,42 +396,37 @@ namespace BusJam
             t.font = font; t.text = text; t.fontSize = fontSize; t.color = color; t.alignment = align;
             t.horizontalOverflow = HorizontalWrapMode.Overflow; t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
-            var sh = go.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.6f); sh.effectDistance = new Vector2(2, -2);
+            var sh = go.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.4f); sh.effectDistance = new Vector2(2, -2);
+            var rt = t.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos; rt.sizeDelta = size;
             return t;
         }
 
-        Button Button(Transform parent, string text, Vector2 pos, Vector2 size, Color color, System.Action onClick, int fontSize = 32)
+        Button Btn(Transform parent, Sprite sprite, Color fallback, Vector2 anchor, Vector2 pos, Vector2 size, System.Action onClick)
         {
-            var img = Image(parent, color);
+            var img = Img(parent, sprite, fallback);
             var rt = img.rectTransform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchorMin = rt.anchorMax = anchor; rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = pos; rt.sizeDelta = size;
             var btn = img.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
-            var colors = btn.colors; colors.highlightedColor = color * 1.1f; colors.pressedColor = color * 0.85f; btn.colors = colors;
             if (onClick != null) btn.onClick.AddListener(() => onClick());
-
-            if (fontSize > 0)
-            {
-                var label = Label(img.transform, text, Vector2.zero, size, fontSize, Color.white);
-                Stretch(label.rectTransform, Vector2.zero, Vector2.one);
-                label.rectTransform.sizeDelta = Vector2.zero;
-            }
             return btn;
         }
 
-        void Stretch(RectTransform rt, Vector2 min, Vector2 max) { rt.anchorMin = min; rt.anchorMax = max; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
-        void Anchor(RectTransform rt, Vector2 min, Vector2 max, Vector2 pos, Vector2 size) { rt.anchorMin = min; rt.anchorMax = max; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
-        void Center(RectTransform rt, Vector2 size) { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.sizeDelta = size; }
-
-        void AnchorBottom(Button b)
+        void RedClose(Transform card, System.Action onClose)
         {
-            var rt = b.GetComponent<RectTransform>();
-            Vector2 p = rt.anchoredPosition;
-            rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0); rt.pivot = new Vector2(0.5f, 0);
-            rt.anchoredPosition = new Vector2(p.x, 50);
+            var b = Btn(card, UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-40, -40), new Vector2(96, 96), onClose);
+            b.transform.SetAsLastSibling();
         }
 
+        void Place(RectTransform rt, Vector2 min, Vector2 max, Vector2 pos, Vector2 size)
+        { rt.anchorMin = min; rt.anchorMax = max; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
+        void Center(RectTransform rt, Vector2 size)
+        { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.sizeDelta = size; }
+        void Stretch(RectTransform rt)
+        { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
         void Toggle(GameObject go, bool on) { if (go) go.SetActive(on); }
     }
 }

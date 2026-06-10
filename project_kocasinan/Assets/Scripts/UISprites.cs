@@ -17,10 +17,14 @@ namespace BusJam
         /// <summary>A soft-edged white circle, tinted by each Image's color.</summary>
         public static Sprite Circle()
         {
-            if (circle != null) return circle;
+            // Re-generate if the cached sprite OR its texture was destroyed (editor
+            // preview textures are cleaned up on play-mode transitions; a stale sprite
+            // with a dead texture renders as a plain white square).
+            if (circle != null && circle.texture != null) return circle;
 
             const int S = 128;
-            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false)
+            { wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
             float r = S * 0.5f, c = r - 0.5f;
             var px = new Color32[S * S];
             for (int y = 0; y < S; y++)
@@ -37,16 +41,18 @@ namespace BusJam
             tex.Apply();
 
             circle = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+            circle.hideFlags = HideFlags.HideAndDontSave;
             return circle;
         }
 
         /// <summary>A simple white person silhouette (round head + shoulders dome), tinted by the Image.</summary>
         public static Sprite Person()
         {
-            if (person != null) return person;
+            if (person != null && person.texture != null) return person;
 
             const int S = 128;
-            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false)
+            { wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
             var px = new Color32[S * S];
             float hx = 64, hy = 86, hr = 24;                 // head circle (texture y=0 is bottom, so high y = top)
             float bx = 64, by = 20, brx = 44, bry = 46;      // shoulders = upper half of an ellipse
@@ -70,6 +76,7 @@ namespace BusJam
             tex.Apply();
 
             person = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+            person.hideFlags = HideFlags.HideAndDontSave;
             return person;
         }
     }

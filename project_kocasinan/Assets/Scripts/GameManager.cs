@@ -56,10 +56,13 @@ public class GameManager : MonoBehaviour
         if (failedPanel != null) failedPanel.SetActive(false);
     }
 
-    // Called automatically by BusJamGame the moment the player fails (time-out or stuck/locked).
+    // Called automatically by BusJamGame the moment the player fails.
+    // NOTE: the Continue/Failed UI is now owned by GameUI (runtime-built and styled with the
+    // Colorful UI pack), driven directly from BusJamGame.Lose(). We deliberately do NOTHING here
+    // so a second (scene-wired) Continue panel never appears on top of it.
     private void HandleGameOver(string reason)
     {
-        if (continuePanel != null) continuePanel.SetActive(true);
+        // intentionally empty — see note above.
     }
 
     // ---------------- Continue panel buttons ----------------
