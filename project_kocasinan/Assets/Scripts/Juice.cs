@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace BusJam
@@ -7,23 +8,58 @@ namespace BusJam
     /// Particles are plain cubes (no shader/material asset dependencies).</summary>
     public static class Juice
     {
+        // Reentrant-safe punch state. punchRest = the TRUE rest scale per transform, captured ONCE while a
+        // punch sequence is active; punchSeq = a generation token so a newer punch supersedes any in-flight
+        // one. Without this, overlapping punches on the SAME transform (e.g. boarders every BoardGap=0.07s
+        // vs a 0.22s punch) each snapshot the already-inflated localScale -> the scale COMPOUNDS and the
+        // last-finishing coroutine writes an inflated "rest". Always animating from punchRest fixes that.
+        static readonly Dictionary<Transform, Vector3> punchRest = new Dictionary<Transform, Vector3>();
+        static readonly Dictionary<Transform, int> punchSeq = new Dictionary<Transform, int>();
+
         public static IEnumerator PunchScale(Transform t, float amount = 0.25f, float dur = 0.22f)
         {
             if (t == null) yield break;
-            Vector3 baseScale = t.localScale;
-            Vector3 peak = baseScale * (1f + amount);
+            // Capture the true rest scale ONCE — only when no punch is already active on t.
+            if (!punchRest.TryGetValue(t, out Vector3 rest)) { rest = t.localScale; punchRest[t] = rest; }
+            int mySeq = (punchSeq.TryGetValue(t, out int s) ? s : 0) + 1;
+            punchSeq[t] = mySeq; // become the owner; any older in-flight punch will see a newer seq and bail
+
+            Vector3 peak = rest * (1f + amount);
             float e = 0f;
             while (e < dur)
             {
-                if (t == null) yield break;
+                if (t == null) { punchRest.Remove(t); punchSeq.Remove(t); yield break; }
+                if (!punchSeq.TryGetValue(t, out int cur) || cur != mySeq) yield break; // superseded or evicted
                 e += Time.deltaTime;
-                float k = e / dur;
-                // up then back (sine ease)
-                float s = Mathf.Sin(k * Mathf.PI);
-                t.localScale = Vector3.LerpUnclamped(baseScale, peak, s);
+                float k = Mathf.Sin((e / dur) * Mathf.PI); // up then back (sine ease)
+                t.localScale = Vector3.LerpUnclamped(rest, peak, k);
                 yield return null;
             }
-            if (t != null) t.localScale = baseScale;
+            // Latest owner finished -> restore the TRUE rest and clear state (so it never drifts).
+            if (punchSeq.TryGetValue(t, out int last) && last == mySeq)
+            {
+                if (t != null) t.localScale = rest;
+                punchRest.Remove(t);
+                punchSeq.Remove(t);
+            }
+        }
+
+        /// <summary>Evict a transform's punch state (restoring its rest scale if still alive). Call this
+        /// before destroying a punched object so no stale dictionary entry leaks across levels.</summary>
+        public static void StopPunch(Transform t)
+        {
+            if (ReferenceEquals(t, null)) return;                 // genuine null ref -> nothing keyed
+            if (t != null && punchRest.TryGetValue(t, out Vector3 rest)) t.localScale = rest; // restore if not destroyed
+            punchRest.Remove(t);
+            punchSeq.Remove(t);
+        }
+
+        /// <summary>Drop ALL punch state. Call on level teardown (after StopAllCoroutines) so entries left
+        /// behind by hard-stopped punch coroutines don't leak.</summary>
+        public static void ClearAllPunches()
+        {
+            punchRest.Clear();
+            punchSeq.Clear();
         }
 
         public static void Burst(MonoBehaviour runner, Transform parent, Vector3 pos, Material mat, int count, float power)

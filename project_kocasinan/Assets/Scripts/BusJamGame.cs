@@ -38,8 +38,9 @@ namespace BusJam
         // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
         const float CellSize = 1.2f;          // multi-cell vehicles (Car1/Bus2/Limo3) -> smaller cells keep the board on-screen
-        const float GridExitZ = 4.0f;         // grid row y=0 (exit edge, nearest parking); deeper rows go DOWN (toward camera)
-        const float ParkingZ = 6.2f;          // parking row, just above the grid
+        const float GridExitZ = 3.6f;         // grid row y=0 (exit edge); lowered to open a distinct road band above it
+        const float RoadZ = 4.4f;             // road lane: its own band between the jam (below) and parking stops (above)
+        const float ParkingZ = 6.2f;          // parking row, above the road
         const float SlotSpacing = 1.55f;      // tighter so ~8 pads fit the portrait width
         const float PeopleZ = 9.0f;           // thin people band across the top
         const float PeopleStartX = -3.8f, PeopleSpacing = 0.85f;
@@ -70,6 +71,7 @@ namespace BusJam
         int currentLevel = 1;
         int totalSlots, gridW, gridH;
         float[] doorXs;       // facade door world-X positions (set in BuildFacade); people emerge from the nearest one
+        UnityEngine.UI.Text peopleLeftSign; // world-space "people left" sign by the road (rebuilt each level)
         int earnedThisLevel, combo, maxCombo;
         float lastBoardTime = -10f;
         int busy;
@@ -374,7 +376,12 @@ namespace BusJam
         // People still to serve = unspawned (groups - cursor) + on-screen window. Reads the LOGICAL
         // pool, NOT visible.Count alone; equals 0 exactly when visible==0 && cursor>=groups.Count (Win).
         int PeopleLeft() => Mathf.Max(0, (groups != null ? groups.Count - nextGroupIndex : 0) + visible.Count);
-        void UpdatePeopleLeft() { if (ui != null) ui.SetPeopleLeft(PeopleLeft()); }
+        void UpdatePeopleLeft()
+        {
+            int n = PeopleLeft();
+            if (ui != null) ui.SetPeopleLeft(n);
+            if (peopleLeftSign != null) peopleLeftSign.text = n.ToString(); // world-space road sign, same logical pool
+        }
 
         void OnBoarded(bool golden, Vector3 pos)
         {
@@ -407,20 +414,23 @@ namespace BusJam
 
         IEnumerator DispatchRoutine(Bus bus, ParkingSlot slot)
         {
+            if (bus == null || slot == null) yield break; // cheap insurance vs a mid-frame teardown/level-change
             busy++;
             slot.occupant = null; // free the slot immediately so BoardingPump can refill it
             Vector3 start = bus.transform.position;
             sfx.Deploy();
             Juice.Burst(this, boardRoot, start + Vector3.up * 0.4f, bodyMats[bus.color], 16, 4.5f); // celebrate as it pulls away
 
-            // Drive the FULL-SIZE bus FLAT along the road (stays on the ground, no flying/shrink) to the
-            // nearer screen edge and OFF-SCREEN.
-            float side = start.x >= 0f ? 1f : -1f;                                 // exit the closer side
-            Vector3 target = new Vector3(side * 20f, start.y, start.z);            // 20 = well past the camera frustum at ParkingZ
-            Quaternion faceOut = Quaternion.Euler(0, side > 0f ? -90f : 90f, 0);   // turn its nose toward the exit side
-            yield return MoveAndRotateArc(bus.transform, target, faceOut, 0.5f, 0f); // arc 0 = grounded drive, no lift
+            // Drive the FULL-SIZE bus FLAT (grounded, no flying/shrink): first pull out of the pad DOWN onto
+            // the road lane, then turn and drive sideways ALONG the road, off-screen.
+            float side = start.x >= 0f ? 1f : -1f;                                  // exit the closer side
+            Vector3 onRoad = new Vector3(start.x, start.y, RoadZ);                   // pull out of the stop onto the road lane
+            Vector3 target = new Vector3(side * 20f, start.y, RoadZ);                // 20 = well past the camera frustum at RoadZ
+            Quaternion faceOut = Quaternion.Euler(0, side > 0f ? -90f : 90f, 0);    // turn its nose toward the exit side
+            yield return MoveTo(bus.transform, onRoad, 0.18f);                       // pad -> road lane
+            yield return MoveAndRotateArc(bus.transform, target, faceOut, 0.45f, 0f); // arc 0 = grounded drive, no lift
 
-            if (bus != null) Destroy(bus.gameObject); // destroyed only after it has driven off-frame
+            if (bus != null) { Juice.StopPunch(bus.transform); Destroy(bus.gameObject); } // evict punch state, then destroy off-frame
             busy--;
             CheckEnd();
         }
@@ -647,6 +657,7 @@ namespace BusJam
             BuildSlots();
             BuildGrid();
             BuildBoardBackground(theme);
+            BuildPeopleLeftSign();
             BuildLine();
 
             earnedThisLevel = 0; combo = 0; maxCombo = 0; lastBoardTime = -10f;
@@ -666,8 +677,10 @@ namespace BusJam
         void Teardown()
         {
             StopAllCoroutines();
+            Juice.ClearAllPunches(); // drop punch state left by hard-stopped coroutines (no cross-level leak)
             busy = 0; pumpRunning = false; pumpDirty = false;
             occ.Clear(); gridBuses.Clear(); visible.Clear(); slots = null;
+            peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
         }
@@ -1063,6 +1076,47 @@ namespace BusJam
             return m;
         }
 
+        // World-space "PEOPLE LEFT" sign on a post beside the road. Billboards to the camera (mirrors the
+        // BuildSeatTag world-space canvas + flip-cancel). Wired to the LOGICAL pool via UpdatePeopleLeft.
+        void BuildPeopleLeftSign()
+        {
+            const float sx = -5.0f;   // left margin: on-screen even at tall 9:20 (board left edge ~-13deg < hFOV),
+                                      // and clear of fence posts (<=+/-4.4) + side-prop scatter (+/-6.8)
+            float sz = RoadZ + 0.6f;  // road's TOP edge -> beside the road but clear of the drive-off lane (z~[3.9,4.9])
+
+            var post = MakeCube(boardRoot, slotMat, new Vector3(0.12f, 1.2f, 0.12f));
+            post.transform.position = new Vector3(sx, 0.6f, sz);
+            var board = MakeCube(boardRoot, slotMat, new Vector3(1.3f, 1.0f, 0.07f));
+            board.transform.position = new Vector3(sx, 1.5f, sz);
+
+            var go = new GameObject("PeopleLeftSign", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(boardRoot, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
+            go.transform.position = new Vector3(sx, 1.5f, sz - 0.05f);
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (1.0f / 120f); // -X cancels the billboard flip
+            go.AddComponent<BillboardUp>();
+
+            AddSignText(go.transform, "PEOPLE LEFT", 18, new Vector2(0, 0.66f), new Vector2(1, 1f));   // caption (top third)
+            peopleLeftSign = AddSignText(go.transform, PeopleLeft().ToString(), 64, new Vector2(0, 0f), new Vector2(1, 0.66f)); // count
+        }
+
+        // A bold, outlined, camera-facing UI.Text child filling [anchorMin..anchorMax] of a sign canvas.
+        UnityEngine.UI.Text AddSignText(Transform parent, string text, int fontSize, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            var go = new GameObject("Text", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var txt = go.AddComponent<UnityEngine.UI.Text>();
+            txt.font = seatFont; txt.text = text; txt.fontSize = fontSize;
+            txt.fontStyle = FontStyle.Bold; txt.alignment = TextAnchor.MiddleCenter; txt.color = Color.white;
+            var outline = go.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = Color.black; outline.effectDistance = new Vector2(3, 3);
+            return txt;
+        }
+
         // Camera-facing world-space empty-seat number floating above a vehicle, in the people-color.
         UnityEngine.UI.Text BuildSeatTag(Transform root, Color peopleColor, int capacity, Vector3 localPos, float worldSize)
         {
@@ -1293,9 +1347,10 @@ namespace BusJam
 
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
-            // Real ROAD band UNDER the parking row — full buses drive off-screen sideways ALONG it.
-            // Spans well past both screen edges (x +/-14) and fits the grid(top ~4.6)<->fence(7.9) gap.
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.13f, ParkingZ), new Vector3(28f, 0.2f, 2.6f), road);
+            // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
+            // buses drive off-screen sideways ALONG it. Raised to y=-0.10 ABOVE the ground slab (y=-0.12) so
+            // it reads as a real road, and slimmed to a 1.2 lane. Spans well past both screen edges.
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.2f), road);
 
             for (int i = -4; i <= 4; i++)
             {

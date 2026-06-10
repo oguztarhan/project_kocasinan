@@ -233,8 +233,24 @@ namespace BusJam
                     var cells = StyleOrderedCells(W, H, style, rng);
                     foreach (var anchor in cells)
                     {
-                        var ds = new List<Vector2Int>(dirs);
-                        Shuffle(ds, rng);
+                        // L>=2 buses lose the random fit lottery for their thick (2x2) diagonal footprint, so
+                        // bias the TRY-ORDER toward diagonals first (every dir is still tried -> solvability
+                        // unchanged). Cars (L==1) and cardinal-only sets keep the flat shuffle.
+                        List<Vector2Int> ds;
+                        if (L >= 2 && dirs.Length == 8)
+                        {
+                            var diag = new List<Vector2Int>(4);
+                            var card = new List<Vector2Int>(4);
+                            foreach (var d in dirs) { if (d.x != 0 && d.y != 0) diag.Add(d); else card.Add(d); }
+                            Shuffle(diag, rng); Shuffle(card, rng);
+                            ds = new List<Vector2Int>(8);
+                            ds.AddRange(diag); ds.AddRange(card); // diagonals first, then cardinals
+                        }
+                        else
+                        {
+                            ds = new List<Vector2Int>(dirs);
+                            Shuffle(ds, rng);
+                        }
                         foreach (var d in ds)
                         {
                             // BodyFree + SlideClear use the SAME OccCells footprint the runtime uses, so a
@@ -251,7 +267,11 @@ namespace BusJam
                     }
                     if (!placed)
                     {
-                        H++;
+                        // Cap growth so the deepest normally-placed row (c.y up to H-1) stays within the
+                        // camera's bottom edge. With GridExitZ=3.6 / CellSize=1.2, H=10 -> deepest row
+                        // z=-7.2 (on-screen, ~1.5u margin); taller would clip. 7x10=70 cells comfortably
+                        // holds the densest realistic set (<=16 buses, <=64 cells), so this rarely bites.
+                        if (H < 10) H++;
                         if (guard++ > 8)
                         {
                             // extreme fallback: drop the whole vehicle into a fresh row, exiting left (cardinal).
