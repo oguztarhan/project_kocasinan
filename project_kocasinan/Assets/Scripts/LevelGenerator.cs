@@ -54,23 +54,143 @@ namespace BusJam
         {
             var rng = new System.Random(level * 9176 + 4242);
 
-            int colorCount = Mathf.Clamp(3 + (level - 1) / 4, 3, Palette.Count); // +1 color every 4 levels
-            int busCount   = Mathf.Clamp(4 + level, 6, 16);
+            if (level % 10 == 0) return GenerateBonus(level, rng); // every 10th = 2-color core-boxed-by-ring bonus
+
+            // MANY vehicles every level (easy-but-many at L1); difficulty rises via colors/specials/
+            // diagonals/density, NOT count.
+            int colorCount = Mathf.Clamp(2 + (level - 1) / 3, 2, Palette.Count); // L1-3 = 2 colors, +1 every 3
+            int busCount   = Mathf.Clamp(20 + level / 5, 20, 28);               // ~20 at L1 -> 28
             float goldenP  = Mathf.Min(0.10f, level * 0.01f);
-            float mysteryP = Mathf.Min(0.30f, level * 0.025f);
+            float mysteryP = Mathf.Min(0.30f, Mathf.Max(0, level - 4) * 0.03f); // no mystery until L5
 
-            // Special "<<" crawlers ramp in from level 8 (none earlier so the mechanic introduces cleanly).
-            float specialP = level < 8 ? 0f : Mathf.Min(0.22f, (level - 7) * 0.035f);
+            // Special "<<" crawlers ramp in later (boards are denser now); none early.
+            float specialP = level < 10 ? 0f : Mathf.Min(0.20f, (level - 9) * 0.03f);
 
-            return Build(rng, level, colorCount, busCount, 5, 0, BaseSlots, ExtraSlots,
+            return Build(rng, level, colorCount, busCount, 7, 0, BaseSlots, ExtraSlots,
                          goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4);
         }
 
-        // Only Cars + Buses now (limos removed). Bus-only intro, then cars mix in.
+        // Car-heavy early (many small cap-4 cars = easy + many + few people); buses ramp in for difficulty.
         static VehicleMix MixForLevel(int level)
         {
-            if (level <= 3) return VehicleMix.BusOnly;
+            if (level <= 5) return VehicleMix.CarsOnly;
             return VehicleMix.CarsAndBuses;
+        }
+
+        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam where EVERY vehicle is one color (fill) except
+        // ONE contrasting vehicle trapped in the dead CENTER (extracted LAST). Mixed cars + buses. Reverse-
+        // placed center-out with the SAME BodyFree+SlideClear, every vehicle exiting outward -> solvable
+        // (clear from the outside in to free the middle one).
+        static LevelData GenerateBonus(int level, System.Random rng)
+        {
+            const int busCount = 36; // MANY mixed vehicles, densely packed
+            var fill = PieceColor.Yellow; // everything is this color...
+            var core = PieceColor.Red;    // ...except ONE vehicle in the dead center.
+
+            var buses = new List<BusDef>(busCount);
+            for (int i = 0; i < busCount; i++)
+            {
+                bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after all the fill clears)
+                var type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
+                                  : (rng.Next(10) < 6 ? VehicleType.Car : VehicleType.Bus); // fill: ~60% cars, 40% buses
+                buses.Add(new BusDef { color = isCore ? core : fill, type = type,
+                                       capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
+            }
+
+            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f); // queue untouched: window==baseSlots, total==sum caps
+            var gridBuses = BuildBonusGrid(buses, rng, out int gridW, out int gridH);
+
+            return new LevelData
+            {
+                levelNumber = level, groups = groups, gridBuses = gridBuses,
+                gridW = gridW, gridH = gridH, baseSlots = BaseSlots, extraSlots = ExtraSlots, colorCount = 2
+            };
+        }
+
+        // Dense packed bonus jam: fill all cells center-out by DESCENDING index (outer = LOW index = extracted
+        // first), every vehicle exiting OUTWARD; the single highest index lands dead centre and leaves last.
+        // Reverse-placed with BodyFree+SlideClear -> solvable by construction (clear outside-in to free the middle).
+        static List<GridBus> BuildBonusGrid(List<BusDef> buses, System.Random rng, out int W, out int H)
+        {
+            int n = buses.Count;
+            int totalCells = 0;
+            for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
+            // Tight pack so it reads as a PACKED jam (vs the open early levels), with just enough slack for lanes.
+            float budget = totalCells * 1.3f;
+            W = Mathf.Clamp(Mathf.CeilToInt(Mathf.Sqrt(budget)), 6, 8);
+            H = Mathf.Clamp(Mathf.CeilToInt(budget / W), 5, 12);
+
+            var occupied = new HashSet<Vector2Int>();
+            var result = new GridBus[n];
+
+            for (int k = n - 1; k >= 0; k--)
+            {
+                int L = Vehicles.CellLength(buses[k].type);
+                bool placed = false;
+                int guard = 0;
+                while (!placed)
+                {
+                    var cells = BoxOrderedCells(W, H, rng, centerFirst: true); // fill center-out by descending index
+                    foreach (var anchor in cells)
+                    {
+                        var ds = OutwardDirs(anchor, W, H, rng); // exit toward the nearest edge (clear lanes on a packed board)
+                        foreach (var d in ds)
+                        {
+                            if (BodyFree(anchor, d, L, occupied, W, H) && SlideClear(anchor, d, L, occupied.Contains, W, H))
+                            {
+                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = 0 };
+                                foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
+                                placed = true; break;
+                            }
+                        }
+                        if (placed) break;
+                    }
+                    if (!placed)
+                    {
+                        if (H < 13) H++;
+                        if (guard++ > 8) // extreme fallback (on-screen): deepest row <=12, never grow past 13
+                        {
+                            var d = new Vector2Int(-1, 0);
+                            var anchor = new Vector2Int(0, Mathf.Min(H, 12));
+                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = 0 };
+                            foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
+                            H = Mathf.Min(H + 2, 13); placed = true;
+                        }
+                    }
+                }
+            }
+            return new List<GridBus>(result);
+        }
+
+        // Cells ordered by Manhattan distance from center: centerFirst -> innermost first (core block); else
+        // outermost first (ring). Jitter randomizes within a tier (try-order only; legality unchanged).
+        static List<Vector2Int> BoxOrderedCells(int W, int H, System.Random rng, bool centerFirst)
+        {
+            float cx = (W - 1) * 0.5f, cy = (H - 1) * 0.5f;
+            var keyed = new List<(Vector2Int cell, float key)>(W * H);
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float dist = Mathf.Abs(x - cx) + Mathf.Abs(y - cy);
+                    keyed.Add((new Vector2Int(x, y), (centerFirst ? dist : -dist) + (float)rng.NextDouble() * 0.5f));
+                }
+            keyed.Sort((a, b) => a.key.CompareTo(b.key));
+            var ordered = new List<Vector2Int>(keyed.Count);
+            foreach (var kv in keyed) ordered.Add(kv.cell);
+            return ordered;
+        }
+
+        // The 4 cardinals ordered most-OUTWARD-first (dir best aligned with anchor-from-center).
+        static List<Vector2Int> OutwardDirs(Vector2Int anchor, int W, int H, System.Random rng)
+        {
+            float ox = anchor.x - (W - 1) * 0.5f, oy = anchor.y - (H - 1) * 0.5f;
+            var dirs = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
+            var keyed = new List<(Vector2Int d, float key)>(4);
+            foreach (var d in dirs) keyed.Add((d, -(d.x * ox + d.y * oy) + (float)rng.NextDouble() * 0.3f)); // outward (high dot) first
+            keyed.Sort((a, b) => a.key.CompareTo(b.key));
+            var res = new List<Vector2Int>(4);
+            foreach (var kv in keyed) res.Add(kv.d);
+            return res;
         }
 
         /// <summary>Authored levels. Parameters are tunable in the Inspector but still
@@ -80,7 +200,7 @@ namespace BusJam
             int seed = def.seed != 0 ? def.seed : def.levelNumber * 9176 + 4242;
             var rng = new System.Random(seed);
 
-            int colorCount = Mathf.Clamp(def.colorCount, 3, Palette.Count);
+            int colorCount = Mathf.Clamp(def.colorCount, 2, Palette.Count); // allow 2-color easy/bonus levels
             int busCount   = Mathf.Max(4, def.busCount);
             int baseSlots  = Mathf.Max(1, def.baseSlots);
             int extraSlots = Mathf.Max(0, def.extraSlots);
@@ -116,8 +236,8 @@ namespace BusJam
             // denser as levels rise, and let HARDER levels use diagonals (true 8-way) while easy levels
             // stay 4-way like the reference.
             var style = (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
-            float pack = Mathf.Lerp(1.6f, 1.4f, Mathf.Clamp01((levelNumber - 1) / 14f));
-            bool allowDiagonals = levelNumber >= 4; // levels 1-3 = 4-way; 4+ = 8-way
+            float pack = Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f)); // more slack early, denser later
+            bool allowDiagonals = levelNumber >= 6; // early high-count boards stay 4-way/readable; 6+ = 8-way
             var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, out int gridW, out int gridH);
 
             return new LevelData
@@ -206,12 +326,12 @@ namespace BusJam
             int totalCells = 0;
             for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
 
-            // Size for ~pack x total cells (room for exit lanes) while keeping the board within the
-            // camera envelope: widen first (W up to 7), then deepen (H up to 8). `pack` ramps 1.6->1.4
-            // with level so higher levels are denser/harder.
-            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * pack / 8f)), 4, 7);
-            H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 8)
-                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * pack / W), 3, 8);
+            // Size for ~pack x total cells (room for exit lanes) while keeping the board within the camera
+            // envelope: widen first (W up to 8 -> stays on-screen even on tall 9:20), then deepen (H up to
+            // 12). Bigger than before to hold the ~20-28 vehicle design (paired with CellSize=0.9).
+            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * pack / 8f)), 5, 8);
+            H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 12)
+                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * pack / W), 3, 12);
 
             var cardinals = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
             var eight = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0),
@@ -222,7 +342,8 @@ namespace BusJam
             for (int k = n - 1; k >= 0; k--)
             {
                 int L = Vehicles.CellLength(buses[k].type);
-                // Special "<<" crawlers stay CARDINAL (their per-tap occ rewrite isn't diagonal-aware).
+                // Special "<<" crawlers stay CARDINAL for clean per-tap framing (the unified occ rewrite is
+                // diagonal-safe via the shared OccCells; this is a design choice, not a geometry limit).
                 var dirs = (allowDiagonals && buses[k].advanceN == 0) ? eight : cardinals;
                 bool placed = false;
                 int guard = 0;
@@ -268,18 +389,20 @@ namespace BusJam
                     if (!placed)
                     {
                         // Cap growth so the deepest normally-placed row (c.y up to H-1) stays within the
-                        // camera's bottom edge. With GridExitZ=3.6 / CellSize=1.2, H=10 -> deepest row
-                        // z=-7.2 (on-screen, ~1.5u margin); taller would clip. 7x10=70 cells comfortably
-                        // holds the densest realistic set (<=16 buses, <=64 cells), so this rarely bites.
-                        if (H < 10) H++;
+                        // camera's bottom edge. With GridExitZ=3.6 / CellSize=0.9, H=13 -> deepest row
+                        // z=-7.2 (on-screen, ~1.5u margin); taller would clip. 9x13=117 cells comfortably
+                        // holds the densest set (~28 vehicles incl. diagonal footprints), so this rarely bites.
+                        if (H < 13) H++;
                         if (guard++ > 8)
                         {
-                            // extreme fallback: drop the whole vehicle into a fresh row, exiting left (cardinal).
+                            // extreme fallback (effectively never fires — stress-tested 0/11000): drop the
+                            // vehicle exiting left, but on the DEEPEST ON-SCREEN row (<=12) and never grow H
+                            // past 13, so no vehicle can ever land below the camera's bottom edge.
                             var d = new Vector2Int(-1, 0);
-                            var anchor = new Vector2Int(0, H);
+                            var anchor = new Vector2Int(0, Mathf.Min(H, 12));
                             result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
                             foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
-                            H += 2; placed = true;
+                            H = Mathf.Min(H + 2, 13); placed = true;
                         }
                     }
                 }
@@ -351,6 +474,40 @@ namespace BusJam
                 if (!anyInGrid) return true; // whole body has cleared the board
                 p = next;
             }
+        }
+
+        // How many forward steps along `dir` the footprint can take while staying fully IN-GRID, stopping at
+        // the first step that is blocked OR would push any body cell off the board. Same OccCells + diagonal
+        // corner-sweep geometry as SlideClear (cardinal reduces to the old single-cell walk), so the runtime
+        // crawl reposition stays consistent. RUNTIME-only -> generator clearance functions are untouched.
+        public static int MaxAdvanceSteps(Vector2Int cell, Vector2Int dir, int L, System.Func<Vector2Int, bool> occupied, int W, int H, int cap)
+        {
+            bool InG(Vector2Int p) => p.x >= 0 && p.x < W && p.y >= 0 && p.y < H;
+            var own = new HashSet<Vector2Int>(OccCells(cell, dir, L));
+            bool diag = dir.x != 0 && dir.y != 0;
+            var p = cell;
+            int steps = 0;
+            while (steps < cap)
+            {
+                var next = p + dir;
+                if (diag) // a swept corner that's occupied blocks the step (mirrors SlideClear)
+                {
+                    var ca = new Vector2Int(next.x, p.y);
+                    var cb = new Vector2Int(p.x, next.y);
+                    if (InG(ca) && !own.Contains(ca) && occupied(ca)) break;
+                    if (InG(cb) && !own.Contains(cb) && occupied(cb)) break;
+                }
+                bool ok = true;
+                foreach (var c in OccCells(next, dir, L))
+                {
+                    if (!InG(c)) { ok = false; break; }                          // would leave the board (no in-grid advance)
+                    if (!own.Contains(c) && occupied(c)) { ok = false; break; }  // blocked
+                }
+                if (!ok) break;
+                foreach (var c in OccCells(next, dir, L)) own.Add(c);
+                p = next; steps++;
+            }
+            return steps;
         }
 
         static List<Vector2Int> AllCells(int W, int H)

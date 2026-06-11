@@ -13,14 +13,14 @@ MonoBehaviour:
   m_Name: Level5
   m_EditorClassIdentifier:
   levelNumber: 5
-  colorCount: 4
-  busCount: 9
+  colorCount: 3
+  busCount: 22
   timeLimit: 300
   vehicleMix: 3
-  gridWidth: 5
+  gridWidth: 7
   gridHeight: 0
   baseSlots: 5
   extraSlots: 3
-  goldenChance: 0.05
-  mysteryChance: 0.15
+  goldenChance: 0
+  mysteryChance: 0
   seed: 0

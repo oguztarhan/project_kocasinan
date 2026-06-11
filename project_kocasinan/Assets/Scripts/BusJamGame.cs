@@ -37,7 +37,7 @@ namespace BusJam
 
         // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
-        const float CellSize = 1.2f;          // multi-cell vehicles (Car1/Bus2/Limo3) -> smaller cells keep the board on-screen
+        const float CellSize = 0.9f;          // smaller cells fit the bigger ~20-28 vehicle board on portrait (vehicles scale with this)
         const float GridExitZ = 3.6f;         // grid row y=0 (exit edge); lowered to open a distinct road band above it
         const float RoadZ = 4.4f;             // road lane: its own band between the jam (below) and parking stops (above)
         const float ParkingZ = 6.2f;          // parking row, above the road
@@ -176,7 +176,7 @@ namespace BusJam
                 if (Physics.Raycast(ray, out RaycastHit hit, 400f))
                 {
                     var bus = hit.collider.GetComponentInParent<Bus>();
-                    if (bus != null) { if (bus.advanceN > 0) TapSpecial(bus); else TryTapBus(bus); return; }
+                    if (bus != null) { TryTapBus(bus); return; }
                     var slot = hit.collider.GetComponentInParent<ParkingSlot>();
                     if (slot != null && slot.locked) TryUnlockSlot(slot);
                 }
@@ -203,36 +203,52 @@ namespace BusJam
         // ====================================================================
         // Jam grid: tap a bus -> slide out if its path is clear
         // ====================================================================
+        // Forgiving UNIFIED tap (normal + crawler, cardinal + diagonal): a fully-clear lane + free slot drives
+        // grounded to the stop; otherwise the footprint advances forward to the blocker; only a tap with no
+        // forward progress AND no exit is rejected. SlideClear/OccCells are the SAME shared geometry the
+        // generator placed with, so solvable-by-construction holds.
         void TryTapBus(Bus bus)
         {
-            if (bus.state != BusState.Queued) return; // already leaving / parked
+            if (bus.state != BusState.Queued) return; // already leaving / parked / mid-crawl
 
-            // Same footprint + diagonal corner-sweep the generator used to PLACE this vehicle, so a
-            // solvable-by-construction lane is always tappable (4-way and 8-way alike).
-            if (!LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH))
-            { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // blocked
+            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH);
+            var slot = laneClear ? NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) : null;
 
-            var slot = NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x);
-            if (slot == null) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; }
+            if (laneClear && slot != null)
+            {
+                foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
+                gridBuses.Remove(bus);
+                slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
+                sfx.Deploy();
+                StartCoroutine(ExitRoutine(bus, slot));
+                return;
+            }
 
-            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
-            gridBuses.Remove(bus);
-            slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
+            // Partial advance: crawlers cap at advanceN cells/tap; normals advance until the blocker.
+            int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH;
+            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH, cap);
+            if (step == 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // no forward progress AND no exit
+
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
+            bus.cell += bus.dir * step;
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus;  // add new -- atomic, no leak
+            bus.state = BusState.Staging; // not tappable until the crawl animation finishes
             sfx.Deploy();
-            StartCoroutine(ExitRoutine(bus, slot));
+            StartCoroutine(CrawlMove(bus, step));
         }
 
         IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
             int dist = ExitDistance(bus.cell, bus.dir) + bus.length; // +length so the tail fully clears
-            // Up (0,1) exits the FAR edge (away from parking); just pop out a little, then arc to the slot
-            // instead of sliding the whole way off-screen and flying back over the board.
-            if (bus.dir.y == 1) dist = Mathf.Min(dist, 2);
+            // PURE up (0,1) exits the FAR edge (away from parking); pop out a little so it doesn't slide all
+            // the way off-screen and drive back over the board. Up-DIAGONALS exit toward the bottom corners
+            // (low z, never behind the people band), so they slide their full ExitDistance.
+            if (bus.dir.x == 0 && bus.dir.y == 1) dist = Mathf.Min(dist, 2);
             // grid +y maps to world -z, so negate z when converting the grid dir to a world slide.
             Vector3 exitPt = bus.transform.position + new Vector3(bus.dir.x, 0, -bus.dir.y) * (dist * CellSize);
             yield return MoveTo(bus.transform, exitPt, 0.18f);
-            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.32f, 0.9f);
+            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.32f, 0f); // arc 0 = grounded drive, no hop
             bus.state = BusState.Parked;
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
             busy--;
@@ -240,55 +256,11 @@ namespace BusJam
             CheckEnd();
         }
 
-        // Special "<<" crawler: each tap advances up to advanceN cells along its arrow, stopping at
-        // the first occupied cell or the grid edge. It exits (normal tail) only when the lane reaches
-        // the edge within N; otherwise it repositions and stays tappable. occ is rewritten atomically.
-        void TapSpecial(Bus bus)
-        {
-            if (bus.state != BusState.Queued) return; // ignore a mid-crawl re-tap (state is Staging then)
-
-            int step = 0;
-            Vector2Int lead = bus.cell;
-            bool reachedEdge = false;
-            while (step < bus.advanceN)
-            {
-                Vector2Int next = lead + bus.dir;
-                if (!InGrid(next)) { reachedEdge = true; break; } // lane is clear off the edge within N -> can exit
-                if (occ.ContainsKey(next)) break;                  // blocked ahead
-                lead = next; step++;
-            }
-
-            if (reachedEdge)
-            {
-                var slot = NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x);
-                if (slot != null)
-                {
-                    // Full exit — identical to the normal tail (free ALL body cells, then ExitRoutine).
-                    foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
-                    gridBuses.Remove(bus);
-                    slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot;
-                    sfx.Deploy();
-                    StartCoroutine(ExitRoutine(bus, slot));
-                    return;
-                }
-                if (step == 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // at edge but no slot
-                // else: no slot but we can still crawl forward 'step' cells -> fall through to reposition.
-            }
-            else if (step == 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // immediately blocked
-
-            // Reposition (partial crawl): remove ALL old body cells, THEN add ALL new — synchronously, no leak.
-            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
-            bus.cell = lead;
-            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus;
-            bus.state = BusState.Staging; // not tappable until the crawl animation finishes
-            sfx.Deploy();
-            StartCoroutine(CrawlMove(bus));
-        }
-
-        IEnumerator CrawlMove(Bus bus)
+        IEnumerator CrawlMove(Bus bus, int step)
         {
             busy++;
-            yield return MoveTo(bus.transform, GridWorldCenter(bus.cell, bus.dir, bus.length), 0.16f);
+            float dur = Mathf.Clamp(0.10f + 0.05f * step, 0.12f, 0.5f); // smooth grounded slide, scaled by crawl distance
+            yield return MoveTo(bus.transform, GridWorldCenter(bus.cell, bus.dir, bus.length), dur);
             bus.state = BusState.Queued; // tappable again
             busy--;
             CheckEnd();

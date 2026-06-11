@@ -123,11 +123,24 @@ namespace BusJam
                 prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.62f,0.56f,0.48f), lightColor = new Color(1f,0.90f,0.72f), lightIntensity = 1.3f
             },
+            // BONUS theme (every 10th level) — festive purple + gold. MUST stay LAST in All (Themes.For
+            // returns it only for level%10==0 and rotates the OTHERS over All.Length-1).
+            new Theme {
+                name = "Bonus", sky = new Color(0.20f,0.11f,0.34f), ground = new Color(0.42f,0.27f,0.56f),
+                field = new Color(0.30f,0.19f,0.44f), road = new Color(0.47f,0.34f,0.60f),
+                accent = new Color(1f,0.84f,0.32f), propMain = new Color(0.98f,0.78f,0.30f),
+                propAlt = new Color(0.93f,0.41f,0.63f), foliage = new Color(0.58f,0.86f,0.58f),
+                trunk = new Color(0.50f,0.36f,0.24f), grass = new Color(0.60f,0.50f,0.76f),
+                prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
+                ambient = new Color(0.56f,0.49f,0.64f), lightColor = new Color(1f,0.92f,0.70f), lightIntensity = 1.45f
+            },
         };
 
         public static Theme For(int level)
         {
-            int idx = ((Mathf.Max(1, level) - 1) / LevelsPerTheme) % All.Length;
+            int L = Mathf.Max(1, level);
+            if (L % 10 == 0) return All[All.Length - 1];                 // bonus theme (last entry)
+            int idx = ((L - 1) / LevelsPerTheme) % (All.Length - 1);     // rotate over the NON-bonus themes only
             return All[idx];
         }
 

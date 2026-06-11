@@ -14,8 +14,8 @@ namespace BusJam
         [Min(1)] public int levelNumber = 1;
 
         [Header("Difficulty")]
-        [Range(3, 8)] public int colorCount = 3;
-        [Min(4)] public int busCount = 4;
+        [Range(2, 8)] public int colorCount = 3;
+        [Min(4)] public int busCount = 20;
 
         [Header("Vehicles")]
         [Tooltip("Which vehicle types appear (capacity = seats that fill as people board).")]
