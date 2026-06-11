@@ -23,19 +23,16 @@ namespace BusJam
             return go;
         }
 
-        /// <summary>Body length as a fraction of a grid cell, per vehicle type. Every
-        /// type fits inside ONE cell with margin (keeps the grid overlap-free).</summary>
-        public const float BusFit = 0.78f;
-        public static float LengthFactor(VehicleType type)
-            => type == VehicleType.Car ? 0.62f : type == VehicleType.Limo ? 0.88f : BusFit;
-        public static float VehicleLength(VehicleType type, float cellSize) => cellSize * LengthFactor(type);
+        /// <summary>True body length = the vehicle's L grid cells (Car 1 / Bus 2 / Limo 3) at ~0.9 fill, so a
+        /// vehicle spans its WHOLE footprint and the board reads as a packed jam.</summary>
+        public static float VehicleLength(VehicleType type, float cellSize) => cellSize * Vehicles.CellLength(type) * 0.9f;
 
         // Car = short & tall, Bus = standard, Limo = long & low. Seat count = capacity.
         public static Renderer[] BuildVehicle(Transform root, VehicleType type, int capacity, float cellSize,
             Material body, Material glass, Material wheel, Material light, Material seatEmpty, Material arrowMat)
         {
-            float len = cellSize * LengthFactor(type);                                   // along Z (arrow axis)
-            float w   = cellSize * (type == VehicleType.Limo ? 0.42f : 0.50f);           // along X
+            float len = VehicleLength(type, cellSize);                                   // spans the L cells (along Z)
+            float w   = cellSize * 0.52f;                                                // proportional width (along X) -- not stretched
             float h   = cellSize * (type == VehicleType.Car ? 0.46f : type == VehicleType.Limo ? 0.32f : 0.42f);
             float wr  = cellSize * 0.11f;    // wheel radius
             float bodyY = wr + h * 0.5f;

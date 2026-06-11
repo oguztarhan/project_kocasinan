@@ -59,14 +59,14 @@ namespace BusJam
             // MANY vehicles every level (easy-but-many at L1); difficulty rises via colors/specials/
             // diagonals/density, NOT count.
             int colorCount = Mathf.Clamp(2 + (level - 1) / 3, 2, Palette.Count); // L1-3 = 2 colors, +1 every 3
-            int busCount   = Mathf.Clamp(20 + level / 5, 20, 28);               // ~20 at L1 -> 28
+            int busCount   = Mathf.Clamp(14 + level / 5, 16, 19);               // big jam (T3): 16 at L1 -> 19; fills the taller W6/H9 big-cell board (stress-tested 0/0)
             float goldenP  = Mathf.Min(0.10f, level * 0.01f);
             float mysteryP = Mathf.Min(0.30f, Mathf.Max(0, level - 4) * 0.03f); // no mystery until L5
 
             // Special "<<" crawlers ramp in later (boards are denser now); none early.
             float specialP = level < 10 ? 0f : Mathf.Min(0.20f, (level - 9) * 0.03f);
 
-            return Build(rng, level, colorCount, busCount, 7, 0, BaseSlots, ExtraSlots,
+            return Build(rng, level, colorCount, busCount, 6, 0, BaseSlots, ExtraSlots,
                          goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4);
         }
 
@@ -83,7 +83,7 @@ namespace BusJam
         // (clear from the outside in to free the middle one).
         static LevelData GenerateBonus(int level, System.Random rng)
         {
-            const int busCount = 36; // MANY mixed vehicles, densely packed
+            const int busCount = 32; // MANY mixed vehicles, densely packed (T3 big-jam: fits the W6/H9 board; stress-tested 0/0)
             var fill = PieceColor.Yellow; // everything is this color...
             var core = PieceColor.Red;    // ...except ONE vehicle in the dead center.
 
@@ -117,8 +117,8 @@ namespace BusJam
             for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
             // Tight pack so it reads as a PACKED jam (vs the open early levels), with just enough slack for lanes.
             float budget = totalCells * 1.3f;
-            W = Mathf.Clamp(Mathf.CeilToInt(Mathf.Sqrt(budget)), 6, 8);
-            H = Mathf.Clamp(Mathf.CeilToInt(budget / W), 5, 12);
+            W = Mathf.Clamp(Mathf.CeilToInt(Mathf.Sqrt(budget)), 5, 6);   // zoomed-camera caps (CellSize 1.1, big jam)
+            H = Mathf.Clamp(Mathf.CeilToInt(budget / W), 5, 9);
 
             var occupied = new HashSet<Vector2Int>();
             var result = new GridBus[n];
@@ -147,14 +147,14 @@ namespace BusJam
                     }
                     if (!placed)
                     {
-                        if (H < 13) H++;
-                        if (guard++ > 8) // extreme fallback (on-screen): deepest row <=12, never grow past 13
+                        if (H < 9) H++;
+                        if (guard++ > 8) // extreme fallback (on-screen): deepest row <=8, never grow past 9
                         {
                             var d = new Vector2Int(-1, 0);
-                            var anchor = new Vector2Int(0, Mathf.Min(H, 12));
+                            var anchor = new Vector2Int(0, Mathf.Min(H, 8));
                             result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = 0 };
                             foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
-                            H = Mathf.Min(H + 2, 13); placed = true;
+                            H = Mathf.Min(H + 2, 9); placed = true;
                         }
                     }
                 }
@@ -326,12 +326,12 @@ namespace BusJam
             int totalCells = 0;
             for (int i = 0; i < n; i++) totalCells += Vehicles.CellLength(buses[i].type);
 
-            // Size for ~pack x total cells (room for exit lanes) while keeping the board within the camera
-            // envelope: widen first (W up to 8 -> stays on-screen even on tall 9:20), then deepen (H up to
-            // 12). Bigger than before to hold the ~20-28 vehicle design (paired with CellSize=0.9).
-            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * pack / 8f)), 5, 8);
-            H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 12)
-                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * pack / W), 3, 12);
+            // Size for ~pack x total cells (room for exit lanes) within the ZOOMED camera envelope: W up to 6
+            // (big CellSize=1.1 -> a 6-wide jam fills the portrait width at FOV54), H up to 9 (raised GridExitZ
+            // keeps the deepest row on-screen). Holds the big-jam set (busCount<=19) in W6xH9=54 cells with slack.
+            W = Mathf.Clamp(Mathf.Max(gridWidth, Mathf.CeilToInt(totalCells * pack / 8f)), 5, 6);
+            H = gridHeightHint > 0 ? Mathf.Clamp(gridHeightHint, 3, 9)
+                                   : Mathf.Clamp(Mathf.CeilToInt(totalCells * pack / W), 3, 9);
 
             var cardinals = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0) };
             var eight = new[] { new Vector2Int(0, -1), new Vector2Int(0, 1), new Vector2Int(-1, 0), new Vector2Int(1, 0),
@@ -354,18 +354,19 @@ namespace BusJam
                     var cells = StyleOrderedCells(W, H, style, rng);
                     foreach (var anchor in cells)
                     {
-                        // L>=2 buses lose the random fit lottery for their thick (2x2) diagonal footprint, so
-                        // bias the TRY-ORDER toward diagonals first (every dir is still tried -> solvability
-                        // unchanged). Cars (L==1) and cardinal-only sets keep the flat shuffle.
+                        // BALANCE straight vs diagonal: prefer cardinals MOST of the time, diagonals only ~35%,
+                        // so the board is a healthy mix (not all-diagonal) for cars AND buses. Every dir is still
+                        // tried, so solvability is unchanged. Cardinal-only sets (crawlers / levels <6) stay flat.
                         List<Vector2Int> ds;
-                        if (L >= 2 && dirs.Length == 8)
+                        if (dirs.Length == 8)
                         {
                             var diag = new List<Vector2Int>(4);
                             var card = new List<Vector2Int>(4);
                             foreach (var d in dirs) { if (d.x != 0 && d.y != 0) diag.Add(d); else card.Add(d); }
                             Shuffle(diag, rng); Shuffle(card, rng);
                             ds = new List<Vector2Int>(8);
-                            ds.AddRange(diag); ds.AddRange(card); // diagonals first, then cardinals
+                            if (rng.NextDouble() < 0.35) { ds.AddRange(diag); ds.AddRange(card); } // ~35% prefer diagonal
+                            else { ds.AddRange(card); ds.AddRange(diag); }                          // ~65% prefer straight
                         }
                         else
                         {
@@ -388,21 +389,20 @@ namespace BusJam
                     }
                     if (!placed)
                     {
-                        // Cap growth so the deepest normally-placed row (c.y up to H-1) stays within the
-                        // camera's bottom edge. With GridExitZ=3.6 / CellSize=0.9, H=13 -> deepest row
-                        // z=-7.2 (on-screen, ~1.5u margin); taller would clip. 9x13=117 cells comfortably
-                        // holds the densest set (~28 vehicles incl. diagonal footprints), so this rarely bites.
-                        if (H < 13) H++;
+                        // Cap growth so the deepest row (c.y up to H-1) stays within the camera's bottom edge.
+                        // With GridExitZ=5.5 / CellSize=1.1 and the camera (FOV54), H=9 -> deepest row edge
+                        // z=-3.85 (on-screen, ndc 0.94). The big-jam counts (busCount<=19) fit W6xH9=54 cells
+                        // with slack (stress-tested 0 overlap / 0 fallback over 1000 levels), so this rarely bites.
+                        if (H < 9) H++;
                         if (guard++ > 8)
                         {
-                            // extreme fallback (effectively never fires — stress-tested 0/11000): drop the
-                            // vehicle exiting left, but on the DEEPEST ON-SCREEN row (<=12) and never grow H
-                            // past 13, so no vehicle can ever land below the camera's bottom edge.
+                            // extreme fallback (stress-tested 0/1000): drop the vehicle exiting left on the
+                            // DEEPEST ON-SCREEN row (<=8) and never grow H past 9, so no vehicle lands off-screen.
                             var d = new Vector2Int(-1, 0);
-                            var anchor = new Vector2Int(0, Mathf.Min(H, 12));
+                            var anchor = new Vector2Int(0, Mathf.Min(H, 8));
                             result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
                             foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
-                            H = Mathf.Min(H + 2, 13); placed = true;
+                            H = Mathf.Min(H + 2, 9); placed = true;
                         }
                     }
                 }
@@ -411,10 +411,10 @@ namespace BusJam
             return new List<GridBus>(result);
         }
 
-        // The STATIC cells a vehicle occupies. Cardinal: L body cells (anchor - dir*i). Diagonal: those
-        // L body cells PLUS the two corner cells swept between each consecutive pair (a thick diagonal
-        // stripe), so a 45deg-rotated body can't overlap a neighbour. SINGLE source of truth, used by the
-        // generator AND BusJamGame's occ bookkeeping + slide checks.
+        // The STATIC cells a vehicle occupies. Cardinal: L body cells (anchor - dir*i). Diagonal: those L body
+        // cells PLUS the two corner cells the 45deg-rotated body covers between each consecutive pair, so a
+        // diagonal vehicle reserves what it visually overlaps (no corner mesh) and can't slide THROUGH a
+        // corner-blocked neighbour. SINGLE source of truth: generator placement AND runtime occ/slide checks.
         public static List<Vector2Int> OccCells(Vector2Int cell, Vector2Int dir, int L)
         {
             var list = new List<Vector2Int>(L * 2);
@@ -425,7 +425,7 @@ namespace BusJam
                 list.Add(b);
                 if (diag && i < L - 1)
                 {
-                    list.Add(new Vector2Int(b.x - dir.x, b.y)); // corners between b and the next body cell
+                    list.Add(new Vector2Int(b.x - dir.x, b.y)); // corners covered between b and the next body cell
                     list.Add(new Vector2Int(b.x, b.y - dir.y));
                 }
             }
@@ -443,10 +443,10 @@ namespace BusJam
             return true;
         }
 
-        // Can the vehicle slide along `dir` fully off the board? Every NEW cell its footprint enters
-        // (incl. the diagonal corners it sweeps) must be free. Cardinal reduces to "check cell+dir onward"
-        // exactly as before. SHARED by the generator (placement) and TryTapBus (runtime) so they never
-        // disagree -> solvable-by-construction holds for 8-way levels.
+        // Can the vehicle slide along `dir` fully off the board? Every NEW cell its footprint enters (incl. the
+        // diagonal corners it sweeps) must be free, so a diagonal vehicle can't squeeze THROUGH a corner-blocked
+        // gap. Cardinal reduces to "check cell+dir onward". SHARED by the generator (placement) and TryTapBus
+        // (runtime) so they never disagree -> solvable-by-construction holds.
         public static bool SlideClear(Vector2Int cell, Vector2Int dir, int L, System.Func<Vector2Int, bool> occupied, int W, int H)
         {
             bool InG(Vector2Int p) => p.x >= 0 && p.x < W && p.y >= 0 && p.y < H;
@@ -456,7 +456,7 @@ namespace BusJam
             while (true)
             {
                 var next = p + dir;
-                if (diag) // corner-sweep (needed for L=1; harmless/redundant for L>1)
+                if (diag) // corner-sweep: the rotated body clips a diagonally-adjacent occupied cell
                 {
                     var ca = new Vector2Int(next.x, p.y);
                     var cb = new Vector2Int(p.x, next.y);
@@ -478,8 +478,7 @@ namespace BusJam
 
         // How many forward steps along `dir` the footprint can take while staying fully IN-GRID, stopping at
         // the first step that is blocked OR would push any body cell off the board. Same OccCells + diagonal
-        // corner-sweep geometry as SlideClear (cardinal reduces to the old single-cell walk), so the runtime
-        // crawl reposition stays consistent. RUNTIME-only -> generator clearance functions are untouched.
+        // corner-sweep geometry as SlideClear, so the runtime crawl reposition stays consistent.
         public static int MaxAdvanceSteps(Vector2Int cell, Vector2Int dir, int L, System.Func<Vector2Int, bool> occupied, int W, int H, int cap)
         {
             bool InG(Vector2Int p) => p.x >= 0 && p.x < W && p.y >= 0 && p.y < H;

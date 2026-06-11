@@ -32,7 +32,7 @@ namespace BusJam
         {
             var list = new List<Spec>();
             foreach (PieceColor c in System.Enum.GetValues(typeof(PieceColor)))
-                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.55f, 0.18f)); // glossy candy bodies
+                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.65f, 0.12f)); // smooth candy bodies (metallic forced 0 in MakeRuntime; lower emission = no eye-hurt)
 
             list.Add(new Spec("Glass",     new Color(0.18f, 0.26f, 0.40f), 0.85f, 0f));
             list.Add(new Spec("Wheel",     new Color(0.12f, 0.12f, 0.14f), 0.2f,  0f));
