@@ -16,7 +16,7 @@ namespace BusJam
     public class GameUI : MonoBehaviour
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
-        public System.Action OnHome, OnReplay;
+        public System.Action OnHome, OnReplay, OnLevels;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
 
@@ -30,7 +30,7 @@ namespace BusJam
         Font title, num;
         Transform root;
         GameObject hudPanel, settingsPanel, successPanel, continuePanel, failedPanel, shopPanel;
-        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward;
+        Text hudCoins, hudLevel, hudTheme, comboText, successReward;
 
         struct Joker { public Button btn; public GameObject lockGo; public int unlock; }
         Joker jRecolor, jSwap, jHeli;
@@ -111,13 +111,7 @@ namespace BusJam
             // SETTINGS gear: TOP-RIGHT.
             Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
 
-            // PEOPLE-LEFT badge: left margin, round green circle (atlas1_18).
-            var pBadge = Img(hudPanel.transform, UIKit.CircleGreen(), new Color(0.35f, 0.70f, 0.40f));
-            Place(pBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -440), new Vector2(140, 140));
-            pBadge.raycastTarget = false;
-            var pIco = Img(pBadge.transform, UISprites.Person(), White); pIco.raycastTarget = false;
-            Center(pIco.rectTransform, new Vector2(66, 66)); pIco.rectTransform.anchoredPosition = new Vector2(0, 16);
-            hudPeopleLeft = Label(pBadge.transform, "0", num, new Vector2(0, -38), new Vector2(140, 50), 36, White);
+            // (People-left count now lives ONLY on the neon world sign by the first bus stop — HUD chip removed.)
 
             comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
             comboText.gameObject.SetActive(false);
@@ -173,11 +167,16 @@ namespace BusJam
             ToggleRow(card.transform, 210, "SOUND", SaveSystem.Sound, v => SaveSystem.Sound = v);
             ToggleRow(card.transform, 60,  "MUSIC", SaveSystem.Music, v => SaveSystem.Music = v);
 
+            // LEVELS: opens the level map (matches the HOME/REPLAY button style).
+            var levels = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(640, 115),
+                () => { HideSettings(); OnLevels?.Invoke(); });
+            Label(levels.transform, "LEVELS", title, Vector2.zero, new Vector2(640, 80), 44, White);
+
             // HOME + REPLAY: ALL settings buttons use atlas1_36.
-            var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -160), new Vector2(310, 115),
+            var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -250), new Vector2(310, 115),
                 () => { HideSettings(); OnHome?.Invoke(); });
             Label(home.transform, "HOME", title, Vector2.zero, new Vector2(310, 80), 40, White);
-            var replay = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -160), new Vector2(310, 115),
+            var replay = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -250), new Vector2(310, 115),
                 () => { HideSettings(); OnReplay?.Invoke(); });
             Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(310, 80), 38, White);
 
@@ -446,7 +445,6 @@ namespace BusJam
             RefreshJokers();
         }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
-        public void SetPeopleLeft(int n) { if (hudPeopleLeft) hudPeopleLeft.text = n.ToString(); }
 
         public void ShowCombo(int combo)
         {

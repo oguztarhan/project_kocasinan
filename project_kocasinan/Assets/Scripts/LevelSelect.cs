@@ -6,11 +6,10 @@ using UnityEngine.InputSystem.UI;
 namespace BusJam
 {
     /// <summary>
-    /// Self-contained Level Select screen on its OWN canvas (kept separate from the
-    /// HUD-only GameUI). Shows levels 1..N where N = SaveSystem.Level (highest
-    /// unlocked); locked levels are shown but not tappable. Tapping a level calls
-    /// BusJamGame.LoadLevel. Build() is called by BusJamGame; you can also drive it
-    /// from your own UI via Open()/Close()/Toggle().
+    /// Self-contained Level Select screen on its OWN canvas. Shows levels 1..N where
+    /// N = SaveSystem.Level (highest unlocked); locked levels are shown but not tappable.
+    /// Opened from the IN-GAME Settings → LEVELS (no on-screen button). Tapping a level
+    /// calls BusJamGame.LoadLevel. Build(game) + Open()/Close().
     /// </summary>
     public class LevelSelect : MonoBehaviour
     {
@@ -18,7 +17,6 @@ namespace BusJam
         Font font;
         GameObject panel;
         RectTransform content;
-        GameObject openButton;
         bool isOpen;
 
         const int Columns = 4;
@@ -34,7 +32,7 @@ namespace BusJam
             canvasGo.transform.SetParent(transform, false);
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 50; // above the HUD
+            canvas.sortingOrder = 100; // above the in-game HUD (GameUI canvas = order 0)
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
@@ -49,8 +47,7 @@ namespace BusJam
                 es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
 
-            BuildOpenButton(canvasGo.transform);
-            BuildPanel(canvasGo.transform);   // created after the open button -> renders on top when shown
+            BuildPanel(canvasGo.transform);
             Close();
         }
 
@@ -59,22 +56,20 @@ namespace BusJam
         {
             PopulateGrid();
             if (panel) panel.SetActive(true);
-            if (openButton) openButton.SetActive(false);
-            Time.timeScale = 0f;             // pause while browsing
+            Time.timeScale = 0f;   // pause gameplay while browsing
             isOpen = true;
         }
 
         public void Close()
         {
             if (panel) panel.SetActive(false);
-            if (openButton) openButton.SetActive(true);
             Time.timeScale = 1f;
             isOpen = false;
         }
 
         public void Toggle() { if (isOpen) Close(); else Open(); }
 
-        // Safety: never leave the game paused if this is torn down while open.
+        // Safety: never leave the game paused if torn down while open.
         void OnDisable() { if (isOpen) Time.timeScale = 1f; }
 
         void SelectLevel(int n)
@@ -84,18 +79,6 @@ namespace BusJam
         }
 
         // ---- Build ----------------------------------------------------------
-        void BuildOpenButton(Transform parent)
-        {
-            // Top-left, below the HUD's level badge/theme so it doesn't overlap.
-            var btn = Button(parent, "LEVELS", new Color(0.30f, 0.35f, 0.45f), () => Toggle(), 34);
-            var rt = btn.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0, 1);
-            rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2(30, -250);
-            rt.sizeDelta = new Vector2(220, 96);
-            openButton = btn.gameObject;
-        }
-
         void BuildPanel(Transform parent)
         {
             panel = Panel(parent, "LevelSelectPanel", new Color(0.04f, 0.06f, 0.10f, 0.82f));

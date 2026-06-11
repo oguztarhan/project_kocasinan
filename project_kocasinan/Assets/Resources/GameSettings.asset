@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b2b4f067e50462cbfd094fca4ae359a, type: 3}
   m_Name: GameSettings
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.GameSettings
-  boardWalkDuration: 0.35
-  boardCadence: 0.13
+  boardWalkDuration: 0.1
+  boardCadence: 0.179
   peopleSize: 1
-  busDriveSpeed: 11
-  busLeaveSpeed: 14
-  turnSmoothness: 6
+  busDriveSpeed: 17.6
+  busLeaveSpeed: 14.3
+  turnSmoothness: 8.81
   vehicleSize: 1

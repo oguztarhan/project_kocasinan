@@ -17,7 +17,7 @@ namespace BusJam
 
         [Header("Fit (tune so they sit right in the grid)")]
         [Range(0.5f, 1f)] public float fitFactor = 0.9f; // model length as a fraction of its cell span
-        public float yaw = 0f;     // base rotation if a model faces the wrong way
+        public float yaw = 0f;     // base rotation if a model faces the wrong way — use a MULTIPLE OF 90 (0/90/180/270): the diagonal auto-face only stays aligned for 90-multiples
         public float yOffset = 0f; // raise/lower if a model's pivot isn't at the wheels
 
         public GameObject PrefabFor(VehicleType t)

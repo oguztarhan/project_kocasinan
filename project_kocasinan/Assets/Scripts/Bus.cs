@@ -1,10 +1,11 @@
+using System.Collections;
 using UnityEngine;
 
 namespace BusJam
 {
     public enum BusState { Queued, Staging, MovingToSlot, Parked, Leaving, Done }
 
-    /// <summary>Runtime vehicle (Car/Bus/Limo). Visual seat windows light up as people board.</summary>
+    /// <summary>Runtime vehicle (Car/Bus/Limo). Little roof passengers pop in as people board.</summary>
     public class Bus : MonoBehaviour
     {
         public PieceColor color;
@@ -24,9 +25,9 @@ namespace BusJam
         // grid cells along its arrow per tap (crawls out over multiple taps).
         public int advanceN;
 
-        public Renderer[] seatWindows;       // code-built vehicles: seat pips that light up
-        public Material filledMat;
-        public UnityEngine.UI.Text seatLabel; // imported vehicles: roof number = EMPTY seats left
+        // Tiny passengers on the roof — one per seat, hidden until that seat fills. Replaces the old
+        // floating empty-seat NUMBER: the player COUNTS empty seats instead of reading a digit.
+        public GameObject[] roofPeople;
 
         public bool IsFull => seatsFilled >= capacity;
 
@@ -42,21 +43,36 @@ namespace BusJam
             int i = seatsFilled;
             seatsFilled++;
             arrivalsPending++;
-            RefreshSeatLabel();
             return i;
         }
 
-        // Visual catch-up when the passenger reaches the door: light their seat pip, clear the reservation.
+        // Visual catch-up when the passenger reaches the door: pop their roof seat's little person in,
+        // clear the reservation. The shrinking count of EMPTY seats is the readable "how many left".
         public void LightSeat(int i)
         {
-            if (seatWindows != null && i >= 0 && i < seatWindows.Length && filledMat != null)
-                seatWindows[i].sharedMaterial = filledMat;
+            if (roofPeople != null && i >= 0 && i < roofPeople.Length && roofPeople[i] != null)
+            {
+                roofPeople[i].SetActive(true);
+                StartCoroutine(PopIn(roofPeople[i].transform));
+            }
             arrivalsPending = Mathf.Max(0, arrivalsPending - 1);
         }
 
-        public void RefreshSeatLabel()
+        // Quick scale-pop so a newly seated passenger catches the eye.
+        static IEnumerator PopIn(Transform t)
         {
-            if (seatLabel != null) seatLabel.text = Mathf.Max(0, capacity - seatsFilled).ToString();
+            if (t == null) yield break;
+            Vector3 baseScale = t.localScale;
+            float dur = 0.2f, e = 0f;
+            while (e < dur)
+            {
+                if (t == null) yield break;
+                e += Time.deltaTime;
+                float k = Mathf.Clamp01(e / dur);
+                t.localScale = baseScale * (1f + 0.4f * Mathf.Sin(k * Mathf.PI));
+                yield return null;
+            }
+            if (t != null) t.localScale = baseScale;
         }
     }
 }
