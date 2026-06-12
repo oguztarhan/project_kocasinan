@@ -520,6 +520,50 @@ namespace BusJam
                         break;
                 }
             }
+
+            // The two promo bars are baked as plain "RemoveAds" rows (no InGameShopButton tag
+            // and no Button of their own), so wire them here by name:
+            //   "RemoveAds"     ($5) -> remove ads only
+            //   "RemoveAds (1)" ($7) -> remove ads + 200 gold + a free Recolor joker
+            // The actual ad-removal is hooked up separately later (see RemoveAds()).
+            WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
+            WirePromoBar(shopRoot, "RemoveAds (1)", () =>
+            {
+                RemoveAds();
+                SaveSystem.AddCoins(200);
+                SaveSystem.AddFreeJoker(0, 1); // 0 = Recolor joker
+                SetCoins(SaveSystem.Coins);
+                RefreshJokers();
+            });
+        }
+
+        // Turn a baked, tag-less promo row into a real button: force its background to catch
+        // taps and give it a Button, then run `onBuy` when pressed.
+        void WirePromoBar(Transform shopRoot, string rowName, System.Action onBuy)
+        {
+            var row = FindDeep(shopRoot, rowName);
+            if (row == null) return;
+            var img = row.GetComponent<Image>();
+            if (img != null) img.raycastTarget = true; // the bar background receives the tap
+            var btn = row.GetComponent<Button>();
+            if (btn == null) btn = row.gameObject.AddComponent<Button>();
+            if (img != null) btn.targetGraphic = img;
+            btn.onClick.AddListener(() => onBuy());
+        }
+
+        // First descendant (inactive included) whose GameObject is named `name`, else null.
+        static Transform FindDeep(Transform root, string name)
+        {
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == name) return t;
+            return null;
+        }
+
+        // Remove ads. The real ad-SDK / no-ads IAP call is wired in later; for now this is
+        // just the hook the $5 and $7 shop bars trigger (intentionally a no-op).
+        void RemoveAds()
+        {
+            // TODO: hook up real ad-removal here (configured later).
         }
 
         // ---- In-game shop (coin tap) — identical to the main-menu shop -------
