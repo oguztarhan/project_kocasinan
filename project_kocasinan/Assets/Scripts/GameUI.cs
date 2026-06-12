@@ -16,7 +16,7 @@ namespace BusJam
     public class GameUI : MonoBehaviour
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
-        public System.Action OnHome, OnReplay;
+        public System.Action OnHome, OnReplay, OnLevels;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
 
@@ -185,7 +185,7 @@ namespace BusJam
             // SETTINGS gear: TOP-RIGHT.
             Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
 
-            // (People-left badge removed — the count is already shown on the 3D board.)
+            // (People-left count now lives ONLY on the neon world sign by the first bus stop — HUD chip removed.)
 
             comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
             comboText.gameObject.SetActive(false);
@@ -322,14 +322,16 @@ namespace BusJam
             AudioToggle(card.transform, -160, UIKit.IconSpeaker(), SaveSystem.Sound, v => SaveSystem.Sound = v);
             AudioToggle(card.transform,  160, UIKit.IconNote(),    SaveSystem.Music, v => SaveSystem.Music = v);
 
-            // One empty button (atlas1_37).
-            Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(430, 120), null);
+            // LEVELS: opens the level map (matches the HOME/REPLAY button style).
+            var levels = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(640, 115),
+                () => { HideSettings(); OnLevels?.Invoke(); });
+            Label(levels.transform, "LEVELS", title, Vector2.zero, new Vector2(640, 80), 44, White);
 
-            // HOME (left) + REPLAY (right) below the empty button.
-            var home = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(-180, -120), new Vector2(320, 120),
+            // HOME + REPLAY: ALL settings buttons use atlas1_36.
+            var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -250), new Vector2(310, 115),
                 () => { HideSettings(); OnHome?.Invoke(); });
-            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(320, 80), 40, White);
-            var replay = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(180, -120), new Vector2(320, 120),
+            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(310, 80), 40, White);
+            var replay = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -250), new Vector2(310, 115),
                 () => { HideSettings(); OnReplay?.Invoke(); });
             Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(320, 80), 38, White);
 
@@ -727,7 +729,6 @@ namespace BusJam
             RefreshJokers();
         }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
-        public void SetPeopleLeft(int n) { if (hudPeopleLeft) hudPeopleLeft.text = n.ToString(); }
 
         public void ShowCombo(int combo)
         {

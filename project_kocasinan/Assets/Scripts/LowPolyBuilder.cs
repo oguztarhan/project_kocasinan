@@ -27,9 +27,10 @@ namespace BusJam
         /// vehicle spans its WHOLE footprint and the board reads as a packed jam.</summary>
         public static float VehicleLength(VehicleType type, float cellSize) => cellSize * Vehicles.CellLength(type) * 0.9f;
 
-        // Car = short & tall, Bus = standard, Limo = long & low. Seat count = capacity.
-        public static Renderer[] BuildVehicle(Transform root, VehicleType type, int capacity, float cellSize,
-            Material body, Material glass, Material wheel, Material light, Material seatEmpty, Material arrowMat)
+        // Car = short & tall, Bus = standard, Limo = long & low. Roof heads (boarded passengers) are
+        // built separately by BusJamGame.BuildRoofHeads, unified across both render paths.
+        public static void BuildVehicle(Transform root, VehicleType type, float cellSize,
+            Material body, Material glass, Material wheel, Material light, Material arrowMat)
         {
             float len = VehicleLength(type, cellSize);                                   // spans the L cells (along Z)
             float w   = cellSize * 0.52f;                                                // proportional width (along X) -- not stretched
@@ -56,18 +57,6 @@ namespace BusJam
                 sw.transform.localPosition = new Vector3(side * (w * 0.5f + 0.005f), bodyY + h * 0.15f, 0);
             }
 
-            // Seat dots on the roof (light up as people board)
-            var seats = new Renderer[capacity];
-            for (int i = 0; i < capacity; i++)
-            {
-                float z = -len * 0.5f + (i + 1) * (len / (capacity + 1));
-                var s = Prim(PrimitiveType.Cube, root, seatEmpty);
-                s.name = "Seat" + i;
-                s.transform.localScale = new Vector3(w * 0.5f, 0.05f, len / (capacity + 2));
-                s.transform.localPosition = new Vector3(0, top + 0.01f, z);
-                seats[i] = s.GetComponent<Renderer>();
-            }
-
             // Arrow on top, pointing -Z. Static (no idle pulse) so the grid is dead-still.
             var arrowPivot = new GameObject("Arrow");
             arrowPivot.transform.SetParent(root, false);
@@ -90,7 +79,6 @@ namespace BusJam
             // Headlights at the front
             Light2(root, light, new Vector3(wx * 0.5f, wr + 0.05f, -len * 0.5f - 0.01f));
             Light2(root, light, new Vector3(-wx * 0.5f, wr + 0.05f, -len * 0.5f - 0.01f));
-            return seats;
         }
 
         static void Wheel(Transform parent, Material mat, Vector3 pos, float r)

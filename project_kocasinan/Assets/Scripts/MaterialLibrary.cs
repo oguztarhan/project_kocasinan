@@ -111,9 +111,26 @@ namespace BusJam
             return dict;
         }
 
+        /// <summary>
+        /// Punches a color toward candy vibrance: HSV saturation (and a touch of value) up.
+        /// Greys / near-neutrals (S≈0 — wheels, board, arrow) stay neutral, so only the
+        /// colorful bodies pop. This is the per-material lift; a global grade in BusJamGame's
+        /// post-processing volume then lifts the whole frame (incl. the baked theme materials).
+        /// </summary>
+        public static Color Vibrant(Color c)
+        {
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            s = Mathf.Clamp01(s * 1.28f + 0.04f);
+            v = Mathf.Clamp01(v * 1.03f);
+            Color rgb = Color.HSVToRGB(h, s, v);
+            rgb.a = c.a;
+            return rgb;
+        }
+
         /// <summary>The single URP/Lit factory used by the runtime fallback and the asset generator.</summary>
         public static Material MakeRuntime(Color col, float smooth, float emission = 0f)
         {
+            col = Vibrant(col); // bright candy look — faded source colors come out vivid
             Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var m = new Material(sh);
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);

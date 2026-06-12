@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 namespace BusJam
@@ -60,9 +62,10 @@ namespace BusJam
 
         GameState state = GameState.Boot;
         Camera cam;
+        bool lowEnd;                          // budget/old mobile → lighter render path (set in Start)
         GameUI ui;
         Sfx sfx;
-        LevelSelect levelSelect;
+        LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS (no on-screen button)
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
@@ -71,6 +74,7 @@ namespace BusJam
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
         Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
+        Material roadMat, neonMat;            // fixed asphalt road (same every level) + emissive neon for the people-left sign
         Material[] confettiMats;
 
         LevelData level;
@@ -98,6 +102,9 @@ namespace BusJam
         void Start()
         {
             Screen.orientation = ScreenOrientation.Portrait;
+            QualitySettings.vSyncCount = 0;     // so targetFrameRate is honored (mobile otherwise caps at 30)
+            Application.targetFrameRate = 60;   // smooth 60 fps on capable devices
+            lowEnd = Application.isMobilePlatform && SystemInfo.systemMemorySize < 3072; // <3GB phone → lighter paths (editor/desktop never lowEnd)
             cam = Camera.main;
             BuildMaterials();
             peopleCatalog = Resources.Load<PeopleCatalog>("PeopleCatalog"); // null -> code-built people
@@ -106,6 +113,7 @@ namespace BusJam
             if (gameSettings == null) gameSettings = ScriptableObject.CreateInstance<GameSettings>(); // fall back to defaults
             seatFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // roof seat-count number
             PlaceCamera();
+            SetupPostFX();
 
             sfx = gameObject.AddComponent<Sfx>();
             ui = gameObject.AddComponent<GameUI>();
@@ -134,6 +142,7 @@ namespace BusJam
 
             levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
+            ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
 
             if (autoStart) LoadLevel(SaveSystem.Level);
             else { state = GameState.Menu; ui.HideHud(); }
@@ -144,7 +153,6 @@ namespace BusJam
         public void NextLevel() { LoadLevel(SaveSystem.Level); }
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
-        public void OpenLevelSelect() { if (levelSelect != null) levelSelect.Open(); }
 
         // Settings panel: HOME button -> back to the main menu scene.
         public void GoToMainMenu() { sfx.Click(); SceneManager.LoadScene("MainMenu"); }
@@ -237,7 +245,7 @@ namespace BusJam
             // Partial advance: crawlers cap at advanceN cells/tap; normals advance until the blocker.
             int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH;
             int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH, cap);
-            if (step == 0) { sfx.Error(); StartCoroutine(Bump(bus.transform)); return; } // no forward progress AND no exit
+            if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); return; } // blocked: crash + shake (no forward progress, no exit)
 
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
             bus.cell += bus.dir * step;
@@ -260,6 +268,7 @@ namespace BusJam
             yield return DrivePath(bus.transform, path, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
             bus.transform.rotation = Quaternion.Euler(0, 180f, 0);                   // settle to exact parked facing (nose +Z)
             bus.state = BusState.Parked;
+            sfx.Honk();                                                              // ONE honk as it pulls into the stop
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
             busy--;
             TryStartBoardingPump();
@@ -455,8 +464,7 @@ namespace BusJam
         void UpdatePeopleLeft()
         {
             int n = PeopleLeft();
-            if (ui != null) ui.SetPeopleLeft(n);
-            if (peopleLeftSign != null) peopleLeftSign.text = n.ToString(); // world-space road sign, same logical pool
+            if (peopleLeftSign != null) peopleLeftSign.text = n.ToString(); // neon world-space sign by the first bus stop (HUD chip removed)
         }
 
         void OnBoarded(bool golden, Vector3 pos)
@@ -494,7 +502,7 @@ namespace BusJam
             busy++;
             slot.occupant = null; // free the slot immediately so BoardingPump can refill it
             Vector3 start = bus.transform.position;
-            sfx.Deploy();
+            sfx.Screech();                                                          // full bus pulls away = tyre screech
             Juice.Burst(this, boardRoot, start + Vector3.up * 0.4f, bodyMats[bus.color], 16, 4.5f); // celebrate as it pulls away
 
             // Drive the FULL-SIZE bus FLAT (grounded). Parked buses face +Z (nose toward the people band), so
@@ -647,7 +655,7 @@ namespace BusJam
             CheckEnd();
         }
 
-        // Re-tint a jam bus to a new match-color (body + roof number) for RECOLOR.
+        // Re-tint a jam bus to a new match-color (body + roof passengers) for RECOLOR.
         void RecolorBus(Bus bus, PieceColor newColor)
         {
             bus.color = newColor;
@@ -671,15 +679,19 @@ namespace BusJam
                     modelRends[r].sharedMaterials = m;
                 }
             }
-            else if (bus.seatWindows != null) // code-built fallback
+            else // code-built fallback: re-tint the body cube
             {
                 var bodyTf = bus.transform.Find("Body");
                 if (bodyTf != null) { var br = bodyTf.GetComponent<Renderer>(); if (br != null) br.sharedMaterial = bodyMats[newColor]; }
-                bus.filledMat = bodyMats[newColor];
-                for (int i = 0; i < bus.seatsFilled && i < bus.seatWindows.Length; i++)
-                    if (bus.seatWindows[i] != null) bus.seatWindows[i].sharedMaterial = bodyMats[newColor];
             }
-            if (bus.seatLabel != null) bus.seatLabel.color = PeopleColor(newColor);
+            // Re-tint the roof heads' caps (revealed AND not-yet-revealed) to the new color.
+            if (bus.roofPeople != null)
+                foreach (var pax in bus.roofPeople)
+                {
+                    if (pax == null) continue;
+                    var hat = pax.transform.Find("Hat");
+                    if (hat != null) { var hr = hat.GetComponent<Renderer>(); if (hr != null) hr.sharedMaterial = bodyMats[newColor]; }
+                }
         }
 
         IEnumerator AfterJoker()
@@ -833,7 +845,7 @@ namespace BusJam
                 pad.name = "Slot" + i;
                 pad.transform.SetParent(boardRoot, false);
                 pad.transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
-                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.2f);
+                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 1.6f); // shallower so the stop clears the road band (no overlap)
                 pad.GetComponent<Renderer>().sharedMaterial = slotMat;
 
                 var slot = pad.AddComponent<ParkingSlot>();
@@ -991,7 +1003,13 @@ namespace BusJam
             model.transform.localPosition = new Vector3(0, peopleCatalog.yOffset, 0);
             model.transform.localRotation = Quaternion.Euler(0, peopleCatalog.yaw, 0);
             var anim = model.GetComponent<Animator>();
-            if (anim != null) anim.applyRootMotion = false; // stay put — no root-motion walk
+            if (anim != null)
+            {
+                anim.applyRootMotion = false; // stay put — no root-motion walk
+                // On budget phones, freeze this static background figure in a standing pose and STOP its
+                // per-frame skinning (a dozen of these idling is the biggest steady-state CPU cost on mobile).
+                if (lowEnd) { anim.Rebind(); anim.Update(0f); anim.enabled = false; }
+            }
 
             // Tint every non-face material slot to the crowd color (same rule as BuildPersonVisual).
             Material colorMat = bodyMats[color];
@@ -1120,14 +1138,11 @@ namespace BusJam
             }
             else
             {
-                bus.filledMat = bodyMats[color];
-                bus.seatWindows = LowPolyBuilder.BuildVehicle(root.transform, type, capacity, CellSize,
-                    bodyMats[color], glassMat, wheelMat, lightMat, seatEmptyMat, arrowMat);
-                // Unify the people-colored roof seat-NUMBER onto the code-built path (imported already has it).
-                float cbTop = CellSize * 0.55f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
-                float cbSize = Mathf.Clamp(CellSize * 0.5f, 0.42f, 0.95f);
-                bus.seatLabel = BuildSeatTag(root.transform, PeopleColor(color), capacity, new Vector3(0, cbTop + cbSize * 0.55f + 0.08f, 0), cbSize);
-                bus.RefreshSeatLabel();
+                LowPolyBuilder.BuildVehicle(root.transform, type, CellSize,
+                    bodyMats[color], glassMat, wheelMat, lightMat, arrowMat);
+                // Cute heads pop onto the roof as people board (replaces the empty-seat NUMBER).
+                float cbTop = CellSize * 0.6f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
+                bus.roofPeople = BuildRoofHeads(root.transform, capacity, color, cbTop, CellSize * 0.26f, cbLen);
                 if (advanceN > 0)
                     BuildSpecialBadge(root.transform, advanceN, new Vector3(0, cbTop + 0.12f, -cbLen * 0.42f), Mathf.Clamp(CellSize * 0.42f, 0.3f, 0.6f));
             }
@@ -1160,25 +1175,19 @@ namespace BusJam
                 r.sharedMaterials = mats;
             }
 
-            // Auto-face forward: rotate the model so its LONGEST horizontal axis runs along the
-            // root's local Z (the exit direction), regardless of the pack's native orientation.
-            var rends = model.GetComponentsInChildren<Renderer>();
-            if (rends.Length > 0)
-            {
-                Bounds wb = rends[0].bounds;
-                for (int i = 1; i < rends.Length; i++) wb.Encapsulate(rends[i].bounds);
-                Vector3 f = root.forward;
-                bool rootZalongWorldZ = Mathf.Abs(f.z) >= Mathf.Abs(f.x);
-                float alongRootZ = rootZalongWorldZ ? wb.size.z : wb.size.x;
-                float alongRootX = rootZalongWorldZ ? wb.size.x : wb.size.z;
-                if (alongRootX > alongRootZ)
-                    model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw + 90f, 0);
-            }
+            // Auto-face forward: rotate the model so its LONGEST horizontal axis runs along the root's
+            // local Z (the exit direction), regardless of the pack's native orientation. Measured in
+            // ROOT-LOCAL space (NOT a world AABB) so the decision is INDEPENDENT of the root's world yaw —
+            // a diagonal (±45°-yawed) vehicle decides exactly like a cardinal one. (A world AABB is square-ish
+            // at 45°, so the old test was an unstable tie that flipped some diagonal bodies crosswise to their arrow.)
+            Bounds faceB = ModelBoundsIn(root, model);
+            if (faceB.size.x > faceB.size.z)
+                model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw + 90f, 0);
 
             // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2 / Limo 3).
             float target = Vehicles.CellLength(type) * CellSize * vehicleCatalog.fitFactor;
 
-            rends = model.GetComponentsInChildren<Renderer>();
+            var rends = model.GetComponentsInChildren<Renderer>();
             float span = target, wid = target * 0.5f, roofY = CellSize * 0.5f;
 
             // Measure the model in its OWN LOCAL frame (from mesh bounds), NOT a world AABB: a world AABB
@@ -1207,7 +1216,10 @@ namespace BusJam
                 float scl = Mathf.Min(target / len, (CellSize * 1.1f) / widRaw) * 1.05f;
                 model.transform.localScale = Vector3.one * scl;
                 float bottom = localFrame ? lb.min.y : (lb.min.y - root.position.y);
-                model.transform.localPosition = new Vector3(0, -bottom * scl + vehicleCatalog.yOffset, 0);
+                // Re-center the body on the root origin in X/Z (a pack pivot is often NOT the mesh center),
+                // so the roof arrow + heads + tap box sit symmetric on the ACTUAL body, not the pivot.
+                Vector3 ctr = localFrame ? model.transform.localRotation * (lb.center * scl) : Vector3.zero;
+                model.transform.localPosition = new Vector3(-ctr.x, -bottom * scl + vehicleCatalog.yOffset, -ctr.z);
                 roofY = lb.size.y * scl + vehicleCatalog.yOffset;
                 span = len * scl;
                 wid = widRaw * scl;
@@ -1231,34 +1243,11 @@ namespace BusJam
             box.center = new Vector3(0, topY * 0.5f, 0);
             box.size = new Vector3(Mathf.Max(wid, CellSize * 0.4f), Mathf.Max(topY, 0.5f), span);
 
-            // Layout: a clean chevron in the FRONT zone, then a reasonably-sized colored plate
-            // + number in the area behind it. Everything floats clearly above the body.
-            float markY = topY + 0.06f;
-            float frontZ = -span * 0.5f;
-            float arrowZoneEnd = frontZ + Mathf.Min(span * 0.34f, wid * 1.1f);
+            // Clean, symmetric arrow at the nose; cute heads pop in behind it as people board.
+            BuildRoofArrow(root, topY, wid * 0.5f, span);
+            bus.roofPeople = BuildRoofHeads(root, capacity, color, topY, wid * 0.5f, span);
 
-            // White chevron arrow (two angled bars meeting at a forward tip), local -Z = exit dir.
-            float tipZ = frontZ + Mathf.Min(span * 0.05f, 0.08f);
-            float baseZ = arrowZoneEnd;
-            float ax = wid * 0.34f;
-            for (int s = -1; s <= 1; s += 2)
-            {
-                float dx = s * ax, dz = baseZ - tipZ;
-                float barLen = Mathf.Sqrt(dx * dx + dz * dz);
-                float ang = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
-                var bar = MakeCube(root, arrowMat, new Vector3(wid * 0.12f, 0.05f, barLen));
-                bar.transform.localPosition = new Vector3(dx * 0.5f, markY, (tipZ + baseZ) * 0.5f);
-                bar.transform.localRotation = Quaternion.Euler(0, ang, 0);
-            }
-
-            // Floating empty-seat NUMBER, camera-facing, ABOVE the vehicle, in the people-color
-            // (no colored panel). Always readable (contrasting outline) and never sinks into the mesh.
-            float tagSize = Mathf.Clamp(wid * 0.95f, 0.42f, 0.95f);
-            float tagY = topY + tagSize * 0.55f + 0.08f;
-            bus.seatLabel = BuildSeatTag(root, PeopleColor(color), capacity, new Vector3(0, tagY, 0), tagSize);
-            bus.RefreshSeatLabel();
-
-            // Special "<<" crawler badge at the FRONT (distinct Y/Z from the seat-number so they never overlap).
+            // Special "<<" crawler badge at the FRONT (distinct Y/Z from the passengers so they never overlap).
             if (bus.advanceN > 0)
                 BuildSpecialBadge(root, bus.advanceN, new Vector3(0, topY + 0.12f, -span * 0.42f), Mathf.Clamp(wid * 0.6f, 0.3f, 0.7f));
         }
@@ -1285,32 +1274,42 @@ namespace BusJam
             return m;
         }
 
-        // World-space "PEOPLE LEFT" sign on a post beside the road. Billboards to the camera (mirrors the
-        // BuildSeatTag world-space canvas + flip-cancel). Wired to the LOGICAL pool via UpdatePeopleLeft.
+        // World-space "PEOPLE LEFT" sign on a post beside the road. Billboards to the camera (world-space
+        // canvas + flip-cancel, like the crawler badge). Wired to the LOGICAL pool via UpdatePeopleLeft.
         void BuildPeopleLeftSign()
         {
-            const float sx = 1.5f;    // top, left of the right-side door/queue; on-screen under the zoom
-            float sz = 11.3f;         // up near the door — a terminal-style count sign
+            float signW = 0.54f, signH = 0.84f;
+            float frameHalf = (signW + 0.14f) * 0.5f;
+            // Just LEFT of the first (leftmost) bus stop, but CLAMPED so the whole sign stays on-screen
+            // even when a level has many parking slots (SlotX(0) can run off the left edge otherwise).
+            float sx = Mathf.Max(SlotX(0) - 0.85f, -(VisHalfW(ParkingZ) - frameHalf - 0.08f));
+            float sz = ParkingZ;          // at the bus-stop row
+            float topY = 1.5f;
 
-            var post = MakeCube(boardRoot, slotMat, new Vector3(0.12f, 1.2f, 0.12f));
-            post.transform.position = new Vector3(sx, 0.6f, sz);
-            var board = MakeCube(boardRoot, slotMat, new Vector3(1.3f, 1.0f, 0.07f));
-            board.transform.position = new Vector3(sx, 1.5f, sz);
+            // Post + a NEON emissive frame (glows under bloom) with a dark board in front for contrast.
+            var post = MakeCube(boardRoot, seatEmptyMat, new Vector3(0.1f, topY, 0.1f));
+            post.transform.position = new Vector3(sx, topY * 0.5f, sz);
+            var frame = MakeCube(boardRoot, neonMat, new Vector3(signW + 0.14f, signH + 0.14f, 0.05f));
+            frame.transform.position = new Vector3(sx, topY + 0.4f, sz + 0.02f);   // behind (camera is at -Z) → neon halo edge
+            var board = MakeCube(boardRoot, seatEmptyMat, new Vector3(signW, signH, 0.06f));
+            board.transform.position = new Vector3(sx, topY + 0.4f, sz);
 
+            // Camera-facing neon count + caption.
             var go = new GameObject("PeopleLeftSign", typeof(RectTransform), typeof(Canvas));
             go.transform.SetParent(boardRoot, false);
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
-            go.transform.position = new Vector3(sx, 1.5f, sz - 0.05f);
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (1.0f / 120f); // -X cancels the billboard flip
+            go.transform.position = new Vector3(sx, topY + 0.4f, sz - 0.05f);
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (signW / 120f); // -X cancels the billboard flip; matches the board width
             go.AddComponent<BillboardUp>();
 
-            AddSignText(go.transform, "PEOPLE LEFT", 18, new Vector2(0, 0.66f), new Vector2(1, 1f));   // caption (top third)
-            peopleLeftSign = AddSignText(go.transform, PeopleLeft().ToString(), 64, new Vector2(0, 0f), new Vector2(1, 0.66f)); // count
+            Color neon = new Color(0.3f, 1f, 0.8f); // bright neon cyan-green (blooms on capable devices)
+            AddSignText(go.transform, "LEFT", 26, new Vector2(0, 0.62f), new Vector2(1, 1f), neon);
+            peopleLeftSign = AddSignText(go.transform, PeopleLeft().ToString(), 64, new Vector2(0, 0f), new Vector2(1, 0.62f), neon);
         }
 
         // A bold, outlined, camera-facing UI.Text child filling [anchorMin..anchorMax] of a sign canvas.
-        UnityEngine.UI.Text AddSignText(Transform parent, string text, int fontSize, Vector2 anchorMin, Vector2 anchorMax)
+        UnityEngine.UI.Text AddSignText(Transform parent, string text, int fontSize, Vector2 anchorMin, Vector2 anchorMax, Color color)
         {
             var go = new GameObject("Text", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -1319,41 +1318,105 @@ namespace BusJam
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             var txt = go.AddComponent<UnityEngine.UI.Text>();
             txt.font = seatFont; txt.text = text; txt.fontSize = fontSize;
-            txt.fontStyle = FontStyle.Bold; txt.alignment = TextAnchor.MiddleCenter; txt.color = Color.white;
+            txt.fontStyle = FontStyle.Bold; txt.alignment = TextAnchor.MiddleCenter; txt.color = color;
+            txt.horizontalOverflow = HorizontalWrapMode.Overflow; txt.verticalOverflow = VerticalWrapMode.Overflow;
             var outline = go.AddComponent<UnityEngine.UI.Outline>();
             outline.effectColor = Color.black; outline.effectDistance = new Vector2(3, 3);
             return txt;
         }
 
-        // Camera-facing world-space empty-seat number floating above a vehicle, in the people-color.
-        UnityEngine.UI.Text BuildSeatTag(Transform root, Color peopleColor, int capacity, Vector3 localPos, float worldSize)
+        // Clean, SYMMETRIC roof arrow (a diamond head + shaft) centered on x=0, pointing local -Z (the exit
+        // dir), flat on the roof front. Used on the imported path; the code-built path has its own.
+        void BuildRoofArrow(Transform root, float topY, float halfWidth, float span)
         {
-            var go = new GameObject("SeatTag", typeof(RectTransform), typeof(Canvas));
-            go.transform.SetParent(root, false);
-            var canvas = go.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            ((RectTransform)go.transform).sizeDelta = new Vector2(100, 100);
-            go.transform.localPosition = localPos;
-            // Negative X cancels the horizontal flip the camera-facing rotation introduces, so the number reads correctly.
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (Mathf.Max(worldSize, 0.2f) / 100f);
-            go.AddComponent<BillboardUp>(); // faces the camera
+            float y = topY + 0.05f;
+            float frontZ = -span * 0.5f;
+            float zoneLen = span * 0.32f;                                           // arrow lives in the front ~third
+            float aw = Mathf.Clamp(Mathf.Min(halfWidth * 0.85f, zoneLen * 0.45f), 0.12f, 0.4f);
+            float headZ = frontZ + aw + 0.03f;                                      // diamond head just inside the nose
+            float shaftLen = Mathf.Max(zoneLen - aw * 1.6f, aw * 0.7f);
 
-            // Empty-seat number in the people-color, with a contrasting outline so it reads on any background.
-            float lum = peopleColor.r * 0.299f + peopleColor.g * 0.587f + peopleColor.b * 0.114f;
-            var txtGo = new GameObject("Text", typeof(RectTransform));
-            txtGo.transform.SetParent(go.transform, false);
-            var txt = txtGo.AddComponent<UnityEngine.UI.Text>();
-            txt.font = seatFont;
-            txt.text = capacity.ToString();
-            txt.fontSize = 64;
-            txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.color = peopleColor;
-            Stretch(txt.rectTransform);
-            var outline = txtGo.AddComponent<UnityEngine.UI.Outline>();
-            outline.effectColor = lum < 0.5f ? Color.white : Color.black;
-            outline.effectDistance = new Vector2(3, 3);
-            return txt;
+            var head = MakeCube(root, arrowMat, new Vector3(aw * 1.3f, 0.05f, aw * 1.3f));
+            head.transform.localPosition = new Vector3(0, y, headZ);
+            head.transform.localRotation = Quaternion.Euler(0, 45f, 0);             // 45° cube = diamond, tip toward -Z
+
+            var shaft = MakeCube(root, arrowMat, new Vector3(aw * 0.42f, 0.05f, shaftLen));
+            shaft.transform.localPosition = new Vector3(0, y, headZ + aw * 0.7f + shaftLen * 0.5f);
+        }
+
+        // Cute heads on the roof — one per seat, HIDDEN until that passenger boards (Bus.LightSeat pops it in).
+        // No empty seats: the body color says WHICH color; the filling heads show people getting on. Laid out
+        // in 1–2 centered columns BEHIND the arrow. Parented to root (yaws with the vehicle, diagonals included).
+        // Returns the head GameObjects (index = seat) so LightSeat(i) reveals head i.
+        GameObject[] BuildRoofHeads(Transform root, int capacity, PieceColor color, float topY, float halfWidth, float span)
+        {
+            var heads = new GameObject[Mathf.Max(capacity, 0)];
+            if (capacity <= 0) return heads;
+
+            Material capMat = bodyMats[color];                            // people-color cap = a cute pop of the boarding color
+            int cols = capacity >= 4 ? 2 : 1;
+            int rows = Mathf.CeilToInt(capacity / (float)cols);
+            float zFront = -span * 0.05f, zBack = span * 0.46f;           // start clear of the front arrow zone
+            float rowPitch = rows > 1 ? (zBack - zFront) / (rows - 1) : 0f;
+            float colX = cols > 1 ? Mathf.Clamp(halfWidth * 0.55f, 0.1f, 0.4f) : 0f;
+            // Head diameter keyed off BOTH spacings so heads never overlap (dense Limo = 16 seats).
+            float rowSpace = rows > 1 ? rowPitch : span * 0.5f;
+            float colSpace = cols > 1 ? colX * 1.7f : halfWidth * 1.5f;
+            float d = Mathf.Clamp(Mathf.Min(rowSpace, colSpace) * 0.85f, 0.11f, 0.28f);
+            float baseY = topY + 0.02f;
+
+            for (int i = 0; i < capacity; i++)
+            {
+                int r = i / cols, c = i % cols;
+                float x = cols == 1 ? 0f : (c == 0 ? -colX : colX);
+                float z = zFront + r * rowPitch;
+
+                var pax = new GameObject("Pax" + i);
+                pax.transform.SetParent(root, false);
+                pax.transform.localPosition = new Vector3(x, baseY, z);
+
+                var dome = MakePrim(pax.transform, skinMat, PrimitiveType.Sphere, new Vector3(d, d * 0.92f, d));
+                dome.name = "Head";
+                dome.transform.localPosition = new Vector3(0, d * 0.46f, 0);
+
+                var cap = MakePrim(pax.transform, capMat, PrimitiveType.Sphere, new Vector3(d * 0.8f, d * 0.42f, d * 0.8f));
+                cap.name = "Hat";
+                cap.transform.localPosition = new Vector3(0, d * 0.78f, 0);
+
+                pax.SetActive(false);
+                heads[i] = pax;
+            }
+            return heads;
+        }
+
+        // The model's bounding box expressed in ROOT-LOCAL axes (yaw-independent), from mesh bounds.
+        // Used by the imported auto-face so a diagonal (±45°-yawed) body decides like a cardinal one.
+        static Bounds ModelBoundsIn(Transform root, GameObject model)
+        {
+            Bounds b = default; bool init = false;
+            foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                Matrix4x4 toRoot = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+                var mb = mf.sharedMesh.bounds; Vector3 c = mb.center, e = mb.extents;
+                for (int sx = -1; sx <= 1; sx += 2) for (int sy = -1; sy <= 1; sy += 2) for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    Vector3 p = toRoot.MultiplyPoint3x4(c + new Vector3(sx * e.x, sy * e.y, sz * e.z));
+                    if (!init) { b = new Bounds(p, Vector3.zero); init = true; } else b.Encapsulate(p);
+                }
+            }
+            return b;
+        }
+
+        // Collider-free primitive of any type (sphere/capsule for roof passengers), parented + scaled + tinted.
+        GameObject MakePrim(Transform parent, Material mat, PrimitiveType type, Vector3 scale)
+        {
+            var go = GameObject.CreatePrimitive(type);
+            Destroy(go.GetComponent<Collider>());
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = scale;
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+            return go;
         }
 
         // Camera-facing "<<N" badge marking a special crawler (N cells advanced per tap).
@@ -1566,6 +1629,8 @@ namespace BusJam
             arrowMat     = lib["Arrow"];
             lockMat      = lib["Lock"];
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
+            roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
+            neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
         }
 
         GameObject MakeCube(Transform parent, Material mat, Vector3 scale)
@@ -1582,20 +1647,21 @@ namespace BusJam
         {
             if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = th.ambient * 1.15f;
+            RenderSettings.ambientLight = th.ambient * 1.0f;   // a touch less fill = more contrast/pop (post-exposure adds brightness back)
             var sun = Object.FindAnyObjectByType<Light>();
             if (sun != null && sun.type == LightType.Directional)
             {
-                sun.color = th.lightColor;          // warm/cool key per theme
-                sun.intensity = th.lightIntensity;
-                sun.shadows = LightShadows.Soft;    // soft shadows so vehicles read grounded (Mobile RP supports it)
+                sun.color = th.lightColor;                                  // warm/cool key per theme
+                sun.intensity = th.lightIntensity * 1.2f;                   // stronger key = crisper, less-flat shading
+                sun.transform.rotation = Quaternion.Euler(52f, -34f, 0f);   // pleasant diagonal so shadows read on the top-down framing
+                sun.shadows = lowEnd ? LightShadows.None : LightShadows.Soft; // budget phones skip the shadowmap pass (objects still read grounded on the ground slab)
+                sun.shadowStrength = 0.55f;                                 // soft, not pitch-black
             }
 
             // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
             // smoothness/emission here MATCH MaterialLibrary.ThemeTypes so the fallback looks like the asset.
             Material ground = MaterialLibrary.GetTheme(th.name, "Ground", th.ground, 0.35f, 0.05f);
             Material field  = MaterialLibrary.GetTheme(th.name, "Field", th.field, 0.28f, 0.03f);
-            Material road   = MaterialLibrary.GetTheme(th.name, "Road", th.road, 0.30f);
             Material accent = MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.45f, 0.06f);
             Material main   = MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.45f, 0.05f);
             Material alt    = MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.45f, 0.05f);
@@ -1610,8 +1676,8 @@ namespace BusJam
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
             // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
             // buses drive off-screen sideways ALONG it. Raised to y=-0.10 ABOVE the ground slab (y=-0.12) so
-            // it reads as a real road, and slimmed to a 1.2 lane. Spans well past both screen edges.
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.2f), road);
+            // it reads as a real road, and slimmed to a 1.0 lane (clears the stops). Spans past both screen edges.
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat); // STANDARD asphalt every level; slimmer so it clears the stops
 
             for (int i = -4; i <= 4; i++)
             {
@@ -1621,8 +1687,8 @@ namespace BusJam
                 bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
             }
 
-            // Side scatter — alternate the theme's two prop kinds for variety.
-            for (int i = 0; i < 6; i++)
+            // Side scatter — alternate the theme's two prop kinds for variety (halved on low-end).
+            for (int i = 0; i < (lowEnd ? 3 : 6); i++)
             {
                 float z = -1f + i * 2.6f;
                 PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
@@ -1657,7 +1723,7 @@ namespace BusJam
 
             // Grass tufts dressing the back lawn — skipped behind the closed facade (paved terminal plaza,
             // and they would otherwise poke through the wall front).
-            if (!th.hasFacade)
+            if (!th.hasFacade && !lowEnd)
                 for (int i = 0; i < 12; i++)
                 {
                     float gx = -7.5f + (i * 1.45f) % 15f;
@@ -1665,7 +1731,7 @@ namespace BusJam
                     LowPolyBuilder.GrassTuft(boardRoot, new Vector3(gx, 0, gz), 1.0f, grass);
                 }
 
-            for (int k = 0; k < 4; k++)
+            for (int k = 0; k < (lowEnd ? 2 : 4); k++)
                 MakeCloud(new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f), cloud, k);
         }
 
@@ -1699,6 +1765,69 @@ namespace BusJam
             cam.transform.position = pos;
             cam.transform.rotation = Quaternion.LookRotation(target - pos, Vector3.up);
             cam.fieldOfView = 54f;
+        }
+
+        // Builds the whole "fantastic look" in code (matches the build-on-Start philosophy):
+        // enables post on the camera + a single global Volume that grades the entire frame.
+        // The global saturation/exposure here is what lifts EVERY material — including the
+        // baked theme env materials — so the per-material Vibrant() lift and this stack stack up.
+        void SetupPostFX()
+        {
+            if (cam == null) return;
+
+            // DEVICE TIER (lowEnd set in Start) — so it runs on EVERY phone. Budget mobiles drop the GPU-heavy
+            // effects (no AA, no Bloom, no HDR) and keep ONLY the cheap single-pass grade, which still carries
+            // the vibrant look. Capable mobile gets FXAA + Bloom; desktop/editor keep SMAA (the authored look).
+            cam.allowHDR = !lowEnd; // HDR bandwidth only pays off with Bloom; off on low-end
+
+            var camData = cam.GetUniversalAdditionalCameraData();
+            if (camData != null)
+            {
+                camData.renderPostProcessing = true;
+                // AA tier: low-end none; capable mobile FXAA (cheap); desktop/editor SMAA (crisp, as authored).
+                if (lowEnd) camData.antialiasing = AntialiasingMode.None;
+                else if (Application.isMobilePlatform) { camData.antialiasing = AntialiasingMode.FastApproximateAntialiasing; camData.antialiasingQuality = AntialiasingQuality.Low; }
+                else { camData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing; camData.antialiasingQuality = AntialiasingQuality.High; }
+                camData.dithering = !lowEnd; // banding-kill, skip on low-end
+            }
+
+            // One global volume, priority above the project's default profile, drives the look.
+            var go = new GameObject("PostFX");
+            go.transform.SetParent(transform, false);
+            var vol = go.AddComponent<Volume>();
+            vol.isGlobal = true;
+            vol.priority = 100f;
+            var p = ScriptableObject.CreateInstance<VolumeProfile>();
+            vol.sharedProfile = p;
+
+            // ---- CHEAP grade (single uber-post pass) — ALWAYS on, keeps the vibrant pop everywhere. ----
+            // Filmic tonemap — Neutral preserves hue/saturation (ACES would mute the candy pop).
+            var tm = p.Add<Tonemapping>();
+            tm.mode.Override(TonemappingMode.Neutral);
+
+            // Global color grade — THE main "un-fade" lift; touches every pixel of every material.
+            var ca = p.Add<ColorAdjustments>();
+            ca.postExposure.Override(0.12f); // a hair brighter (compensates the trimmed ambient)
+            ca.contrast.Override(12f);       // deeper shadows = more pop
+            ca.saturation.Override(18f);     // vivid, not faded
+
+            var wb = p.Add<WhiteBalance>();
+            wb.temperature.Override(6f);     // a touch warmer — friendlier, toy-like
+
+            var vig = p.Add<Vignette>();     // subtle focus on the play area
+            vig.intensity.Override(0.24f);
+            vig.smoothness.Override(0.45f);
+            vig.rounded.Override(true);
+
+            // ---- Bloom: the priciest mobile post effect (HDR + extra blur passes). Capable devices only. ----
+            if (!lowEnd)
+            {
+                var bloom = p.Add<Bloom>();
+                bloom.threshold.Override(0.9f);
+                bloom.intensity.Override(0.8f);
+                bloom.scatter.Override(0.7f);
+                bloom.tint.Override(Color.white);
+            }
         }
     }
 }
