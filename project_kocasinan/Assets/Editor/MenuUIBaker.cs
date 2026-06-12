@@ -29,6 +29,10 @@ public static class MenuUIBaker
     static Font Title => UIKit.Title();
     static Font Num => UIKit.Num();
 
+    // Crisp custom audio icons (replace the small, blurry atlas sound/music sprites).
+    const string IconSoundPath = "Assets/MenuManager/Icons/Icon_Sound.png";
+    const string IconMusicPath = "Assets/MenuManager/Icons/Icon_Music.png";
+
     [MenuItem("Tools/300Mind UI/Bake Main Menu (into open scene)")]
     static void BakeMenu()
     {
@@ -56,11 +60,15 @@ public static class MenuUIBaker
             es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
         }
 
+        // Full-screen background at the very back.
+        BuildMenuBackground(root);
+
         // ---- Panels (built first so the bar/nav sit on top) ----
         ctrl.dailyPanel     = BuildPanel(root, "Panel_Daily", "DAILY REWARDS", ctrl);
         ctrl.shopPanel      = BuildPanel(root, "Panel_Shop", "SHOP", ctrl);
         ctrl.profilePanel   = BuildPanel(root, "Panel_Profile", "PROFILE", ctrl);
         ctrl.settingsPanel  = BuildPanel(root, "Panel_Settings", "SETTINGS", ctrl);
+        AddSettingsContent(FindChild(ctrl.settingsPanel.transform, "Card"));
         ctrl.removeAdsPanel = BuildPanel(root, "Panel_RemoveAds", "REMOVE ADS", ctrl);
 
         // ---- Home (PLAY + No-Ads) ----
@@ -92,6 +100,9 @@ public static class MenuUIBaker
         ctrl.navDailySel = NavButton(strip.transform, "Nav_Daily", -340, UIKit.NavDaily(), "DAILY", ctrl.OpenDaily);
         ctrl.navHomeSel  = NavButton(strip.transform, "Nav_Home", 0,    UIKit.NavHome(),  "HOME",  ctrl.ShowHome);
         ctrl.navShopSel  = NavButton(strip.transform, "Nav_Shop", 340,  UIKit.NavShop(),  "SHOP",  ctrl.OpenShop);
+
+        // Watch-ad-for-gold button (above no-ads) + its small pop-up panel.
+        BuildAdReward(root, ctrl);
 
         // Persist.
         EditorUtility.SetDirty(ctrl);
@@ -133,14 +144,17 @@ public static class MenuUIBaker
 
         // Days 1-7 (1-3 claimed). Base card = atlas1_58, coin = atlas1_11. Grid centered on screen.
         var cardSize = new Vector2(230, 280);
-        DayCard(panel.transform, -255, 250, cardSize, 1, UIKit.ShopCoinA(), "+100", 100);
-        DayCard(panel.transform, 0,    250, cardSize, 2, UIKit.ShopCoinA(), "+150", 150);
-        DayCard(panel.transform, 255,  250, cardSize, 3, UIKit.ShopCoinA(), "+200", 200);
-        DayCard(panel.transform, -255, -50, cardSize, 4, UIKit.ShopCoinA(), "+500", 500);
-        DayCard(panel.transform, 0,    -50, cardSize, 5, UIKit.JokerSwap(),    "Swap",    0);
-        DayCard(panel.transform, 255,  -50, cardSize, 6, UIKit.JokerRecolor(), "Shuffle", 0);
-        // Day 7: wide banner with the helicopter reward (atlas1_59), centered.
-        DayCard(panel.transform, 0, -350, new Vector2(770, 250), 7, UIKit.DailyIconB(), "x2", 0);
+        // Economy-protecting 7-day plan: small daily gold + only 2 jokers (days 3 & 7).
+        // Joker days grant the gold-equivalent (Recolor=50, Swap=100 +75 gold) because
+        // jokers are gold-spent abilities, not stockpiled inventory items.
+        DayCard(panel.transform, -255, 250, cardSize, 1, UIKit.ShopCoinA(),    "+20",  20);
+        DayCard(panel.transform, 0,    250, cardSize, 2, UIKit.ShopCoinA(),    "+25",  25);
+        DayCard(panel.transform, 255,  250, cardSize, 3, UIKit.JokerRecolor(), "Recolor", 0, 0, 1);
+        DayCard(panel.transform, -255, -50, cardSize, 4, UIKit.ShopCoinA(),    "+30",  30);
+        DayCard(panel.transform, 0,    -50, cardSize, 5, UIKit.ShopCoinA(),    "+40",  40);
+        DayCard(panel.transform, 255,  -50, cardSize, 6, UIKit.ShopCoinA(),    "+50",  50);
+        // Day 7: wide JACKPOT banner — Swap joker + 75 gold.
+        DayCard(panel.transform, 0, -350, new Vector2(770, 250), 7, UIKit.JokerSwap(), "SWAP  +75", 75, 1, 1);
 
         // Claim manager (1 reward/day, in order, with checkmark pop animation).
         if (panel.GetComponent<DailyRewards>() == null) panel.AddComponent<DailyRewards>();
@@ -154,7 +168,7 @@ public static class MenuUIBaker
 
     // One day card: atlas1_58 base + reward icon (atlas1_11 coin / joker / atlas1_59),
     // a "Day N" label, an amount, and a claimed check (atlas1_5) when already taken.
-    static void DayCard(Transform parent, float x, float y, Vector2 size, int day, Sprite icon, string amount, int coins)
+    static void DayCard(Transform parent, float x, float y, Vector2 size, int day, Sprite icon, string amount, int coins, int jokerKind = -1, int jokerCount = 0)
     {
         var card = Img(parent, "Day" + day, UIKit.DailyIconA(), new Color(0.85f, 0.90f, 0.98f));
         card.raycastTarget = true; // the whole card is the claim button
@@ -178,6 +192,7 @@ public static class MenuUIBaker
         btn.targetGraphic = card;
         var dc = card.gameObject.AddComponent<DailyCard>();
         dc.day = day; dc.coins = coins; dc.check = chk.gameObject; dc.button = btn;
+        dc.jokerKind = jokerKind; dc.jokerCount = jokerCount;
     }
 
     static Transform FindChild(Transform root, string name)
@@ -185,6 +200,20 @@ public static class MenuUIBaker
         foreach (var t in root.GetComponentsInChildren<Transform>(true))
             if (t.name == name) return t;
         return null;
+    }
+
+    // Load a PNG as a Sprite, forcing Sprite import (the project defaults to 3D = Texture,
+    // so a fresh PNG would otherwise import as a plain texture and load as null here).
+    static Sprite LoadIcon(string path)
+    {
+        var ti = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (ti != null && (ti.textureType != TextureImporterType.Sprite || ti.spriteImportMode != SpriteImportMode.Single))
+        {
+            ti.textureType = TextureImporterType.Sprite;
+            ti.spriteImportMode = SpriteImportMode.Single;
+            ti.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     // ============================================================================
@@ -248,16 +277,16 @@ public static class MenuUIBaker
         scroll.viewport = vpRt; scroll.content = ctRt;
 
         // 1) Remove-ads bar FIRST (atlas1_44 background): no-ads icon on the dark-orange
-        //    left, the price (on an atlas1_36 button) in the big space on the right.
+        //    left, the PURCHASE button (price, atlas1_36) on the right. The price button
+        //    does NOT navigate anywhere — it is the purchase button (wire a real IAP later).
         var adsRow = Img(ctGo.transform, "RemoveAds", UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
         var adsLe = adsRow.gameObject.AddComponent<LayoutElement>(); adsLe.preferredHeight = 160; adsLe.minHeight = 160;
-        var adsBtn = adsRow.gameObject.AddComponent<Button>(); adsBtn.targetGraphic = adsRow;
-        UnityEventTools.AddPersistentListener(adsBtn.onClick, ctrl.OpenRemoveAds);
         var adsIco = Img(adsRow.transform, "Icon", UIKit.NoAds(), new Color(0.85f, 0.3f, 0.3f)); adsIco.raycastTarget = false;
         Place(adsIco.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(95, 0), new Vector2(110, 110));
-        var adsPrice = Img(adsRow.transform, "PriceBg", UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = false;
+        var adsPrice = Img(adsRow.transform, "PriceBg", UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = true;
         Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
-        Label(adsPrice.transform, "Price", "TRY 249,99", Num, Vector2.zero, new Vector2(360, 60), 36, White);
+        var adsBuy = adsPrice.gameObject.AddComponent<Button>(); adsBuy.targetGraphic = adsPrice; // purchase button: no navigation, wire IAP later
+        Label(adsPrice.transform, "Price", "TRY 249,99", Title, Vector2.zero, new Vector2(360, 60), 36, White);
 
         // 2) Gold purchases (3-column grid, icons in order: atlas1 11,12,13,29,30,31).
         var gridGo = new GameObject("CoinGrid", typeof(RectTransform));
@@ -311,6 +340,282 @@ public static class MenuUIBaker
         var bc = Img(buy.transform, "Coin", UIKit.Coin(), Gold); bc.raycastTarget = false;
         Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(56, 56));
         Label(buy.transform, "Price", "100", Num, new Vector2(30, 0), new Vector2(360, 60), 36, White);
+    }
+
+    // ============================================================================
+    // Rebuild the Settings panel content: SOUND + MUSIC on/off toggles (logo + a red
+    // "no" sign overlay when OFF, with a pop animation) and 3 empty atlas1_36 buttons.
+    // Re-running only replaces these items; the title / close / your other edits stay.
+    // ============================================================================
+    [MenuItem("Tools/300Mind UI/Rebuild Settings (sound-music + 3 buttons)")]
+    static void RebuildSettings()
+    {
+        var rootGo = GameObject.Find("MenuUI_Baked");
+        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
+        var ctrl = rootGo.GetComponent<MenuController>();
+        var panelT = FindChild(rootGo.transform, "Panel_Settings");
+        if (!panelT) { Debug.LogError("[MenuUIBaker] Panel_Settings not found - re-bake the menu."); return; }
+        var card = FindChild(panelT, "Card");
+        if (!card) { Debug.LogError("[MenuUIBaker] Panel_Settings/Card not found - re-bake the menu."); return; }
+
+        foreach (var n in new[] { "Toggle_Sound", "Toggle_Music", "Btn_Empty1", "Btn_Empty2", "Btn_Empty3" })
+        {
+            var ex = FindChild(card, n);
+            if (ex) Object.DestroyImmediate(ex.gameObject);
+        }
+        AddSettingsContent(card);
+
+        EditorUtility.SetDirty(ctrl);
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Selection.activeGameObject = card.gameObject;
+        Debug.Log("[MenuUIBaker] Rebuilt Settings: SOUND/MUSIC toggles + 3 empty buttons. SAVE the scene (Ctrl+S).");
+    }
+
+    // SOUND + MUSIC toggles (top) + three empty atlas1_36 buttons (bottom).
+    static void AddSettingsContent(Transform card)
+    {
+        if (!card) { Debug.LogError("[MenuUIBaker] Settings Card missing."); return; }
+        var cardImg = card.GetComponent<Image>();
+        if (cardImg) cardImg.color = new Color(0.631f, 0.161f, 0.161f); // #A12929
+        SettingToggle(card, "Toggle_Sound", -160, LoadIcon(IconSoundPath), SettingsToggle.Kind.Sound);
+        SettingToggle(card, "Toggle_Music",  160, LoadIcon(IconMusicPath), SettingsToggle.Kind.Music);
+
+        Btn(card, "Btn_Empty1", UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -40),  new Vector2(560, 110));
+        Btn(card, "Btn_Empty2", UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -180), new Vector2(560, 110));
+        Btn(card, "Btn_Empty3", UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -320), new Vector2(560, 110));
+    }
+
+    // One on-off toggle: an atlas1_37 button with the sound/music logo on top. ON shows the
+    // full colour; OFF fades the whole button. Logic + persistence on the SettingsToggle.
+    static void SettingToggle(Transform card, string name, float x, Sprite logo, SettingsToggle.Kind kind)
+    {
+        var btn = Btn(card, name, UIKit.PriceBtnB(), new Color(0.30f, 0.70f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(x, 210), new Vector2(200, 150));
+        btn.transition = Selectable.Transition.None; // SettingsToggle drives the colour
+        var ico = Img(btn.transform, "Logo", logo, White); ico.raycastTarget = false;
+        Center(ico.rectTransform, new Vector2(110, 110));
+        var tog = btn.gameObject.AddComponent<SettingsToggle>();
+        tog.kind = kind;
+        tog.background = btn.GetComponent<Image>();
+        tog.icon = ico;
+        tog.button = btn;
+    }
+
+    // ============================================================================
+    // Watch-ad-for-gold: a small trigger button (atlas1_27) above the no-ads button +
+    // a small atlas2_0 pop-up (centred atlas1_12 image, a short English line, an
+    // atlas1_36 "watch" button and a red close). Re-running replaces just these two.
+    // ============================================================================
+    [MenuItem("Tools/300Mind UI/Rebuild Ad-Reward (button + panel)")]
+    static void RebuildAdReward()
+    {
+        var rootGo = GameObject.Find("MenuUI_Baked");
+        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
+        var ctrl = rootGo.GetComponent<MenuController>();
+        foreach (var n in new[] { "Btn_AdReward", "Panel_AdReward" })
+        {
+            var ex = FindChild(rootGo.transform, n);
+            if (ex) Object.DestroyImmediate(ex.gameObject);
+        }
+        BuildAdReward(rootGo.transform, ctrl);
+
+        EditorUtility.SetDirty(ctrl);
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Selection.activeGameObject = ctrl.adRewardPanel;
+        Debug.Log("[MenuUIBaker] Rebuilt Ad-Reward: button (above no-ads) + atlas2_0 panel. SAVE the scene (Ctrl+S).");
+    }
+
+    static void BuildAdReward(Transform root, MenuController ctrl)
+    {
+        // Trigger button (atlas1_27) just above the no-ads button (top-right).
+        var btn = Btn(root, "Btn_AdReward", UIKit.AdReward(), new Color(0.95f, 0.78f, 0.20f), new Vector2(1, 1), new Vector2(-110, -200), new Vector2(150, 150));
+        Wire(btn, ctrl.OpenAdReward);
+
+        // Small pop-up panel (atlas2_0); tap the backdrop to close.
+        var panel = Img(root, "Panel_AdReward", null, Dim);
+        Stretch(panel.rectTransform);
+        var pbtn = panel.gameObject.AddComponent<Button>(); pbtn.targetGraphic = panel; pbtn.transition = Selectable.Transition.None;
+        Wire(pbtn, ctrl.CloseAll);
+
+        var card = Img(panel.transform, "Card", UIKit.EmptyBoxBlue(), White);
+        card.color = White;
+        Center(card.rectTransform, new Vector2(640, 760));
+
+        // Centred image (atlas1_12).
+        var pic = Img(card.transform, "Image", UIKit.ShopCoinB(), Gold); pic.raycastTarget = false;
+        Place(pic.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(220, 220));
+
+        // Short English description.
+        Label(card.transform, "Desc", "Watch an ad and earn 10 gold!", Num, new Vector2(0, -30), new Vector2(540, 80), 34, Dark);
+
+        // atlas1_36 "watch" button, centred (aligned under the image).
+        var watch = Btn(card.transform, "Watch", UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -180), new Vector2(360, 120));
+        Label(watch.transform, "Label", "WATCH AD", Title, Vector2.zero, new Vector2(360, 80), 38, White);
+        Wire(watch, ctrl.WatchAdReward);
+
+        // Close button.
+        var close = Btn(card.transform, "Close", UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-30, -30), new Vector2(90, 90));
+        Wire(close, ctrl.CloseAll);
+
+        panel.gameObject.SetActive(false);
+        ctrl.adRewardPanel = panel.gameObject;
+    }
+
+    // ============================================================================
+    // Add (or refresh) the full-screen menu background WITHOUT rebuilding the menu, so
+    // none of your other edits are touched. Uses Assets/MenuBackground.png.
+    // ============================================================================
+    [MenuItem("Tools/300Mind UI/Add Menu Background")]
+    static void AddMenuBackground()
+    {
+        var rootGo = GameObject.Find("MenuUI_Baked");
+        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
+        BuildMenuBackground(rootGo.transform);
+        EditorUtility.SetDirty(rootGo);
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        var bgT = FindChild(rootGo.transform, "Background");
+        if (bgT) Selection.activeGameObject = bgT.gameObject;
+        Debug.Log("[MenuUIBaker] Menu Background added/updated (behind everything). SAVE the scene (Ctrl+S).");
+    }
+
+    // Full-screen background Image at the very back of the menu (Assets/MenuBackground.png).
+    static void BuildMenuBackground(Transform root)
+    {
+        var sprite = LoadIcon("Assets/MenuBackground.png");
+        if (sprite == null) Debug.LogWarning("[MenuUIBaker] Assets/MenuBackground.png not found.");
+        var existing = FindChild(root, "Background");
+        var bg = existing ? existing.GetComponent<Image>() : Img(root, "Background", sprite, White);
+        if (sprite != null) { bg.sprite = sprite; bg.color = White; }
+        bg.raycastTarget = false;
+        Stretch(bg.rectTransform);
+        bg.transform.SetAsFirstSibling(); // render behind all menu elements
+    }
+
+    // ============================================================================
+    // Add the LANGUAGE pop-up + make Btn_Empty1 open it. Additive: only touches
+    // Panel_Language and Btn_Empty1, leaves every other menu element as-is.
+    // ============================================================================
+    [MenuItem("Tools/300Mind UI/Add Language (main menu)")]
+    static void AddLanguageMainMenu()
+    {
+        var rootGo = GameObject.Find("MenuUI_Baked");
+        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
+        var ctrl = rootGo.GetComponent<MenuController>();
+
+        var old = FindChild(rootGo.transform, "Panel_Language");
+        if (old) Object.DestroyImmediate(old.gameObject);
+        ctrl.languagePanel = BuildLanguagePanel(rootGo.transform);
+
+        // Wire the language button (a Settings button named/labelled "language", else
+        // Btn_Empty1) so pressing it opens Panel_Language. Other buttons are untouched.
+        var emptyT = FindLanguageButton(rootGo.transform);
+        if (emptyT)
+        {
+            var eb = emptyT.GetComponent<Button>();
+            if (eb) { eb.onClick = new Button.ButtonClickedEvent(); UnityEventTools.AddPersistentListener(eb.onClick, ctrl.OpenLanguage); }
+            if (emptyT.GetComponentInChildren<Text>() == null)
+                Label(emptyT, "Label", "LANGUAGE", Title, Vector2.zero, new Vector2(540, 80), 40, White);
+            Debug.Log("[MenuUIBaker] Wired language button -> Panel_Language: " + emptyT.name);
+        }
+        else Debug.LogWarning("[MenuUIBaker] No language button found in Panel_Settings (a button named/labelled 'language', or Btn_Empty1).");
+
+        EditorUtility.SetDirty(ctrl);
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Selection.activeGameObject = ctrl.languagePanel;
+        Debug.Log("[MenuUIBaker] Added Language pop-up + wired Btn_Empty1 = LANGUAGE. SAVE the scene (Ctrl+S).");
+    }
+
+    // The language pop-up: dim backdrop (tap to close) + tall card + one row per language.
+    static GameObject BuildLanguagePanel(Transform root)
+    {
+        var panel = Img(root, "Panel_Language", null, Dim);
+        Stretch(panel.rectTransform);
+        var pbtn = panel.gameObject.AddComponent<Button>(); pbtn.transition = Selectable.Transition.None;
+
+        var card = Img(panel.transform, "Card", UIKit.EmptyBoxBlue(), White); card.color = White;
+        Center(card.rectTransform, new Vector2(720, 1180));
+        Label(card.transform, "Title", "LANGUAGE", Title, new Vector2(0, 500), new Vector2(600, 100), 52, Dark);
+
+        var sel = panel.gameObject.AddComponent<LanguageSelector>();
+        sel.panelRoot = panel.gameObject;
+        sel.backdropButton = pbtn;
+
+        float top = 390f, step = 92f;
+        for (int i = 0; i < LanguageSelector.Names.Length; i++)
+            LangOption(card.transform, "Opt_" + i, i, LanguageSelector.Names[i], new Vector2(0, top - i * step));
+
+        var close = Btn(card.transform, "Close", UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-34, -34), new Vector2(90, 90));
+        sel.closeButton = close;
+
+        panel.gameObject.SetActive(false);
+        return panel.gameObject;
+    }
+
+    static void LangOption(Transform card, string name, int index, string text, Vector2 pos)
+    {
+        var btn = Btn(card, name, UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), pos, new Vector2(440, 80));
+        Label(btn.transform, "Label", text, Num, new Vector2(-28, 0), new Vector2(340, 56), 34, White);
+        var chk = Img(btn.transform, "Check", UIKit.CheckMark(), new Color(1f, 0.8f, 0.1f)); chk.raycastTarget = false;
+        Place(chk.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(54, 54));
+        chk.gameObject.SetActive(false);
+        var lo = btn.gameObject.AddComponent<LanguageOption>();
+        lo.index = index; lo.check = chk.gameObject; lo.button = btn;
+    }
+
+    // Find the language trigger button inside Panel_Settings: a button whose name OR label
+    // text contains "lang"; falls back to Btn_Empty1. Returns null if none.
+    static Transform FindLanguageButton(Transform root)
+    {
+        var settings = FindChild(root, "Panel_Settings");
+        var scope = settings != null ? settings : root;
+        foreach (var t in scope.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.GetComponent<Button>() == null) continue;
+            if (t.name.ToLowerInvariant().Contains("lang")) return t;
+            var txt = t.GetComponentInChildren<Text>();
+            if (txt != null && txt.text != null && txt.text.ToLowerInvariant().Contains("lang")) return t;
+        }
+        return FindChild(scope, "Btn_Empty1");
+    }
+
+    // ============================================================================
+    // Add a Facebook / X / Instagram row to the bottom of Panel_Settings. Additive:
+    // only touches Social_Row. Paste the URLs on the MenuController in the Inspector.
+    // ============================================================================
+    [MenuItem("Tools/300Mind UI/Add Social Media (main menu)")]
+    static void AddSocialMedia()
+    {
+        var rootGo = GameObject.Find("MenuUI_Baked");
+        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
+        var ctrl = rootGo.GetComponent<MenuController>();
+        var settings = FindChild(rootGo.transform, "Panel_Settings");
+        var card = settings != null ? FindChild(settings, "Card") : null;
+        if (!card) { Debug.LogError("[MenuUIBaker] Panel_Settings/Card not found - bake the menu first."); return; }
+
+        var old = FindChild(card, "Social_Row");
+        if (old) Object.DestroyImmediate(old.gameObject);
+
+        var row = new GameObject("Social_Row", typeof(RectTransform));
+        row.transform.SetParent(card, false);
+        var rrt = row.GetComponent<RectTransform>();
+        rrt.anchorMin = rrt.anchorMax = rrt.pivot = new Vector2(0.5f, 0.5f);
+        rrt.anchoredPosition = new Vector2(0, -455); rrt.sizeDelta = new Vector2(560, 130);
+
+        SocialButton(row.transform, "Btn_Facebook",  "Icon_Facebook",  -195, ctrl.OpenFacebook);
+        SocialButton(row.transform, "Btn_X",         "Icon_X",         -65,  ctrl.OpenX);
+        SocialButton(row.transform, "Btn_Instagram", "Icon_Instagram",  65,  ctrl.OpenInstagram);
+        SocialButton(row.transform, "Btn_TikTok",    "Icon_TikTok",     195, ctrl.OpenTikTok);
+
+        EditorUtility.SetDirty(ctrl);
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Selection.activeGameObject = row;
+        Debug.Log("[MenuUIBaker] Added social-media row (Facebook / X / Instagram). Paste links on the MenuController. SAVE the scene (Ctrl+S).");
+    }
+
+    static void SocialButton(Transform row, string name, string iconAsset, float x, UnityAction onClick)
+    {
+        var sprite = LoadIcon("Assets/MenuManager/Icons/" + iconAsset + ".png");
+        var btn = Btn(row, name, sprite, White, new Vector2(0.5f, 0.5f), new Vector2(x, 0), new Vector2(110, 110));
+        Wire(btn, onClick);
     }
 
     // ---- A pop-up panel: dim backdrop + atlas2_0 card + blue title tile + red close ----

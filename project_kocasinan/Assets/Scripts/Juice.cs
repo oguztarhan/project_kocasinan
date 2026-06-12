@@ -81,25 +81,25 @@ namespace BusJam
 
         /// <param name="dirX">0 = symmetric spray; +1/-1 = diagonal burst toward that side
         /// (used for the bottom-corner win confetti shooting up across the screen).</param>
-        public static void Confetti(MonoBehaviour runner, Transform parent, Vector3 pos, Material[] mats, int count = 40, float dirX = 0f)
+        public static void Confetti(MonoBehaviour runner, Transform parent, Vector3 pos, Material[] mats, ConfettiSettings s, float dirX = 0f)
         {
-            if (runner == null || mats == null || mats.Length == 0) return;
-            for (int i = 0; i < count; i++)
+            if (runner == null || mats == null || mats.Length == 0 || s == null) return;
+            for (int i = 0; i < s.countPerCorner; i++)
             {
                 var c = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 Object.Destroy(c.GetComponent<Collider>());
                 if (parent != null) c.transform.SetParent(parent, true);
-                c.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0, 0);
-                c.transform.localScale = new Vector3(0.16f, 0.16f, 0.04f);
+                c.transform.position = pos + new Vector3(Random.Range(-s.spawnSpreadX, s.spawnSpreadX), 0, 0);
+                c.transform.localScale = s.size;
                 c.transform.rotation = Random.rotation;
                 c.GetComponent<Renderer>().sharedMaterial = mats[Random.Range(0, mats.Length)];
-                float vx = dirX == 0f ? Random.Range(-2.5f, 2.5f) : dirX * Random.Range(2.0f, 5.0f);
-                Vector3 v = new Vector3(vx, Random.Range(4.5f, 7.5f), Random.Range(-1f, 1f));
-                runner.StartCoroutine(Fly(c.transform, v, Random.Range(1.2f, 2.0f)));
+                float vx = dirX == 0f ? Random.Range(-2.5f, 2.5f) : dirX * Random.Range(s.sideSpeedMin, s.sideSpeedMax);
+                Vector3 v = new Vector3(vx, Random.Range(s.upSpeedMin, s.upSpeedMax), Random.Range(-1f, 1f));
+                runner.StartCoroutine(Fly(c.transform, v, Random.Range(s.lifeMin, s.lifeMax), s.gravity));
             }
         }
 
-        static IEnumerator Fly(Transform t, Vector3 vel, float life)
+        static IEnumerator Fly(Transform t, Vector3 vel, float life, float gravity = 9.8f)
         {
             float e = 0f;
             Vector3 spin = Random.insideUnitSphere * 360f;
@@ -107,7 +107,7 @@ namespace BusJam
             {
                 float dt = Time.deltaTime;
                 e += dt;
-                vel += Vector3.down * 9.8f * dt;
+                vel += Vector3.down * gravity * dt;
                 t.position += vel * dt;
                 t.Rotate(spin * dt);
                 yield return null;

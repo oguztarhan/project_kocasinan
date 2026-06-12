@@ -30,9 +30,21 @@ namespace BusJam
         Font title, num;
         Transform root;
         GameObject hudPanel, settingsPanel, successPanel, continuePanel, failedPanel, shopPanel;
-        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward;
+        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward, continuePrice;
+        GameObject jokerBuyPanel; Image jokerBuyIcon; Text jokerBuyPrice; int buyKind, buyCost;
+        readonly GameObject[] jokerBuyPanels = new GameObject[3]; // baked per-joker buy panels (0/1/2)
+        readonly Sprite[] jokerIcons = new Sprite[3];
+        readonly int[] jokerCosts = new int[3];
 
-        struct Joker { public Button btn; public GameObject lockGo; public int unlock; }
+        struct Joker
+        {
+            public Button btn;
+            public Image bg; public Color bgColor;
+            public Image icon; public Color iconColor; public Sprite iconSprite;
+            public int unlock, kind, cost;
+            public GameObject lockGo, counterGo;
+            public Text counterText;
+        }
         Joker jRecolor, jSwap, jHeli;
         int level = 1;
 
@@ -60,12 +72,13 @@ namespace BusJam
                 es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
 
-            BuildHud(recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
-            BuildSettings();
+            SetupHud(recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
+            SetupSettings();
             SetupShop();
-            BuildContinue();
-            BuildFailed();
-            BuildSuccess();
+            SetupContinue();
+            SetupFailed();
+            SetupSuccess();
+            SetupJokerBuy();
             ShowHud();
             DisableOldCanvases(); // hide legacy scene canvas (white bg / old coin / texts)
         }
@@ -77,13 +90,74 @@ namespace BusJam
         {
             if (!Application.isPlaying) return;
             var shopCanvas = InGameShop.Instance != null ? InGameShop.Instance.GetComponent<Canvas>() : null;
+            var panelsCanvas = InGamePanels.Instance != null ? InGamePanels.Instance.GetComponent<Canvas>() : null;
+            var hudCanvas = InGameHud.Instance != null ? InGameHud.Instance.GetComponent<Canvas>() : null;
             foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (c == null) continue;
                 if (c.transform.root == transform.root) continue; // ours
                 if (shopCanvas != null && c == shopCanvas) continue; // baked in-game shop
+                if (panelsCanvas != null && c == panelsCanvas) continue; // baked settings/continue/failed
+                if (hudCanvas != null && c == hudCanvas) continue; // baked HUD
                 c.gameObject.SetActive(false);
             }
+        }
+
+        // ---- HUD setup ------------------------------------------------------
+        // Adopt the Inspector-editable scene HUD baked via "Tools ▸ 300Mind UI ▸ Bake
+        // In-Game HUD"; otherwise build the HUD in code.
+        void SetupHud(int recolorCost, int swapCost, int heliCost, int j1Lvl, int j2Lvl, int j3Lvl)
+        {
+            var h = InGameHud.Instance;
+            if (h == null || h.hudRoot == null)
+            {
+                BuildHud(recolorCost, swapCost, heliCost, j1Lvl, j2Lvl, j3Lvl);
+                return;
+            }
+            hudPanel = h.hudRoot;
+            hudCoins = h.coinText;
+            hudLevel = h.levelText;
+            hudTheme = h.themeText;
+            hudPeopleLeft = h.peopleText;
+            comboText = h.comboText;
+            if (comboText) comboText.gameObject.SetActive(false);
+            if (h.peopleIcon) { h.peopleIcon.sprite = UISprites.Person(); h.peopleIcon.color = White; }
+            if (h.coinButton) h.coinButton.onClick.AddListener(ShowShop);
+            if (h.gearButton) h.gearButton.onClick.AddListener(ShowSettings);
+
+            jRecolor = AdoptJoker(h.recolor, recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
+            jSwap    = AdoptJoker(h.swap,    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
+            jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
+            RefreshJokers();
+        }
+
+        Joker AdoptJoker(HudJoker hj, int cost, int unlock, int kind, System.Action use)
+        {
+            if (hj == null) return new Joker();
+            return MakeJoker(hj.button, hj.background, hj.icon, hj.lockGo, hj.counterGo, hj.counterText, cost, unlock, kind, use);
+        }
+
+        // Builds a Joker record + wires the button: when you OWN one, pressing uses it
+        // (BusJamGame consumes a charge); when out of stock, pressing opens the buy panel.
+        Joker MakeJoker(Button btn, Image bg, Image icon, GameObject lockGo, GameObject counterGo, Text counterText, int cost, int unlock, int kind, System.Action use)
+        {
+            Sprite iconSprite = icon != null ? icon.sprite : null;
+            if (kind >= 0 && kind < 3) { jokerIcons[kind] = iconSprite; jokerCosts[kind] = cost; }
+            var j = new Joker
+            {
+                btn = btn,
+                bg = bg, bgColor = bg != null ? bg.color : White,
+                icon = icon, iconColor = icon != null ? icon.color : White, iconSprite = iconSprite,
+                unlock = unlock, kind = kind, cost = cost,
+                lockGo = lockGo, counterGo = counterGo, counterText = counterText
+            };
+            if (btn != null)
+                btn.onClick.AddListener(() =>
+                {
+                    if (SaveSystem.FreeJoker(kind) > 0) use?.Invoke();   // own one -> use it
+                    else ShowJokerBuy(kind);                              // out -> buy with gold
+                });
+            return j;
         }
 
         // ---- HUD ------------------------------------------------------------
@@ -92,12 +166,12 @@ namespace BusJam
             hudPanel = Panel("Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
 
-            // LEVEL badge: TOP-LEFT, round yellow circle (atlas1_19).
-            var badge = Img(hudPanel.transform, UIKit.CircleYellow(), new Color(0.95f, 0.78f, 0.30f));
+            // LEVEL badge: TOP-LEFT, rounded blue-purple button (atlas1_25), white text.
+            var badge = Img(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f));
             Place(badge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(110, -110), new Vector2(170, 170));
             badge.raycastTarget = false;
-            Label(badge.transform, "LEVEL", num, new Vector2(0, 42), new Vector2(160, 36), 24, Dark);
-            hudLevel = Label(badge.transform, "1", title, new Vector2(0, -16), new Vector2(160, 90), 64, Dark);
+            Label(badge.transform, "LEVEL", num, new Vector2(0, 42), new Vector2(160, 36), 24, White);
+            hudLevel = Label(badge.transform, "1", title, new Vector2(0, -16), new Vector2(160, 90), 64, White);
             hudTheme = Label(hudPanel.transform, "", num, new Vector2(110, -210), new Vector2(260, 36), 22, new Color(0.85f, 0.9f, 1f));
             hudTheme.rectTransform.anchorMin = hudTheme.rectTransform.anchorMax = new Vector2(0, 1);
             hudTheme.rectTransform.anchoredPosition = new Vector2(110, -210);
@@ -111,37 +185,34 @@ namespace BusJam
             // SETTINGS gear: TOP-RIGHT.
             Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
 
-            // PEOPLE-LEFT badge: left margin, round green circle (atlas1_18).
-            var pBadge = Img(hudPanel.transform, UIKit.CircleGreen(), new Color(0.35f, 0.70f, 0.40f));
-            Place(pBadge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(105, -440), new Vector2(140, 140));
-            pBadge.raycastTarget = false;
-            var pIco = Img(pBadge.transform, UISprites.Person(), White); pIco.raycastTarget = false;
-            Center(pIco.rectTransform, new Vector2(66, 66)); pIco.rectTransform.anchoredPosition = new Vector2(0, 16);
-            hudPeopleLeft = Label(pBadge.transform, "0", num, new Vector2(0, -38), new Vector2(140, 50), 36, White);
+            // (People-left badge removed — the count is already shown on the 3D board.)
 
             comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
             comboText.gameObject.SetActive(false);
 
-            // 3 jokers across the bottom on atlas1_56/57 boxes: RECOLOR / SWAP / HELI.
-            jRecolor = JokerButton(-260, recolorCost.ToString(), UIKit.JokerRecolor(), UIKit.ShopIconBgA(), j1Lvl, () => OnRecolor?.Invoke());
-            jSwap    = JokerButton(0,    swapCost.ToString(),    UIKit.JokerSwap(),    UIKit.ShopIconBgB(), j2Lvl, () => OnSwap?.Invoke());
-            jHeli    = JokerButton(260,  heliCost.ToString(),    UIKit.JokerHeli(),    UIKit.ShopIconBgA(), j3Lvl, () => OnHeli?.Invoke());
+            // 3 jokers across the bottom (atlas1_25 buttons + atlas1_34 count badges).
+            jRecolor = JokerButton(-260, UIKit.JokerRecolor(), recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
+            jSwap    = JokerButton(0,    UIKit.JokerSwap(),    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
+            jHeli    = JokerButton(260,  UIKit.JokerHeli(),    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             RefreshJokers();
         }
 
-        Joker JokerButton(float x, string costText, Sprite icon, Sprite boxBg, int unlock, System.Action onClick)
+        Joker JokerButton(float x, Sprite icon, int cost, int unlock, int kind, System.Action use)
         {
-            var btn = Btn(hudPanel.transform, boxBg, new Color(0.30f, 0.45f, 0.70f), new Vector2(0.5f, 0), new Vector2(x, 70), new Vector2(180, 180), onClick);
+            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(0.5f, 0), new Vector2(x, 70), new Vector2(180, 180), null);
             var rt = btn.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0); rt.pivot = new Vector2(0.5f, 0);
             rt.anchoredPosition = new Vector2(x, 70);
-            var ico = Img(btn.transform, icon, new Color(0.9f, 0.9f, 1f)); ico.raycastTarget = false;
-            Center(ico.rectTransform, new Vector2(110, 110)); ico.rectTransform.anchoredPosition = new Vector2(0, 12);
-            Label(btn.transform, costText, num, new Vector2(0, -64), new Vector2(170, 44), 30, White);
+            var bg = btn.GetComponent<Image>();
+            var ico = Img(btn.transform, icon, White); ico.raycastTarget = false;
+            Center(ico.rectTransform, new Vector2(112, 112));
             var lk = Img(btn.transform, null, new Color(0, 0, 0, 0.55f)); lk.raycastTarget = false;
             Center(lk.rectTransform, new Vector2(180, 180));
             Label(lk.transform, "LV " + unlock, num, Vector2.zero, new Vector2(170, 60), 34, White);
-            return new Joker { btn = btn, lockGo = lk.gameObject, unlock = unlock };
+            var cb = Img(btn.transform, UIKit.A(34), new Color(0.95f, 0.78f, 0.20f)); cb.raycastTarget = false;
+            Place(cb.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-4, -4), new Vector2(72, 72));
+            var ct = Label(cb.transform, "0", num, Vector2.zero, new Vector2(72, 50), 32, White);
+            return MakeJoker(btn, bg, ico, lk.gameObject, cb.gameObject, ct, cost, unlock, kind, use);
         }
 
         void RefreshJokers() { SetJoker(jRecolor); SetJoker(jSwap); SetJoker(jHeli); }
@@ -151,55 +222,264 @@ namespace BusJam
             bool unlocked = level >= j.unlock;
             j.btn.interactable = unlocked;
             if (j.lockGo) j.lockGo.SetActive(!unlocked);
+            int owned = SaveSystem.FreeJoker(j.kind);
+            bool faded = unlocked && owned <= 0;            // out of stock -> dim it
+            if (j.bg)   j.bg.color   = faded ? Dim40(j.bgColor)   : j.bgColor;
+            if (j.icon) j.icon.color = faded ? Dim40(j.iconColor) : j.iconColor;
+            if (j.counterGo) j.counterGo.SetActive(unlocked);
+            if (j.counterText) j.counterText.text = owned.ToString();
+        }
+        static Color Dim40(Color c) => new Color(c.r, c.g, c.b, c.a * 0.4f);
+
+        // Adopt the Inspector-editable baked joker-buy panel; otherwise build it in code.
+        void SetupJokerBuy()
+        {
+            var p = InGamePanels.Instance;
+            if (p != null && p.jokerBuyRecolor != null)
+            {
+                WireJokerBuy(p.jokerBuyRecolor, p.jokerBuyRecolorBtn, 0);
+                WireJokerBuy(p.jokerBuySwap,    p.jokerBuySwapBtn,    1);
+                WireJokerBuy(p.jokerBuyHeli,    p.jokerBuyHeliBtn,    2);
+            }
+            else BuildJokerBuy();
         }
 
-        // ---- Settings (atlas2_0 WHITE panel; blue title tile; 18-icon toggles; 36 buttons) ----
+        void WireJokerBuy(GameObject panel, Button buyBtn, int kind)
+        {
+            if (panel == null) return;
+            jokerBuyPanels[kind] = panel;
+            int cost = jokerCosts[kind];
+            if (buyBtn) buyBtn.onClick.AddListener(() =>
+            {
+                if (SaveSystem.TrySpend(cost)) { SaveSystem.AddFreeJoker(kind, 1); SetCoins(SaveSystem.Coins); RefreshJokers(); }
+            });
+            foreach (var b in panel.GetComponentsInChildren<InGamePanelButton>(true))
+            {
+                var btn = b.GetComponent<Button>();
+                if (btn != null && b.action == InGamePanelButton.Act.Close)
+                    btn.onClick.AddListener(() => panel.SetActive(false));
+            }
+            panel.SetActive(false);
+        }
+
+        // Buy one of the current joker for gold. Stays open so you can keep buying.
+        void JokerBuyPressed()
+        {
+            if (SaveSystem.TrySpend(buyCost))
+            {
+                SaveSystem.AddFreeJoker(buyKind, 1);
+                SetCoins(SaveSystem.Coins);
+                RefreshJokers();
+            }
+        }
+
+        // Code fallback for the joker buy popup (used when no baked panel exists).
+        void BuildJokerBuy()
+        {
+            jokerBuyPanel = Panel("JokerBuy", Dim);
+            var cv = jokerBuyPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 70;
+            jokerBuyPanel.AddComponent<GraphicRaycaster>();
+            var card = Img(jokerBuyPanel.transform, UIKit.EmptyBoxBlue(), White); card.color = White;
+            Center(card.rectTransform, new Vector2(620, 700));
+            jokerBuyIcon = Img(card.transform, null, White); jokerBuyIcon.raycastTarget = false;
+            Place(jokerBuyIcon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 130), new Vector2(230, 230));
+            var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(380, 130), JokerBuyPressed);
+            var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
+            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(46, 0), new Vector2(60, 60));
+            jokerBuyPrice = Label(buy.transform, "0", title, new Vector2(30, 0), new Vector2(380, 80), 44, White);
+            RedClose(card.transform, () => jokerBuyPanel.SetActive(false));
+            jokerBuyPanel.SetActive(false);
+        }
+
+        void ShowJokerBuy(int kind)
+        {
+            if (jokerBuyPanels[kind] != null) { jokerBuyPanels[kind].SetActive(true); return; }
+            // Code fallback: the single reusable panel (set its icon + price for this joker).
+            if (jokerBuyPanel == null) return;
+            buyKind = kind; buyCost = jokerCosts[kind];
+            if (jokerBuyIcon) { jokerBuyIcon.sprite = jokerIcons[kind]; jokerBuyIcon.color = White; }
+            if (jokerBuyPrice) jokerBuyPrice.text = jokerCosts[kind].ToString();
+            jokerBuyPanel.SetActive(true);
+        }
+
+        // ---- Settings — same layout as the baked main-menu Settings panel ----
+        // Card tinted #A12929; blue title tile; SOUND/MUSIC toggles (atlas1_37 button +
+        // crisp logo, faded when OFF); one empty button; HOME + REPLAY below it.
         void BuildSettings()
         {
             settingsPanel = Panel("Settings", Dim);
 
-            // Panel background = atlas2_0, tinted WHITE.
             var card = Img(settingsPanel.transform, UIKit.EmptyBoxBlue(), White);
-            card.color = White;
-            Center(card.rectTransform, new Vector2(820, 1000));
+            card.color = new Color(0.631f, 0.161f, 0.161f); // #A12929
+            Center(card.rectTransform, new Vector2(820, 1050));
 
-            // Blue TEXT TILE on top of the rectangle, with the title on it.
             var tile = Img(card.transform, UIKit.TitleBarA(), new Color(0.25f, 0.55f, 0.90f));
             tile.color = new Color(0.25f, 0.55f, 0.90f); tile.raycastTarget = false;
-            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 410), new Vector2(580, 130));
-            Label(card.transform, "SETTINGS", title, new Vector2(0, 410), new Vector2(560, 100), 56, White);
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 430), new Vector2(580, 130));
+            Label(card.transform, "SETTINGS", title, new Vector2(0, 430), new Vector2(560, 100), 56, White);
 
-            // SOUND / MUSIC: tap to toggle. Button image = atlas1_36, on/off icon = atlas1_18.
-            ToggleRow(card.transform, 210, "SOUND", SaveSystem.Sound, v => SaveSystem.Sound = v);
-            ToggleRow(card.transform, 60,  "MUSIC", SaveSystem.Music, v => SaveSystem.Music = v);
+            // SOUND + MUSIC toggles (atlas1_37 button + crisp icon; fades when OFF).
+            AudioToggle(card.transform, -160, UIKit.IconSpeaker(), SaveSystem.Sound, v => SaveSystem.Sound = v);
+            AudioToggle(card.transform,  160, UIKit.IconNote(),    SaveSystem.Music, v => SaveSystem.Music = v);
 
-            // HOME + REPLAY: ALL settings buttons use atlas1_36.
-            var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -160), new Vector2(310, 115),
+            // One empty button (atlas1_37).
+            Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(430, 120), null);
+
+            // HOME (left) + REPLAY (right) below the empty button.
+            var home = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(-180, -120), new Vector2(320, 120),
                 () => { HideSettings(); OnHome?.Invoke(); });
-            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(310, 80), 40, White);
-            var replay = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.95f, 0.75f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(180, -160), new Vector2(310, 115),
+            Label(home.transform, "HOME", title, Vector2.zero, new Vector2(320, 80), 40, White);
+            var replay = Btn(card.transform, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(180, -120), new Vector2(320, 120),
                 () => { HideSettings(); OnReplay?.Invoke(); });
-            Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(310, 80), 38, White);
+            Label(replay.transform, "REPLAY", title, Vector2.zero, new Vector2(320, 80), 38, White);
 
             RedClose(card.transform, HideSettings);
             settingsPanel.SetActive(false);
         }
 
-        // Sound/Music row: label + a tap-toggle button (bg = atlas1_36 PriceBtnA,
-        // on/off icon = atlas1_18 CircleGreen → green when ON, grey when OFF).
-        void ToggleRow(Transform parent, float y, string name, bool initial, System.Action<bool> onChange)
+        // Sound/Music toggle: atlas1_37 button + crisp logo; full colour when ON, faded when OFF.
+        void AudioToggle(Transform parent, float x, Sprite logo, bool initial, System.Action<bool> onChange)
         {
-            Label(parent, name, num, new Vector2(-140, y), new Vector2(300, 60), 38, Dark, TextAnchor.MiddleLeft);
             bool[] st = { initial };
-            var btn = Btn(parent, UIKit.PriceBtnA(), new Color(0.5f, 0.7f, 0.9f), new Vector2(0.5f, 0.5f), new Vector2(220, y), new Vector2(200, 100), null);
-            var ico = Img(btn.transform, UIKit.CircleGreen(), OffCol); ico.raycastTarget = false;
-            Center(ico.rectTransform, new Vector2(76, 76));
-            ico.color = st[0] ? OnCol : OffCol;
+            var btn = Btn(parent, UIKit.PriceBtnB(), new Color(0.95f, 0.78f, 0.20f), new Vector2(0.5f, 0.5f), new Vector2(x, 230), new Vector2(220, 150), null);
+            btn.transition = Selectable.Transition.None;
+            var bg = btn.GetComponent<Image>();
+            var ico = Img(btn.transform, logo, White); ico.raycastTarget = false;
+            Center(ico.rectTransform, new Vector2(110, 110));
+            System.Action apply = () =>
+            {
+                var c = st[0] ? White : new Color(0.8f, 0.8f, 0.82f, 0.45f);
+                bg.color = c; ico.color = c;
+            };
+            apply();
+            btn.onClick.AddListener(() => { st[0] = !st[0]; apply(); onChange?.Invoke(st[0]); });
+        }
+
+        // ---- Settings / Continue / Failed setup -----------------------------
+        // Prefer the Inspector-editable scene panels baked via
+        // "Tools ▸ 300Mind UI ▸ Bake In-Game Panels"; otherwise build them in code.
+        void SetupSettings()
+        {
+            if (InGamePanels.Instance != null && InGamePanels.Instance.settings != null)
+            {
+                settingsPanel = InGamePanels.Instance.settings;
+                WireSettings(settingsPanel.transform);
+                // The empty settings button opens the in-game language pop-up.
+                var emptyT = settingsPanel.transform.Find("Card/Btn_Empty");
+                if (emptyT)
+                {
+                    var eb = emptyT.GetComponent<Button>();
+                    var lang = InGamePanels.Instance.language;
+                    if (eb && lang) eb.onClick.AddListener(() => lang.SetActive(true));
+                    if (emptyT.GetComponentInChildren<Text>() == null)
+                        Label(emptyT, "LANGUAGE", title, Vector2.zero, new Vector2(420, 80), 40, White);
+                }
+                settingsPanel.SetActive(false);
+            }
+            else BuildSettings();
+        }
+
+        void WireSettings(Transform root)
+        {
+            foreach (var b in root.GetComponentsInChildren<InGamePanelButton>(true))
+            {
+                var btn = b.GetComponent<Button>();
+                if (btn == null) continue;
+                switch (b.action)
+                {
+                    case InGamePanelButton.Act.Home:        btn.onClick.AddListener(() => { HideSettings(); OnHome?.Invoke(); }); break;
+                    case InGamePanelButton.Act.Replay:      btn.onClick.AddListener(() => { HideSettings(); OnReplay?.Invoke(); }); break;
+                    case InGamePanelButton.Act.Close:       btn.onClick.AddListener(HideSettings); break;
+                    case InGamePanelButton.Act.ToggleSound: WireAudioToggle(btn, true); break;
+                    case InGamePanelButton.Act.ToggleMusic: WireAudioToggle(btn, false); break;
+                }
+            }
+        }
+
+        void SetupContinue()
+        {
+            if (InGamePanels.Instance != null && InGamePanels.Instance.continuePanel != null)
+            {
+                continuePanel = InGamePanels.Instance.continuePanel;
+                var pp = continuePanel.transform.Find("Card/Pay/Label");
+                if (pp) continuePrice = pp.GetComponent<Text>();
+                foreach (var b in continuePanel.GetComponentsInChildren<InGamePanelButton>(true))
+                {
+                    var btn = b.GetComponent<Button>();
+                    if (btn == null) continue;
+                    switch (b.action)
+                    {
+                        case InGamePanelButton.Act.ContinueAd:  btn.onClick.AddListener(() => OnContinueAd?.Invoke()); break;
+                        case InGamePanelButton.Act.ContinuePay: btn.onClick.AddListener(() => OnContinuePay?.Invoke()); break;
+                        case InGamePanelButton.Act.Close:       btn.onClick.AddListener(() => { HideContinue(); OnContinueDeclined?.Invoke(); }); break;
+                    }
+                }
+                continuePanel.SetActive(false);
+            }
+            else BuildContinue();
+        }
+
+        void SetupFailed()
+        {
+            if (InGamePanels.Instance != null && InGamePanels.Instance.failed != null)
+            {
+                failedPanel = InGamePanels.Instance.failed;
+                foreach (var b in failedPanel.GetComponentsInChildren<InGamePanelButton>(true))
+                {
+                    var btn = b.GetComponent<Button>();
+                    if (btn == null) continue;
+                    switch (b.action)
+                    {
+                        case InGamePanelButton.Act.Home:   btn.onClick.AddListener(() => { HideFailed(); OnHome?.Invoke(); }); break;
+                        case InGamePanelButton.Act.Replay: btn.onClick.AddListener(() => { HideFailed(); OnReplay?.Invoke(); }); break;
+                    }
+                }
+                failedPanel.SetActive(false);
+            }
+            else BuildFailed();
+        }
+
+        void SetupSuccess()
+        {
+            if (InGamePanels.Instance != null && InGamePanels.Instance.success != null)
+            {
+                successPanel = InGamePanels.Instance.success;
+                var rl = successPanel.transform.Find("Card/Reward");
+                if (rl) successReward = rl.GetComponent<Text>();
+                foreach (var b in successPanel.GetComponentsInChildren<InGamePanelButton>(true))
+                {
+                    var btn = b.GetComponent<Button>();
+                    if (btn == null) continue;
+                    if (b.action == InGamePanelButton.Act.Claim)
+                    {
+                        int amt = b.amount;
+                        btn.onClick.AddListener(() => ClaimReward(amt));
+                    }
+                }
+                successPanel.SetActive(false);
+            }
+            else BuildSuccess();
+        }
+
+        // Wire a baked sound/music toggle button: full colour when ON, faded when OFF.
+        void WireAudioToggle(Button btn, bool isSound)
+        {
+            btn.transition = Selectable.Transition.None;
+            var bg = btn.GetComponent<Image>();
+            var lt = btn.transform.Find("Logo");
+            var ico = lt != null ? lt.GetComponent<Image>() : null;
+            bool[] st = { isSound ? SaveSystem.Sound : SaveSystem.Music };
+            System.Action apply = () =>
+            {
+                var c = st[0] ? White : new Color(0.8f, 0.8f, 0.82f, 0.45f);
+                if (bg) bg.color = c;
+                if (ico) ico.color = c;
+            };
+            apply();
             btn.onClick.AddListener(() =>
             {
-                st[0] = !st[0];
-                ico.color = st[0] ? OnCol : OffCol;
-                onChange?.Invoke(st[0]);
+                st[0] = !st[0]; apply();
+                if (isSound) SaveSystem.Sound = st[0]; else SaveSystem.Music = st[0];
             });
         }
 
@@ -357,7 +637,7 @@ namespace BusJam
             var pay = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.95f, 0.6f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(580, 160), () => OnContinuePay?.Invoke());
             var payc = Img(pay.transform, UIKit.Coin(), Gold); payc.raycastTarget = false;
             Place(payc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(70, 70));
-            Label(pay.transform, "100", title, new Vector2(40, 0), new Vector2(440, 70), 44, White);
+            continuePrice = Label(pay.transform, "150", title, new Vector2(40, 0), new Vector2(440, 70), 44, White);
 
             RedClose(card.transform, () => { HideContinue(); OnContinueDeclined?.Invoke(); });
             continuePanel.SetActive(false);
@@ -427,6 +707,7 @@ namespace BusJam
         public void ShowShop() { Toggle(shopPanel, true); }
         public void HideShop() { Toggle(shopPanel, false); }
         public void ShowContinue() { Toggle(continuePanel, true); }
+        public void SetContinuePrice(int cost) { if (continuePrice) continuePrice.text = cost.ToString(); }
         public void HideContinue() { Toggle(continuePanel, false); }
         public void ShowFailed() { Toggle(failedPanel, true); }
         public void HideFailed() { Toggle(failedPanel, false); }

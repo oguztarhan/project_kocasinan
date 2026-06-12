@@ -11,6 +11,7 @@ namespace BusJam
         const string K_Best     = "bj_best";
         const string K_Sound    = "bj_sound";
         const string K_Music    = "bj_music";
+        const string K_Lang     = "bj_language"; // 0 = Türkçe, 1 = English
         const string K_Vib      = "bj_vibration";
         const string K_Avatar   = "bj_avatar";
         const string K_Name     = "bj_name";
@@ -51,6 +52,14 @@ namespace BusJam
             set { PlayerPrefs.SetInt(K_Music, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Selected language (0 = Türkçe, 1 = English). Stored only for now; hooking it up
+        // to actual text translation is a separate (localization) task.
+        public static int Language
+        {
+            get => Mathf.Max(0, PlayerPrefs.GetInt(K_Lang, 0));
+            set { PlayerPrefs.SetInt(K_Lang, Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
         public static bool Vibration
         {
             get => PlayerPrefs.GetInt(K_Vib, 1) == 1;
@@ -76,6 +85,28 @@ namespace BusJam
         {
             if (Coins < cost) return false;
             Coins -= cost;
+            return true;
+        }
+
+        // ---- Free joker charges (0 = Recolor, 1 = Swap, 2 = Heli), granted by daily
+        //      rewards. A joker consumes a free charge before spending gold.
+        static string FreeJokerKey(int kind) =>
+            kind == 0 ? "bj_freeRecolor" : kind == 1 ? "bj_freeSwap" : "bj_freeHeli";
+
+        public static int FreeJoker(int kind) => Mathf.Max(0, PlayerPrefs.GetInt(FreeJokerKey(kind), 0));
+
+        public static void AddFreeJoker(int kind, int count)
+        {
+            PlayerPrefs.SetInt(FreeJokerKey(kind), Mathf.Max(0, FreeJoker(kind) + count));
+            PlayerPrefs.Save();
+        }
+
+        public static bool TryUseFreeJoker(int kind)
+        {
+            int n = FreeJoker(kind);
+            if (n <= 0) return false;
+            PlayerPrefs.SetInt(FreeJokerKey(kind), n - 1);
+            PlayerPrefs.Save();
             return true;
         }
     }

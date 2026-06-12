@@ -23,6 +23,8 @@ public class MenuController : MonoBehaviour
     [SerializeField] public GameObject profilePanel;
     [SerializeField] public GameObject settingsPanel;
     [SerializeField] public GameObject removeAdsPanel;
+    [SerializeField] public GameObject adRewardPanel;
+    [SerializeField] public GameObject languagePanel;
 
     [Header("Bottom-nav selected highlights (orange backing)")]
     [SerializeField] public GameObject navDailySel;
@@ -31,6 +33,12 @@ public class MenuController : MonoBehaviour
 
     [Header("Scene")]
     [SerializeField] public string gameSceneName = "SampleScene";
+
+    [Header("Social media links (paste your URLs here)")]
+    [SerializeField] public string facebookUrl  = "https://facebook.com/";
+    [SerializeField] public string xUrl         = "https://x.com/";
+    [SerializeField] public string instagramUrl = "https://instagram.com/";
+    [SerializeField] public string tiktokUrl    = "https://tiktok.com/";
 
     // Home-only elements (found by name in the baked hierarchy); hidden while a panel is open.
     GameObject[] homeOnly;
@@ -42,6 +50,7 @@ public class MenuController : MonoBehaviour
             FindByName("Coin_Bar"),    // gold counter
             FindByName("Btn_Settings"),// settings gear
             FindByName("Btn_NoAds"),   // no-ads icon
+            FindByName("Btn_AdReward"),// watch-ad-for-gold
             FindByName("Btn_Play"),    // PLAY button
         };
         CloseAll();
@@ -57,7 +66,7 @@ public class MenuController : MonoBehaviour
     void HidePanels()
     {
         Set(dailyPanel, false); Set(shopPanel, false); Set(profilePanel, false);
-        Set(settingsPanel, false); Set(removeAdsPanel, false);
+        Set(settingsPanel, false); Set(removeAdsPanel, false); Set(adRewardPanel, false); Set(languagePanel, false);
     }
 
     void SetHomeOnly(bool on)
@@ -97,6 +106,19 @@ public class MenuController : MonoBehaviour
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
     public void OpenRemoveAds() { Open(removeAdsPanel, null); }
+    public void OpenAdReward()  { Open(adRewardPanel, null); }
+    // Language pop-up: overlay it on top (don't hide the settings panel behind it).
+    public void OpenLanguage()  { if (languagePanel) languagePanel.SetActive(true); }
+
+    // Social media buttons: open the pasted link in the device browser.
+    public void OpenFacebook()  { OpenUrl(facebookUrl); }
+    public void OpenX()         { OpenUrl(xUrl); }
+    public void OpenInstagram() { OpenUrl(instagramUrl); }
+    public void OpenTikTok()    { OpenUrl(tiktokUrl); }
+    static void OpenUrl(string url) { if (!string.IsNullOrWhiteSpace(url)) Application.OpenURL(url); }
+
+    // Watch-ad reward: grant 10 gold (placeholder until a real rewarded ad is wired).
+    public void WatchAdReward() { SaveSystem.AddCoins(10); Refresh(); }
 
     public void Play() { SceneManager.LoadScene(gameSceneName); }
 

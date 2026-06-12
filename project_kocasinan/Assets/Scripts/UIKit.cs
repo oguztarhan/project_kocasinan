@@ -117,6 +117,23 @@ namespace BusJam
         public static Sprite IconSound()  => A(71);
         public static Sprite IconMusic()  => A(73);
 
+        // Crisp custom audio icons (external PNGs in Assets/MenuManager/Icons, not in the atlas).
+        public static Sprite IconSpeaker() => GetExternal("Assets/MenuManager/Icons/Icon_Sound.png", "Icon_Sound");
+        public static Sprite IconNote()    => GetExternal("Assets/MenuManager/Icons/Icon_Music.png", "Icon_Music");
+
+        static Sprite GetExternal(string path, string resName)
+        {
+            if (_cache.TryGetValue(resName, out var cached)) return cached;
+            Sprite found = null;
+#if UNITY_EDITOR
+            found = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+#endif
+            if (found == null) found = Resources.Load<Sprite>("UIKit/" + resName);
+            if (found == null) Debug.LogWarning($"[UIKit] sprite not found: {resName}");
+            _cache[resName] = found;
+            return found;
+        }
+
         // ---- Atlas 2 ----
         public static Sprite EmptyBoxBlue() => B(0);
         public static Sprite PanelTall()    => B(2);   // big popup background

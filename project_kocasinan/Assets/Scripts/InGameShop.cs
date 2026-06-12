@@ -21,6 +21,13 @@ namespace BusJam
         void Awake()
         {
             Instance = this;
+            // Safety net: if the reference was lost (e.g. baked without saving), find the
+            // panel by name so it is still hidden at start instead of staying on screen.
+            if (panel == null)
+            {
+                var t = transform.Find("Panel_GameShop");
+                if (t) panel = t.gameObject;
+            }
             if (panel) panel.SetActive(false);
         }
 

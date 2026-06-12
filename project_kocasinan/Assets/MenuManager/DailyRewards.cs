@@ -72,6 +72,7 @@ public class DailyRewards : MonoBehaviour
         if (!canToday || c.day != claimed + 1) return; // not the claimable day / already claimed today
 
         if (c.coins > 0) SaveSystem.AddCoins(c.coins);
+        if (c.jokerKind >= 0 && c.jokerCount > 0) SaveSystem.AddFreeJoker(c.jokerKind, c.jokerCount);
         Claimed = claimed + 1;
         Last = Today;
 

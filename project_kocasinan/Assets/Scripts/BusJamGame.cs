@@ -22,6 +22,9 @@ namespace BusJam
         public bool autoStart = true;
         public bool autoAdvance = true;
 
+        [Header("Confetti (win celebration)")]
+        public ConfettiSettings confetti = new ConfettiSettings();
+
         public System.Action<int> CoinsChanged;
         public System.Action<int> LevelStarted;
         public System.Action<int, int> LevelCompleted;
@@ -33,6 +36,9 @@ namespace BusJam
         public int Coins => SaveSystem.Coins;
 
         const int RecolorCost = 80, SwapCost = 40, HeliCost = 100, SlotUnlockCost = 80;
+        const int ContinueBaseCost = 150;   // 1st continue costs this; doubles each further continue in the level
+        int continueCount;                  // gold continues used this level (resets on StartLevel)
+        int CurrentContinueCost => ContinueBaseCost << continueCount; // 150, 300, 600, 1200, ...
         const int J1UnlockLevel = 5, J2UnlockLevel = 10, J3UnlockLevel = 15; // RECOLOR / SWAP / HELI
 
         // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
@@ -110,10 +116,11 @@ namespace BusJam
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
-            ui.OnContinuePay = () =>             // Continue panel: pay 100 gold
+            ui.OnContinuePay = () =>             // Continue panel: pay 150, then doubles each time
             {
-                if (SaveSystem.TrySpend(100))
+                if (SaveSystem.TrySpend(CurrentContinueCost))
                 {
+                    continueCount++;
                     ui.SetCoins(SaveSystem.Coins);
                     CoinsChanged?.Invoke(SaveSystem.Coins);
                     ui.HideContinue();
@@ -569,7 +576,7 @@ namespace BusJam
         {
             if (state != GameState.Playing || gridBuses.Count == 0) { sfx.Error(); return; }
             if (SaveSystem.Level < J1UnlockLevel) { sfx.Error(); return; }
-            if (!Spend(RecolorCost)) { sfx.Error(); return; }
+            if (!SpendJoker(0, RecolorCost)) { sfx.Error(); return; }
             sfx.Coin();
 
             var byCap = new Dictionary<int, List<Bus>>();
@@ -595,7 +602,7 @@ namespace BusJam
         {
             if (state != GameState.Playing || visible.Count < 2) { sfx.Error(); return; }
             if (SaveSystem.Level < J2UnlockLevel) { sfx.Error(); return; }
-            if (!Spend(SwapCost)) { sfx.Error(); return; }
+            if (!SpendJoker(1, SwapCost)) { sfx.Error(); return; }
             sfx.Click();
             for (int i = visible.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (visible[i], visible[j]) = (visible[j], visible[i]); }
             StartCoroutine(AfterJoker());
@@ -619,7 +626,7 @@ namespace BusJam
             }
             if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }
             if (pick == null) { sfx.Error(); return; }
-            if (!Spend(HeliCost)) { sfx.Error(); return; }
+            if (!SpendJoker(2, HeliCost)) { sfx.Error(); return; }
             sfx.Deploy();
 
             foreach (var c in LevelGenerator.OccCells(pick.cell, pick.dir, pick.length)) occ.Remove(c); // free ALL body cells (no phantom)
@@ -704,6 +711,17 @@ namespace BusJam
             return true;
         }
 
+        // Use a free daily-reward joker charge (kind 0/1/2) if available, else pay gold.
+        bool SpendJoker(int kind, int cost)
+        {
+            if (SaveSystem.TryUseFreeJoker(kind))
+            {
+                if (ui != null) ui.RefreshJokerLocks(); // refresh the free-charge badge
+                return true;
+            }
+            return Spend(cost);
+        }
+
         // ====================================================================
         // Level lifecycle
         // ====================================================================
@@ -727,6 +745,7 @@ namespace BusJam
             BuildLine();
 
             earnedThisLevel = 0; combo = 0; maxCombo = 0; lastBoardTime = -10f;
+            continueCount = 0; // reset escalating continue price each level
 
             state = GameState.Playing;
             StartCoroutine(LineLayoutLoop()); // continuous queue re-spacing for the duration of the level
@@ -772,7 +791,7 @@ namespace BusJam
         {
             if (cam == null)
             {
-                Juice.Confetti(this, boardRoot, new Vector3(0, 6, PeopleZ), confettiMats, 50);
+                Juice.Confetti(this, boardRoot, new Vector3(0, 6, PeopleZ), confettiMats, confetti);
                 return;
             }
             float depth = Mathf.Abs(cam.transform.position.z - PeopleZ);
@@ -780,8 +799,8 @@ namespace BusJam
             // toward the middle of the screen (dirX +1 from the left, -1 from the right).
             Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0.02f, 0.02f, depth));
             Vector3 br = cam.ViewportToWorldPoint(new Vector3(0.98f, 0.02f, depth));
-            Juice.Confetti(this, boardRoot, bl, confettiMats, 35, +1f);
-            Juice.Confetti(this, boardRoot, br, confettiMats, 35, -1f);
+            Juice.Confetti(this, boardRoot, bl, confettiMats, confetti, +1f);
+            Juice.Confetti(this, boardRoot, br, confettiMats, confetti, -1f);
         }
 
         void Lose(string reason)
@@ -790,11 +809,11 @@ namespace BusJam
             state = GameState.Lose;
             sfx.Lose();
             ui.HideHud();
+            ui.SetContinuePrice(CurrentContinueCost); // 150, then doubles each continue
             ui.ShowContinue(); // runtime Continue panel (decline -> Failed). GameManager is neutralized to avoid a 2nd panel.
             LevelFailed?.Invoke(reason);
             OnGameOver?.Invoke(reason);
-            bool handledExternally = OnGameOver != null || LevelFailed != null;
-            if (autoAdvance && !handledExternally) Invoke(nameof(RetryLevel), 1.8f);
+            // The Continue panel (ui.ShowContinue) now owns the loss flow — no auto-retry.
         }
 
         // ====================================================================

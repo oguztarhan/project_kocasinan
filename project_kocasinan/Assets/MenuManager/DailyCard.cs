@@ -10,6 +10,8 @@ public class DailyCard : MonoBehaviour
 {
     public int day;          // 1..7
     public int coins;        // coin reward (0 = non-coin reward, e.g. a joker)
+    public int jokerKind = -1; // free joker granted: -1 none, 0 Recolor, 1 Swap, 2 Heli
+    public int jokerCount = 0;  // how many free jokers
     public GameObject check; // checkmark overlay (shown once claimed)
     public Button button;    // the card's clickable button
 }

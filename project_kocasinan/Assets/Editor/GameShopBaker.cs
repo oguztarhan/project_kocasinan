@@ -29,9 +29,10 @@ public static class GameShopBaker
     [MenuItem("Tools/300Mind UI/Bake In-Game Shop (into open scene)")]
     static void BakeShop()
     {
-        // Clear any previous bake.
-        var old = GameObject.Find("InGameShop_Baked");
-        if (old) Object.DestroyImmediate(old);
+        // Clear ALL previous bakes, including INACTIVE ones (GameObject.Find skips inactive
+        // objects, which let disabled copies pile up). Scan the scene's root objects instead.
+        foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            if (go.name == "InGameShop_Baked") Object.DestroyImmediate(go);
 
         var rootGo = new GameObject("InGameShop_Baked");
         var canvas = rootGo.AddComponent<Canvas>();
@@ -127,10 +128,16 @@ public static class GameShopBaker
         JokerBar(ctGo.transform, "Bar_Swap",    UIKit.JokerSwap());
         JokerBar(ctGo.transform, "Bar_Heli",    UIKit.JokerHeli());
 
+        // Bake the panel INACTIVE so it doesn't cover the screen in the editor (the root
+        // canvas stays active). It still works at runtime: GameUI adopts it via the
+        // InGameShop marker and opens it on the coin tap. To edit it, tick Panel_GameShop
+        // active in the Hierarchy, then untick it (or just leave it — it auto-hides on Play).
+        panel.gameObject.SetActive(false);
+
         EditorUtility.SetDirty(marker);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = card.gameObject;
-        Debug.Log("[GameShopBaker] Baked in-game shop into the open scene. Edit it in the Inspector, then SAVE (Ctrl+S). It hides itself on Play and opens when you tap the coin.");
+        Debug.Log("[GameShopBaker] Baked in-game shop (panel hidden in editor). SAVE the scene (Ctrl+S). Opens on the coin tap at runtime; tick Panel_GameShop active to edit it.");
     }
 
     // One purple coin-pack card (atlas1_56): coin icon + amount + green price button.
