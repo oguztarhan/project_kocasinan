@@ -32,7 +32,7 @@ namespace BusJam
             canvasGo.transform.SetParent(transform, false);
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 100; // above the in-game HUD (GameUI canvas = order 0)
+            canvas.sortingOrder = 1000; // above the in-game HUD AND the baked in-game UI canvas
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);

@@ -376,9 +376,20 @@ namespace BusJam
                     if (emptyT.GetComponentInChildren<Text>() == null)
                         Label(emptyT, "LANGUAGE", title, Vector2.zero, new Vector2(420, 80), 40, White);
                 }
+                AddLevelsDebugButton(settingsPanel.transform); // TEMP debug — remove later
                 settingsPanel.SetActive(false);
             }
-            else BuildSettings();
+            else BuildSettings(); // fallback already includes the LEVELS button
+        }
+
+        // TEMP (debug): a LEVELS button injected into the BAKED settings panel so you can jump to any level.
+        // Floats at the top of the screen so it never collides with the baked card. Delete this method + its
+        // call above (and the LEVELS button in BuildSettings) to remove the debug level-jump UI later.
+        void AddLevelsDebugButton(Transform panel)
+        {
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 1f), new Vector2(0, -110), new Vector2(440, 110),
+                () => { HideSettings(); OnLevels?.Invoke(); });
+            Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(440, 80), 42, White);
         }
 
         void WireSettings(Transform root)
