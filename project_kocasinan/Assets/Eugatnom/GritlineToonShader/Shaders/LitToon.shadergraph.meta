@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 57f991b00a505894aa800fbb754c66e4
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 318895
+  packageName: Gritline Toon Shader
+  packageVersion: 1.0
+  assetPath: Assets/Eugatnom/GritlineToonShader/Shaders/LitToon.shadergraph
+  uploadId: 766945

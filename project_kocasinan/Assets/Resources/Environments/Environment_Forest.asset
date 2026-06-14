@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e871ccb94809b6141aad129b4bbb1cf0, type: 3}
+  m_Name: Environment_Forest
+  m_EditorClassIdentifier: Assembly-CSharp::BusJam.EnvironmentCatalog
+  themeName: Forest
+  groundPrefab: {fileID: 0}
+  roadPrefab: {fileID: 0}
+  fencePrefab: {fileID: 0}
+  facadePrefab: {fileID: 0}
+  housePrefab: {fileID: 0}
+  sidePropPrefabs: []
+  backRowPrefabs: []
+  cloudPrefabs: []
+  skyboxMaterial: {fileID: 0}
+  propScale: 1
+  yOffset: 0
+  sideScatterX: {x: -6.8, y: 6.8}
+  doorAnchorName: DoorAnchor
+  overrideColors: 0
+  colors:
+    sky: {r: 0.55, g: 0.78, b: 0.95, a: 1}
+    ground: {r: 0.55, g: 0.78, b: 0.55, a: 1}
+    field: {r: 0.45, g: 0.7, b: 0.45, a: 1}
+    road: {r: 0.3, g: 0.31, b: 0.34, a: 1}
+    accent: {r: 0.85, g: 0.8, b: 0.55, a: 1}
+    propMain: {r: 0.85, g: 0.55, b: 0.45, a: 1}
+    propAlt: {r: 0.65, g: 0.4, b: 0.35, a: 1}
+    foliage: {r: 0.35, g: 0.65, b: 0.4, a: 1}
+    trunk: {r: 0.45, g: 0.32, b: 0.22, a: 1}
+    grass: {r: 0.4, g: 0.7, b: 0.42, a: 1}
+    ambient: {r: 0.55, g: 0.58, b: 0.62, a: 1}
+    lightColor: {r: 1, g: 1, b: 1, a: 1}
+    lightIntensity: 1

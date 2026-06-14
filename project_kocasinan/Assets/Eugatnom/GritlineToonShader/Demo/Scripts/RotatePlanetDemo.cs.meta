@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 21f182d409160134f879550f3c7eb62b
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 318895
+  packageName: Gritline Toon Shader
+  packageVersion: 1.0
+  assetPath: Assets/Eugatnom/GritlineToonShader/Demo/Scripts/RotatePlanetDemo.cs
+  uploadId: 766945

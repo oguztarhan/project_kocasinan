@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cea12ac6b05d00947964cb65bdbebdae
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 318895
+  packageName: Gritline Toon Shader
+  packageVersion: 1.0
+  assetPath: Assets/Eugatnom/GritlineToonShader/Demo/Models/InnMaterials/ToonUnlit/Stone_Light.mat
+  uploadId: 766945

@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e871ccb94809b6141aad129b4bbb1cf0, type: 3}
+  m_Name: Environment_Autumn
+  m_EditorClassIdentifier: Assembly-CSharp::BusJam.EnvironmentCatalog
+  themeName: Autumn
+  groundPrefab: {fileID: 0}
+  roadPrefab: {fileID: 100000, guid: 4f32dfddb033d3e40b5841bc53cc1689, type: 3}
+  fencePrefab: {fileID: 100000, guid: 484404636ac422042a24ac95512dc2d3, type: 3}
+  facadePrefab: {fileID: 100000, guid: 3da5840b5d838524cb0128fbccf00053, type: 3}
+  housePrefab: {fileID: 100000, guid: 2dbee28eacba7dd42845e0153c4da642, type: 3}
+  sidePropPrefabs: []
+  backRowPrefabs: []
+  cloudPrefabs: []
+  skyboxMaterial: {fileID: 0}
+  propScale: 0.1
+  yOffset: 0.1
+  sideScatterX: {x: 1, y: 2}
+  doorAnchorName: DoorAnchor
+  overrideColors: 0
+  colors:
+    sky: {r: 0.55, g: 0.78, b: 0.95, a: 1}
+    ground: {r: 0.55, g: 0.78, b: 0.55, a: 1}
+    field: {r: 0.45, g: 0.7, b: 0.45, a: 1}
+    road: {r: 0.3, g: 0.31, b: 0.34, a: 1}
+    accent: {r: 0.85, g: 0.8, b: 0.55, a: 1}
+    propMain: {r: 0.85, g: 0.55, b: 0.45, a: 1}
+    propAlt: {r: 0.65, g: 0.4, b: 0.35, a: 1}
+    foliage: {r: 0.35, g: 0.65, b: 0.4, a: 1}
+    trunk: {r: 0.45, g: 0.32, b: 0.22, a: 1}
+    grass: {r: 0.4, g: 0.7, b: 0.42, a: 1}
+    ambient: {r: 0.55, g: 0.58, b: 0.62, a: 1}
+    lightColor: {r: 1, g: 1, b: 1, a: 1}
+    lightIntensity: 1

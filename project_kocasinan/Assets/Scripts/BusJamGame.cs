@@ -47,14 +47,16 @@ namespace BusJam
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
         const float CellSize = 1.1f;          // BIG cells: a 6-wide jam fills the portrait at the zoomed camera; vehicles scale with this
         const float GridExitZ = 5.5f;         // grid row y=0 (exit edge); the H9 jam fills the lower screen (deepest row stays on)
-        const float RoadZ = 6.4f;             // road lane, right above the jam
-        const float ParkingZ = 7.9f;          // bus stop (parking row), right above the road
-        const float SlotSpacing = 1.05f;      // all 8 pads fit the portrait width (outer pad edge ~4.1 < visible)
-        const float PeopleZ = 9.0f;           // mid of the people area (used for confetti / grass / no-facade spawn)
+        const float ScreenFloorZ = -7.7f;     // lowest on-screen ground z (tied to the pulled-back PlaceCamera) — away-exits keep their near edge above this
+        const float RoadZ = 6.9f;             // road/drive-in lane — WIDE gap below it (to the jam) and above it (to the stops) so a
+                                              // vehicle can drive ALONG it to its slot without clipping the jam OR the parked cars
+        const float ParkingZ = 9.3f;          // bus stop (parking row); +1.4 vs before to open the drive-in lane below it
+        const float SlotSpacing = 1.4f;       // wide enough for the widest vehicle (limo ~1.27) side-by-side; 8 pads still fit (~±4.9 < visible)
+        const float PeopleZ = 10.4f;          // mid of the people area (+1.4 to track the parking row)
         const float PeopleSpacing = 0.85f;    // (queue is an L from the top-right door)
-        const float FenceZ = 9.5f;            // fence, right under the people line (above the parked buses' noses)
-        const float FacadeZ = 11.7f;          // mall/terminal wall center, TOP-RIGHT; the L-queue (vertical 2 + horizontal) feeds its door
-        const float DoorSpawnZ = 11.0f;       // people are born at the door (top of the L) and the line runs down 2 then left across
+        const float FenceZ = 10.9f;           // fence, right under the people line (above the parked vehicles' noses)
+        const float FacadeZ = 13.1f;          // mall/terminal wall center, TOP-RIGHT; the L-queue (vertical 2 + horizontal) feeds its door
+        const float DoorSpawnZ = 12.4f;       // people are born at the door (top of the L) and the line runs down 2 then left across
         const int VISIBLE = 10;
         // Boarding pacing (T2): the pump DISPATCHES one front passenger every BoardGap (their walks
         // overlap), so throughput is BoardGap/person — far below the old ~0.32s serial cost.
@@ -69,6 +71,7 @@ namespace BusJam
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
+        Dictionary<string, EnvironmentCatalog> envCatalogs; // per-theme env prefab overrides (cosmetic) — Resources/Environments
         Font seatFont;
         Transform boardRoot;
 
@@ -90,6 +93,11 @@ namespace BusJam
 
         ParkingSlot[] slots;
         readonly Dictionary<Vector2Int, Bus> occ = new Dictionary<Vector2Int, Bus>();
+        // Cells an IN-FLIGHT exiting bus's swept footprint is currently driving through (over the jam). Keeps a
+        // moving vehicle VISIBLE to every later path/slide query so a second bus can't cross its live corridor.
+        // Freed the moment the bus clears the jam (z >= RoadZ). Helicopter is exempt (flies over, never reserves).
+        readonly Dictionary<Vector2Int, Bus> reservedByMoving = new Dictionary<Vector2Int, Bus>();
+        Bus gridDriver; // the ONE bus currently driving ACROSS the jam — serialized so two exiting vehicles can never mesh
         readonly List<Bus> gridBuses = new List<Bus>();
         // Per (pack material, color) instance with "Main Color 1" (_Color01) driven to the match color.
         readonly Dictionary<(Material, PieceColor), Material> tintedVehicleMats = new Dictionary<(Material, PieceColor), Material>();
@@ -109,6 +117,9 @@ namespace BusJam
             BuildMaterials();
             peopleCatalog = Resources.Load<PeopleCatalog>("PeopleCatalog"); // null -> code-built people
             vehicleCatalog = Resources.Load<VehicleCatalog>("VehicleCatalog"); // null -> code-built vehicles
+            envCatalogs = new Dictionary<string, EnvironmentCatalog>();         // per-theme env prefab overrides (empty/missing -> procedural)
+            foreach (var ec in Resources.LoadAll<EnvironmentCatalog>("Environments"))
+                if (ec != null && !string.IsNullOrEmpty(ec.themeName)) envCatalogs[ec.themeName] = ec;
             gameSettings = Resources.Load<GameSettings>("GameSettings");       // tuning knobs (Inspector-editable)
             if (gameSettings == null) gameSettings = ScriptableObject.CreateInstance<GameSettings>(); // fall back to defaults
             seatFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // roof seat-count number
@@ -184,7 +195,9 @@ namespace BusJam
         void Update()
         {
             if (state != GameState.Playing) return;
-
+#if UNITY_EDITOR
+            AssertNoOccOverlap(); // invariant watchdog: logs to the Console if two vehicles ever share a cell
+#endif
             RevealMystery();
 
             if (TryGetPointerDown(out Vector2 sp))
@@ -229,7 +242,10 @@ namespace BusJam
         {
             if (bus.state != BusState.Queued) return; // already leaving / parked / mid-crawl
 
-            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH);
+            // occ (jammed vehicles) PLUS the live corridors of in-flight exiting buses — so a tap never starts an
+            // exit whose lane crosses a bus that's still driving across the jam.
+            System.Func<Vector2Int, bool> blocked = c => Blocked(c, bus);
+            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, blocked, gridW, gridH);
             var slot = laneClear ? NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) : null;
 
             if (laneClear && slot != null)
@@ -244,7 +260,7 @@ namespace BusJam
 
             // Partial advance: crawlers cap at advanceN cells/tap; normals advance until the blocker.
             int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH;
-            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, occ.ContainsKey, gridW, gridH, cap);
+            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, cap);
             if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); return; } // blocked: crash + shake (no forward progress, no exit)
 
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
@@ -258,41 +274,179 @@ namespace BusJam
         IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
-            // Find the SHORTEST CLEAR, on-screen path from the bus's cell to the parking slot — A* through the
-            // EMPTY cells (occ = the vehicles still in the jam) that never leaves the screen — driven as a smooth
-            // spline. Falls back to a direct up-to-the-road route only when the jam is too dense to thread.
-            var path = FindClearPath(bus.cell, slot);
-            if (path == null || path.Count == 0)
-                path = new List<Vector3> { new Vector3(SlotX(slot.index), 0, RoadZ) }; // dense-jam fallback (still on-screen)
-            path.Add(ParkingWorld(slot.index));                                        // end exactly at the slot
-            yield return DrivePath(bus.transform, path, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
-            bus.transform.rotation = Quaternion.Euler(0, 180f, 0);                   // settle to exact parked facing (nose +Z)
+            // Hold our own footprint immediately: occ was freed at the tap (237) but we still physically sit here
+            // while planning/waiting below — keep us visible to other buses' paths until we actually move off.
+            ReserveCorridor(bus, new List<Vector2Int> { bus.cell });
+
+            // SERIALIZE the WHOLE approach: only ONE bus drives from the jam to its stop at a time (the lock is held
+            // until it PARKS, below), so two exiting vehicles can never meet — not mid-jam, not on the road, not at
+            // a stop. We keep our reserved spot above while waiting our turn. Timeout is generous for a tap queue.
+            float turnWait = 0f;
+            while (gridDriver != null && gridDriver != bus && turnWait < 20f)
+            {
+                yield return null;
+                if (bus == null || state != GameState.Playing) { busy--; yield break; }
+                turnWait += Time.deltaTime;
+            }
+            gridDriver = bus;
+            StartCoroutine(FreeCorridorWhenClear(bus));
+
+            // Exit GROUNDED, never hitting a vehicle. The bus already FACES `dir`; if its straight `dir` lane is
+            // STILL clear (re-checked — a crawl may have moved during our serialize wait) we SLIDE STRAIGHT out
+            // along it (linear move — NO spline bow, NO rotation inside the jam, so the body can't enter/sweep an
+            // occupied cell), then drive to the slot through OPEN space only (above the jam, or around its side).
+            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, c => Blocked(c, bus), gridW, gridH);
+            if (laneClear)
+            {
+                int maxSteps = ExitDistance(bus.cell, bus.dir) + bus.length;              // full slide that clears the board (upper bound)
+                int clearSteps = maxSteps;
+                bool away = bus.dir.y > 0;                                                // arrow points AWAY from the stops
+                if (away)
+                {
+                    // Slide down only until the body is JUST BELOW the deepest jammed vehicle (so we can cross
+                    // under the jam), but keep our NEAR edge ON-SCREEN — never drop off the bottom. Adaptive to
+                    // the jam's real depth and the vehicle's own length.
+                    float halfLen = bus.length * 0.55f;                          // body half-length (world)
+                    float deepestZ = ParkingZ;
+                    foreach (var kv in occ) { float z = CellWorld(kv.Key).z; if (z < deepestZ) deepestZ = z; }
+                    float underZ = deepestZ - (halfLen + 0.45f);                 // just below the deepest jammed vehicle
+                    underZ = Mathf.Max(underZ, ScreenFloorZ + halfLen + 0.25f);  // ...but the near edge stays on-screen
+                    int need = Mathf.CeilToInt((bus.transform.position.z - underZ) / CellSize);
+                    clearSteps = Mathf.Clamp(need, 1, maxSteps);
+                }
+                else if (bus.dir.y < 0)
+                {
+                    // Toward-parking: slide up only until the body just clears the jam top, then take the road lane to
+                    // the slot — don't overshoot far past the stops and bounce back down to the road.
+                    float halfLen = bus.length * 0.55f;
+                    int need = Mathf.CeilToInt((GridExitZ + halfLen + 0.5f - bus.transform.position.z) / CellSize);
+                    clearSteps = Mathf.Clamp(need, 1, maxSteps);
+                }
+                var lane = new List<Vector2Int>();
+                for (int s = 0; s <= clearSteps; s++) lane.Add(bus.cell + bus.dir * s);
+                ReserveCorridor(bus, lane);                                               // hold the straight lane (a crawling vehicle can't enter it)
+                Vector3 clearPt = bus.transform.position + new Vector3(bus.dir.x, 0, -bus.dir.y) * (clearSteps * CellSize);
+                clearPt = OnScreenX(clearPt, 1.0f);                                       // never slide the body off the SIDE of the screen (fixes deep sideways exits too)
+                float slideDur = Vector3.Distance(bus.transform.position, clearPt) / Mathf.Max(gameSettings.busDriveSpeed, 1f);
+                yield return MoveTo(bus.transform, clearPt, slideDur);                    // STRAIGHT slide along the clear lane (no bow/rotation in the jam)
+
+                var rest = new List<Vector3>();
+                float slotX = SlotX(slot.index);
+                if (away)
+                {
+                    // Drive out to the EMPTIER side, then SLOWLY turn and rise hugging the on-screen side LANE up to
+                    // the ROAD (steps follow VisHalfW(z) so the body + spline bow stay in-frame). The ~25% zoom-out
+                    // opened a real lane outside the jam, so this is grounded, on-screen, and clears the cars.
+                    int leftJam = 0, rightJam = 0;
+                    foreach (var kv in occ) { if (kv.Key.x <= 1) leftJam++; else if (kv.Key.x >= gridW - 2) rightJam++; }
+                    float side = (leftJam <= rightJam) ? -1f : 1f;               // up whichever side is less jammed
+                    const float M = 1.0f;                                        // body half-width + spline-bow + safety
+                    rest.Add(new Vector3(side * (VisHalfW(clearPt.z) - M), 0, clearPt.z)); // out to the on-screen side lane (below the jam)
+                    for (float z = clearPt.z + 1.6f; z < RoadZ; z += 1.6f)
+                        rest.Add(new Vector3(side * (VisHalfW(z) - M), 0, z));    // rise hugging the side lane (gentle, slow turn)
+                    rest.Add(new Vector3(side * (VisHalfW(RoadZ) - M), 0, RoadZ));
+                }
+                else
+                    rest.Add(new Vector3(clearPt.x, 0, RoadZ));     // toward-parking / sideways exit: come onto the road at our current x
+                // Approach the slot via the CLEAR ROAD lane (z=RoadZ is below the parked cars at ParkingZ), then pull
+                // STRAIGHT UP into the slot — so we never drive ALONG the parking row through a vehicle already at a stop.
+                rest.Add(new Vector3(slotX, 0, RoadZ));             // along the open road to the slot's x (no parked cars on the road)
+                rest.Add(new Vector3(slotX, 0, ParkingZ));          // pull up into the slot (perpendicular; ~0.05u gap to neighbours)
+                for (int i = 0; i < rest.Count; i++) rest[i] = OnScreenX(rest[i], 1.0f);  // keep every waypoint on-screen (slot x is already in-frame)
+                yield return DrivePath(bus.transform, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+            }
+            else
+            {
+                // RARE: a crawl blocked the lane after the tap so there's no grounded route out — lift over (the
+                // only remaining no-collision option). Almost never happens.
+                yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.6f, 2.0f);
+            }
+            bus.transform.rotation = Quaternion.Euler(0, 180f, 0);                        // settle to exact parked facing (nose +Z)
+            FreeCorridor(bus);
+            if (gridDriver == bus) gridDriver = null;
             bus.state = BusState.Parked;
-            sfx.Honk();                                                              // ONE honk as it pulls into the stop
+            sfx.Honk();                                                                  // ONE honk as it pulls into the stop
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
             busy--;
             TryStartBoardingPump();
             CheckEnd();
         }
 
-        // ---- A* shortest CLEAR, on-screen exit path ------------------------------------------------------
-        // World waypoints (ground y=0) from the bus's cell to the parking slot, threading only EMPTY cells
-        // (occ = vehicles still jammed) and staying on-screen; null if the jam is too dense to thread. The bus
-        // is treated as a point on the jam cell grid, which is extended with a clear apron up past the parking.
-        List<Vector3> FindClearPath(Vector2Int start, ParkingSlot slot)
+        // occ (jammed) OR a live in-flight corridor holds this cell for a DIFFERENT bus.
+        bool Blocked(Vector2Int c, Bus self) =>
+            (occ.TryGetValue(c, out var ob) && ob != self) || (reservedByMoving.TryGetValue(c, out var rb) && rb != self);
+
+        // Reserve the swept FOOTPRINT of the path's jam-side cells (z < RoadZ) for this moving bus.
+        void ReserveCorridor(Bus bus, List<Vector2Int> cells)
         {
+            foreach (var c in cells)
+                foreach (var fc in LevelGenerator.OccCells(c, bus.dir, bus.length))
+                {
+                    if (CellWorld(fc).z >= RoadZ) continue; // only the contested jam corridor
+#if UNITY_EDITOR
+                    if (reservedByMoving.TryGetValue(fc, out var ex) && ex != bus)
+                        Debug.LogError($"[OccOverlap] reserving {fc} for {bus.name} but already held by {(ex ? ex.name : "?")}");
+#endif
+                    reservedByMoving[fc] = bus;
+                }
+        }
+
+        void FreeCorridor(Bus bus)
+        {
+            if (reservedByMoving.Count == 0) return;
+            var rm = new List<Vector2Int>();
+            foreach (var kv in reservedByMoving) if (kv.Value == bus) rm.Add(kv.Key);
+            foreach (var c in rm) reservedByMoving.Remove(c);
+        }
+
+        IEnumerator FreeCorridorWhenClear(Bus bus)
+        {
+            // Free only once the TAIL (not just the center) has cleared the jam: for a length-L body the center
+            // must sit a half-body PAST RoadZ so the rear cells are out. length-1 Car -> margin 0 (identical to before).
+            yield return new WaitUntil(() => bus == null ||
+                bus.transform.position.z >= RoadZ + (bus.length - 1) * 0.5f * CellSize - 0.05f);
+            FreeCorridor(bus); // free the JAM lane for crawls once the tail is out — but gridDriver is held until PARK
+        }                      // (the road approach is still this bus's; the next bus must wait until we're parked)
+
+#if UNITY_EDITOR
+        // Invariant watchdog (Editor only, every frame): NO grid cell may be held by two DIFFERENT vehicles across
+        // occ (jammed) + reservedByMoving (in-flight corridors). Logs a red Console error naming the cell + both
+        // buses if it ever happens — so a regression in the lock-step shows up immediately while you play.
+        void AssertNoOccOverlap()
+        {
+            foreach (var kv in reservedByMoving)
+                if (occ.TryGetValue(kv.Key, out var ob) && ob != null && ob != kv.Value)
+                    Debug.LogError($"[OccOverlap] cell {kv.Key} held by '{ob.name}' (jam) AND '{(kv.Value ? kv.Value.name : "?")}' (moving)");
+        }
+#endif
+
+        // ---- A* shortest CLEAR, on-screen exit path (FOOTPRINT-AWARE) ------------------------------------------
+        // Returns the CELL CHAIN (start..goal) or null. Each node is vetted with the bus's FULL OccCells footprint
+        // (body + diagonal corner cells — the SAME geometry the generator placed with) against jammed vehicles
+        // (occ) AND other in-flight corridors (reservedByMoving), and every footprint cell must stay on-screen. So
+        // the animated drive can never corner its body through a neighbour. ignoreReserved=true tests against
+        // jammed vehicles ONLY (used to tell a transient corridor-block from a genuinely dense board).
+        // For a length-1 Car, OccCells(c,dir,1) == [c], so this is byte-identical to the old point check.
+        List<Vector2Int> FindClearPath(Bus bus, ParkingSlot slot, bool ignoreReserved)
+        {
+            Vector2Int start = bus.cell;
             Vector2Int goal = WorldToCell(ParkingWorld(slot.index));
-            int xMin = Mathf.Min(0, Mathf.Min(start.x, goal.x)) - 1;
-            int xMax = Mathf.Max(gridW - 1, Mathf.Max(start.x, goal.x)) + 1;
-            int yMin = Mathf.Min(goal.y, start.y) - 1;
-            int yMax = Mathf.Max(gridH - 1, start.y) + 1;
+            int xMin = Mathf.Min(0, Mathf.Min(start.x, goal.x)) - bus.length - 1;
+            int xMax = Mathf.Max(gridW - 1, Mathf.Max(start.x, goal.x)) + bus.length + 1;
+            int yMin = Mathf.Min(goal.y, start.y) - bus.length - 1;
+            int yMax = Mathf.Max(gridH - 1, start.y) + bus.length + 1;
 
             bool Walk(Vector2Int c)
             {
-                if (c == start || c == goal) return true;            // endpoints always allowed
-                if (occ.ContainsKey(c)) return false;                // a vehicle is parked there
-                Vector3 w = CellWorld(c);
-                return Mathf.Abs(w.x) <= VisHalfW(w.z) - 0.35f;      // must stay on-screen (body + perspective margin)
+                if (c == start || c == goal) return true;            // endpoints (own start footprint + clear apron)
+                foreach (var fc in LevelGenerator.OccCells(c, bus.dir, bus.length))
+                {
+                    if (occ.TryGetValue(fc, out var ob) && ob != bus) return false;                          // jammed vehicle
+                    if (!ignoreReserved && reservedByMoving.TryGetValue(fc, out var rb) && rb != bus) return false; // another live corridor
+                    Vector3 w = CellWorld(fc);
+                    if (Mathf.Abs(w.x) > VisHalfW(w.z) - 0.35f) return false; // every footprint cell on-screen
+                }
+                return true;
             }
 
             var open = new List<Vector2Int> { start };
@@ -308,14 +462,20 @@ namespace BusJam
                 int bi = 0;
                 for (int i = 1; i < open.Count; i++) if (fScore[open[i]] < fScore[open[bi]]) bi = i;
                 var cur = open[bi]; open.RemoveAt(bi);
-                if (cur == goal) return CellsToWorld(came, cur);
+                if (cur == goal)
+                {
+                    var cells = new List<Vector2Int> { cur };
+                    while (came.ContainsKey(cur)) { cur = came[cur]; cells.Add(cur); }
+                    cells.Reverse(); // start ... goal
+                    return cells;
+                }
                 closed.Add(cur);
                 foreach (var d in steps)
                 {
                     var n = cur + d;
                     if (n.x < xMin || n.x > xMax || n.y < yMin || n.y > yMax) continue;
                     if (closed.Contains(n) || !Walk(n)) continue;
-                    if (d.x != 0 && d.y != 0 &&                       // no diagonal squeeze past a blocked corner
+                    if (d.x != 0 && d.y != 0 &&                       // footprint-aware corner-sweep (ca/cb = SlideClear convention)
                         (!Walk(new Vector2Int(cur.x + d.x, cur.y)) || !Walk(new Vector2Int(cur.x, cur.y + d.y)))) continue;
                     float tg = gScore[cur] + ((d.x != 0 && d.y != 0) ? 1.41421356f : 1f);
                     if (!gScore.TryGetValue(n, out float gn) || tg < gn)
@@ -325,7 +485,7 @@ namespace BusJam
                     }
                 }
             }
-            return null; // no clear on-screen path -> caller falls back
+            return null; // no clear on-screen path -> caller waits or falls back
         }
 
         static float Heur(Vector2Int a, Vector2Int b) { float dx = a.x - b.x, dy = a.y - b.y; return Mathf.Sqrt(dx * dx + dy * dy); }
@@ -333,16 +493,21 @@ namespace BusJam
             Mathf.RoundToInt(w.x / CellSize + (gridW - 1) * 0.5f), Mathf.RoundToInt((GridExitZ - w.z) / CellSize));
         Vector3 CellWorld(Vector2Int c) => new Vector3((c.x - (gridW - 1) * 0.5f) * CellSize, 0, GridExitZ - c.y * CellSize);
 
-        // Visible half-width (world units) at ground depth z, conservative for a tall portrait (aspect 0.462).
-        // Tied to PlaceCamera (pos 0,16,-6 / target 0,0,3.2 / FOV 54) — keep in sync if the camera changes.
-        static float VisHalfW(float z) => (13.867f + 0.4983f * (z + 6f)) * 0.2356f;
+        // Visible half-width (world units) at ground depth z, for a tall portrait (aspect 0.462).
+        // Tied to PlaceCamera (pos 0,21.2,-8.99 / target 0,0,3.2 / FOV 54). The +6.0 vs the old 13.867 is the
+        // camera pulled back 6.0u along the view axis (the ~25% zoom-out). Keep in sync if the camera changes.
+        static float VisHalfW(float z) => (19.867f + 0.4983f * (z + 6f)) * 0.2356f;
 
-        // A* cell chain -> world waypoints, dropping the start cell (DrivePath prepends the bus's pos) and collinear runs.
-        List<Vector3> CellsToWorld(Dictionary<Vector2Int, Vector2Int> came, Vector2Int cur)
+        // Clamp a waypoint's X so the whole body (+ spline bow, ~margin) stays inside the camera frustum at depth z.
+        static Vector3 OnScreenX(Vector3 p, float margin)
         {
-            var cells = new List<Vector2Int> { cur };
-            while (came.ContainsKey(cur)) { cur = came[cur]; cells.Add(cur); }
-            cells.Reverse(); // start ... goal
+            float h = Mathf.Max(0.2f, VisHalfW(p.z) - margin);
+            return new Vector3(Mathf.Clamp(p.x, -h, h), p.y, p.z);
+        }
+
+        // Cell chain -> world waypoints, dropping the start cell (DrivePath prepends the bus's pos) and collinear runs.
+        List<Vector3> CellsToWorld(List<Vector2Int> cells)
+        {
             var pts = new List<Vector3>();
             for (int i = 1; i < cells.Count; i++)
             {
@@ -776,7 +941,7 @@ namespace BusJam
             StopAllCoroutines();
             Juice.ClearAllPunches(); // drop punch state left by hard-stopped coroutines (no cross-level leak)
             busy = 0; pumpRunning = false; pumpDirty = false;
-            occ.Clear(); gridBuses.Clear(); visible.Clear(); slots = null;
+            occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); visible.Clear(); slots = null;
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
@@ -1645,7 +1810,21 @@ namespace BusJam
 
         void ApplyTheme(Theme th)
         {
-            if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
+            // T2: per-theme COSMETIC env prefab overrides (Resources/Environments). Empty slots -> procedural.
+            // Optional color override re-tints even procedural elements (modify the local th copy before anything reads it).
+            var env = EnvCatalogFor(th.name);
+            if (env != null && env.overrideColors && env.colors != null)
+            {
+                var c = env.colors;
+                th.sky = c.sky; th.ground = c.ground; th.field = c.field; th.road = c.road; th.accent = c.accent;
+                th.propMain = c.propMain; th.propAlt = c.propAlt; th.foliage = c.foliage; th.trunk = c.trunk;
+                th.grass = c.grass; th.ambient = c.ambient; th.lightColor = c.lightColor; th.lightIntensity = c.lightIntensity;
+            }
+            if (cam != null)
+            {
+                if (env != null && env.skyboxMaterial != null) { RenderSettings.skybox = env.skyboxMaterial; cam.clearFlags = CameraClearFlags.Skybox; }
+                else { RenderSettings.skybox = null; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
+            }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = th.ambient * 1.0f;   // a touch less fill = more contrast/pop (post-exposure adds brightness back)
             var sun = Object.FindAnyObjectByType<Light>();
@@ -1672,28 +1851,49 @@ namespace BusJam
             Material cloud  = MaterialLibrary.GetTheme(th.name, "Cloud", new Color(1f, 1f, 1f), 0f, 0.18f);
             // slotMat is now a stable, editable asset set in BuildMaterials (no theme override).
 
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
-            // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
-            // buses drive off-screen sideways ALONG it. Raised to y=-0.10 ABOVE the ground slab (y=-0.12) so
-            // it reads as a real road, and slimmed to a 1.0 lane (clears the stops). Spans past both screen edges.
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat); // STANDARD asphalt every level; slimmer so it clears the stops
-
-            for (int i = -4; i <= 4; i++)
+            if (env != null && env.groundPrefab != null)
+                InstantiateEnv(env, env.groundPrefab, new Vector3(0, 0, 3f));
+            else
             {
-                var post = MakeCube(boardRoot, accent, new Vector3(0.1f, 0.5f, 0.1f));
-                post.transform.position = new Vector3(i * 1.1f, 0.25f, FenceZ);
-                var bar = MakeCube(boardRoot, accent, new Vector3(1.1f, 0.06f, 0.05f));
-                bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
+                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
+                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
             }
+            // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
+            // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
+            if (env != null && env.roadPrefab != null)
+                InstantiateEnv(env, env.roadPrefab, new Vector3(0, -0.10f, RoadZ));
+            else
+                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
 
-            // Side scatter — alternate the theme's two prop kinds for variety (halved on low-end).
-            for (int i = 0; i < (lowEnd ? 3 : 6); i++)
+            if (env != null && env.fencePrefab != null)
+                InstantiateEnv(env, env.fencePrefab, new Vector3(0, 0, FenceZ));
+            else
+                for (int i = -4; i <= 4; i++)
+                {
+                    var post = MakeCube(boardRoot, accent, new Vector3(0.1f, 0.5f, 0.1f));
+                    post.transform.position = new Vector3(i * 1.1f, 0.25f, FenceZ);
+                    var bar = MakeCube(boardRoot, accent, new Vector3(1.1f, 0.06f, 0.05f));
+                    bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
+                }
+
+            // Side scatter — alternate the theme's two prop kinds (halved on low-end), or your own prefabs.
+            int sideN = lowEnd ? 3 : 6;
+            bool sideCustom = env != null && env.sidePropPrefabs != null && env.sidePropPrefabs.Length > 0;
+            for (int i = 0; i < sideN; i++)
             {
                 float z = -1f + i * 2.6f;
-                PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
-                LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
-                LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
+                if (sideCustom)
+                {
+                    var p = env.sidePropPrefabs[i % env.sidePropPrefabs.Length];
+                    InstantiateEnv(env, p, new Vector3(env.sideScatterX.x, 0, z));
+                    InstantiateEnv(env, p, new Vector3(env.sideScatterX.y, 0, z));
+                }
+                else
+                {
+                    PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
+                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
+                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
+                }
             }
 
             // Behind the people band: a closed mall/terminal FACADE (people emerge from its doors), else
@@ -1702,22 +1902,34 @@ namespace BusJam
             float backZ = PeopleZ + 4f;
             if (th.hasFacade)
             {
-                BuildFacade(th, accent, window);
+                if (env != null && env.facadePrefab != null) InstantiateFacade(env); // sets doorXs/exitDoorX from a door anchor
+                else BuildFacade(th, accent, window);
             }
             else if (th.hasHouse)
             {
-                LowPolyBuilder.BuildProp(boardRoot, PropKind.House, new Vector3(0, 0, backZ + 0.6f), main, alt, foliage, trunk, window, 1.8f);
-                LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(-4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
-                LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
-                LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(-2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
-                LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
+                if (env != null && env.housePrefab != null)
+                    InstantiateEnv(env, env.housePrefab, new Vector3(0, 0, backZ + 0.6f), 1.8f);
+                else
+                {
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.House, new Vector3(0, 0, backZ + 0.6f), main, alt, foliage, trunk, window, 1.8f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(-4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(-2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
+                }
             }
             else
             {
+                bool backCustom = env != null && env.backRowPrefabs != null && env.backRowPrefabs.Length > 0;
                 for (int i = 0; i < 5; i++)
                 {
-                    PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
-                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
+                    if (backCustom)
+                        InstantiateEnv(env, env.backRowPrefabs[i % env.backRowPrefabs.Length], new Vector3(-5f + i * 2.5f, 0, backZ), 1.7f);
+                    else
+                    {
+                        PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
+                        LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
+                    }
                 }
             }
 
@@ -1731,8 +1943,53 @@ namespace BusJam
                     LowPolyBuilder.GrassTuft(boardRoot, new Vector3(gx, 0, gz), 1.0f, grass);
                 }
 
-            for (int k = 0; k < (lowEnd ? 2 : 4); k++)
-                MakeCloud(new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f), cloud, k);
+            int cloudN = lowEnd ? 2 : 4;
+            bool cloudCustom = env != null && env.cloudPrefabs != null && env.cloudPrefabs.Length > 0;
+            for (int k = 0; k < cloudN; k++)
+            {
+                Vector3 cp = new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f);
+                if (cloudCustom) InstantiateEnv(env, env.cloudPrefabs[k % env.cloudPrefabs.Length], cp);
+                else MakeCloud(cp, cloud, k);
+            }
+        }
+
+        // ---- T2 environment-catalog helpers (COSMETIC; never touch occ/slots/queue/solver) -------------------
+        EnvironmentCatalog EnvCatalogFor(string themeName) =>
+            (envCatalogs != null && !string.IsNullOrEmpty(themeName) && envCatalogs.TryGetValue(themeName, out var ec)) ? ec : null;
+
+        // Instantiate a cosmetic env prefab under boardRoot, STRIP physics (so it can't fall or be hit by the tap
+        // raycast — no collider may survive), and apply the catalog fit (propScale*extra, yOffset). Returns the instance.
+        GameObject InstantiateEnv(EnvironmentCatalog env, GameObject prefab, Vector3 pos, float extraScale = 1f)
+        {
+            if (prefab == null) return null;
+            var go = Instantiate(prefab, boardRoot, false);
+            foreach (var rb in go.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
+            foreach (var col in go.GetComponentsInChildren<Collider>(true)) Destroy(col); // CRITICAL: no collider may block a bus/slot tap
+            go.transform.position = pos + new Vector3(0, env != null ? env.yOffset : 0f, 0);
+            go.transform.localScale = Vector3.one * ((env != null ? env.propScale : 1f) * extraScale);
+            return go;
+        }
+
+        // Custom facade: instantiate it, then set the boarding-queue door (doorXs/exitDoorX) from a named child
+        // anchor's world-X — the ONE gameplay-adjacent detail. Fallback x=3.5 (today's value) if no anchor exists.
+        void InstantiateFacade(EnvironmentCatalog env)
+        {
+            var go = InstantiateEnv(env, env.facadePrefab, new Vector3(0, 0, FacadeZ));
+            float doorX = 3.5f;
+            if (go != null && !string.IsNullOrEmpty(env.doorAnchorName))
+            {
+                var anchor = FindChildByName(go.transform, env.doorAnchorName);
+                if (anchor != null) doorX = anchor.position.x;
+            }
+            doorXs = new[] { doorX };
+            exitDoorX = doorX;
+        }
+
+        static Transform FindChildByName(Transform root, string name)
+        {
+            if (root.name == name) return root;
+            foreach (Transform c in root) { var r = FindChildByName(c, name); if (r != null) return r; }
+            return null;
         }
 
         void MakeCloud(Vector3 pos, Material mat, int seed)
@@ -1758,9 +2015,12 @@ namespace BusJam
         void PlaceCamera()
         {
             if (cam == null) return;
-            // Zoomed-in steep top-down (T3): the big-cell jam + the people line both fill the portrait frame.
-            // FOV 54 keeps the 6-wide jam's deepest corner on-screen on a tall (0.462) phone. Tune in-editor.
-            Vector3 pos = new Vector3(0f, 16f, -6f);
+            // Steep top-down, pulled BACK 6.0u along the view axis vs the original (0,16,-6): the jam now fills
+            // ~74% of the portrait width, leaving a clear lane down each side WIDE ENOUGH (with comfortable margin
+            // even at the deepest row) for AWAY-arrow vehicles to drive around to the stops on-screen without
+            // touching the jam. VisHalfW + ScreenFloorZ are tied to this pos — change all three together.
+            // (Dial 6.0 down toward 4.5 for a tighter frame if you accept a small graze at the two deepest rows.)
+            Vector3 pos = new Vector3(0f, 21.2f, -8.99f);
             Vector3 target = new Vector3(0f, 0f, 3.2f);
             cam.transform.position = pos;
             cam.transform.rotation = Quaternion.LookRotation(target - pos, Vector3.up);

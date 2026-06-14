@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 9a9b2b7bfe574b44e8ff27f082428749
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 318895
+  packageName: Gritline Toon Shader
+  packageVersion: 1.0
+  assetPath: Assets/Eugatnom/GritlineToonShader/Demo/Models/InnMaterials/ToonUnlit/Wood.mat
+  uploadId: 766945

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c38fdb73ea94a474d9f534fc72a7a002
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 318895
+  packageName: Gritline Toon Shader
+  packageVersion: 1.0
+  assetPath: Assets/Eugatnom/GritlineToonShader/Demo/Materials/Gritline_LitToonNoSmoothness.mat
+  uploadId: 766945
