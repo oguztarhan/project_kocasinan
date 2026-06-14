@@ -12,8 +12,7 @@ namespace BusJam
     {
         [Header("Model per type")]
         public GameObject carPrefab;   // 1 cell  (Sedan)
-        public GameObject busPrefab;   // 2 cells (Step 2)
-        public GameObject limoPrefab;  // 3 cells (Step 2) — using a long truck
+        public GameObject busPrefab;   // 2 cells
 
         [Header("Fit (tune so they sit right in the grid)")]
         [Range(0.5f, 1f)] public float fitFactor = 0.9f; // model length as a fraction of its cell span
@@ -25,7 +24,6 @@ namespace BusJam
             switch (t)
             {
                 case VehicleType.Car:  return carPrefab;
-                case VehicleType.Limo: return limoPrefab;
                 default:               return busPrefab;
             }
         }

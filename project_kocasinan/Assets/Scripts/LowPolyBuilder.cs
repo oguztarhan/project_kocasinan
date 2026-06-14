@@ -23,18 +23,18 @@ namespace BusJam
             return go;
         }
 
-        /// <summary>True body length = the vehicle's L grid cells (Car 1 / Bus 2 / Limo 3) at ~0.9 fill, so a
+        /// <summary>True body length = the vehicle's L grid cells (Car 1 / Bus 2) at ~0.9 fill, so a
         /// vehicle spans its WHOLE footprint and the board reads as a packed jam.</summary>
         public static float VehicleLength(VehicleType type, float cellSize) => cellSize * Vehicles.CellLength(type) * 0.9f;
 
-        // Car = short & tall, Bus = standard, Limo = long & low. Roof heads (boarded passengers) are
-        // built separately by BusJamGame.BuildRoofHeads, unified across both render paths.
+        // Car = short & tall, Bus = standard. Roof heads (boarded passengers) are built separately by
+        // BusJamGame.BuildRoofHeads, unified across both render paths.
         public static void BuildVehicle(Transform root, VehicleType type, float cellSize,
             Material body, Material glass, Material wheel, Material light, Material arrowMat)
         {
             float len = VehicleLength(type, cellSize);                                   // spans the L cells (along Z)
             float w   = cellSize * 0.52f;                                                // proportional width (along X) -- not stretched
-            float h   = cellSize * (type == VehicleType.Car ? 0.46f : type == VehicleType.Limo ? 0.32f : 0.42f);
+            float h   = cellSize * (type == VehicleType.Car ? 0.46f : 0.42f);
             float wr  = cellSize * 0.11f;    // wheel radius
             float bodyY = wr + h * 0.5f;
             float top = wr + h;

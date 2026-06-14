@@ -5,15 +5,14 @@ namespace BusJam.EditorTools
 {
     /// <summary>
     /// "BusJam ▸ Build Vehicle Catalog" — points the VehicleCatalog at the imported
-    /// LowPolyRoadVehicles pack: Car→Sedan, Bus→Bus_01, Limo→Ambulance. Overwrites the
-    /// three model slots (fit tuning fields are left untouched).
+    /// LowPolyRoadVehicles pack: Car→Sedan, Bus→Bus_01. Overwrites the model
+    /// slots (fit tuning fields are left untouched).
     /// </summary>
     public static class VehicleCatalogBuilder
     {
         const string Root = "Assets/YelScryptFireStudio/LowPolyRoadVehiclesFreePackage/Vehicles";
         const string CarPath = Root + "/Sedan_01/pref_Sedan_01.prefab";
         const string BusPath = Root + "/Bus_01/pref_Bus_01.prefab";
-        const string LimoPath = Root + "/Ambulance_01/pref_Ambulance_01.prefab";
         const string CatalogPath = "Assets/Resources/VehicleCatalog.asset";
 
         [MenuItem("BusJam/Build Vehicle Catalog")]
@@ -33,14 +32,13 @@ namespace BusJam.EditorTools
 
             cat.carPrefab = Load(CarPath, "Car");
             cat.busPrefab = Load(BusPath, "Bus");
-            cat.limoPrefab = Load(LimoPath, "Limo");
 
             EditorUtility.SetDirty(cat);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
             Debug.Log($"[VehicleCatalog] {(created ? "created" : "updated")} at {CatalogPath} — " +
-                      $"Car={Name(cat.carPrefab)}, Bus={Name(cat.busPrefab)}, Limo={Name(cat.limoPrefab)}");
+                      $"Car={Name(cat.carPrefab)}, Bus={Name(cat.busPrefab)}");
             Selection.activeObject = cat;
         }
 

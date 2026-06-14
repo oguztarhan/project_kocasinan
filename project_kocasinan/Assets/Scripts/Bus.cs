@@ -5,7 +5,7 @@ namespace BusJam
 {
     public enum BusState { Queued, Staging, MovingToSlot, Parked, Leaving, Done }
 
-    /// <summary>Runtime vehicle (Car/Bus/Limo). Little roof passengers pop in as people board.</summary>
+    /// <summary>Runtime vehicle (Car/Bus). Little roof passengers pop in as people board.</summary>
     public class Bus : MonoBehaviour
     {
         public PieceColor color;

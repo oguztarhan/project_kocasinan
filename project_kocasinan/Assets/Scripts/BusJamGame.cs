@@ -54,7 +54,7 @@ namespace BusJam
         const float SlotSpacing = 1.4f;       // wide enough for the widest vehicle (limo ~1.27) side-by-side; 8 pads still fit (~±4.9 < visible)
         const float PeopleZ = 10.4f;          // mid of the people area (+1.4 to track the parking row)
         const float PeopleSpacing = 0.85f;    // (queue is an L from the top-right door)
-        const float FenceZ = 10.9f;           // fence, right under the people line (above the parked vehicles' noses)
+        const float FenceZ = 10.0f;           // fence IN FRONT of the people line (toward the buses), per request
         const float FacadeZ = 13.1f;          // mall/terminal wall center, TOP-RIGHT; the L-queue (vertical 2 + horizontal) feeds its door
         const float DoorSpawnZ = 12.4f;       // people are born at the door (top of the L) and the line runs down 2 then left across
         const int VISIBLE = 10;
@@ -71,7 +71,12 @@ namespace BusJam
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
-        Dictionary<string, EnvironmentCatalog> envCatalogs; // per-theme env prefab overrides (cosmetic) — Resources/Environments
+        // Imported SimplePoly/Polygonal pack assets, loaded STRAIGHT from Resources/Fx (copied there, no build step).
+        // Any null -> that piece falls back to procedural; the game never hard-fails on a missing asset.
+        GameObject smokeFx, hitFx, busStopFx;
+        GameObject[] cityBuildings, cityTrees, cityRoads, cityProps;
+        Material toonOutlineFx;
+        Material smokeMat, hitMat;            // cached runtime URP particle mats (so the built-in-shader VFX aren't magenta)
         Font seatFont;
         Transform boardRoot;
 
@@ -117,9 +122,14 @@ namespace BusJam
             BuildMaterials();
             peopleCatalog = Resources.Load<PeopleCatalog>("PeopleCatalog"); // null -> code-built people
             vehicleCatalog = Resources.Load<VehicleCatalog>("VehicleCatalog"); // null -> code-built vehicles
-            envCatalogs = new Dictionary<string, EnvironmentCatalog>();         // per-theme env prefab overrides (empty/missing -> procedural)
-            foreach (var ec in Resources.LoadAll<EnvironmentCatalog>("Environments"))
-                if (ec != null && !string.IsNullOrEmpty(ec.themeName)) envCatalogs[ec.themeName] = ec;
+            smokeFx       = Resources.Load<GameObject>("Fx/smoke");            // imported pack prefabs copied into Resources/Fx (null -> procedural)
+            hitFx         = Resources.Load<GameObject>("Fx/hit");
+            busStopFx     = Resources.Load<GameObject>("Fx/busstop");
+            toonOutlineFx = Resources.Load<Material>("Fx/toon_outline");
+            cityBuildings = Resources.LoadAll<GameObject>("Fx/Buildings");
+            cityTrees     = Resources.LoadAll<GameObject>("Fx/Trees");
+            cityRoads     = Resources.LoadAll<GameObject>("Fx/Roads");
+            cityProps     = Resources.LoadAll<GameObject>("Fx/Props");
             gameSettings = Resources.Load<GameSettings>("GameSettings");       // tuning knobs (Inspector-editable)
             if (gameSettings == null) gameSettings = ScriptableObject.CreateInstance<GameSettings>(); // fall back to defaults
             seatFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // roof seat-count number
@@ -261,7 +271,7 @@ namespace BusJam
             // Partial advance: crawlers cap at advanceN cells/tap; normals advance until the blocker.
             int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH;
             int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, cap);
-            if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); return; } // blocked: crash + shake (no forward progress, no exit)
+            if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; } // blocked: crash + shake + debris poof (no forward progress, no exit)
 
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
             bus.cell += bus.dir * step;
@@ -290,6 +300,7 @@ namespace BusJam
             }
             gridDriver = bus;
             StartCoroutine(FreeCorridorWhenClear(bus));
+            var exhaust = SpawnExhaust(bus); // T5: rear exhaust trail while it drives off (null on lowEnd / unbuilt catalog)
 
             // Exit GROUNDED, never hitting a vehicle. The bus already FACES `dir`; if its straight `dir` lane is
             // STILL clear (re-checked — a crawl may have moved during our serialize wait) we SLIDE STRAIGHT out
@@ -364,6 +375,7 @@ namespace BusJam
             bus.transform.rotation = Quaternion.Euler(0, 180f, 0);                        // settle to exact parked facing (nose +Z)
             FreeCorridor(bus);
             if (gridDriver == bus) gridDriver = null;
+            StopExhaust(exhaust, false); // T5: stop the trail as it parks (stays under the parked bus, fades, self-destructs)
             bus.state = BusState.Parked;
             sfx.Honk();                                                                  // ONE honk as it pulls into the stop
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
@@ -669,6 +681,7 @@ namespace BusJam
             Vector3 start = bus.transform.position;
             sfx.Screech();                                                          // full bus pulls away = tyre screech
             Juice.Burst(this, boardRoot, start + Vector3.up * 0.4f, bodyMats[bus.color], 16, 4.5f); // celebrate as it pulls away
+            var exhaust = SpawnExhaust(bus); // T5: exhaust trail as the full bus pulls away
 
             // Drive the FULL-SIZE bus FLAT (grounded). Parked buses face +Z (nose toward the people band), so
             // leaving is a real maneuver: BACK UP a little out of the stop, then sweep onto the road and cruise
@@ -682,6 +695,7 @@ namespace BusJam
                 new Vector3(side * 14f, start.y, RoadZ),                            // cruise off-screen along the road
             }, gameSettings.busLeaveSpeed, gameSettings.turnSmoothness);
 
+            StopExhaust(exhaust, true); // T5: bus is about to be Destroyed -> detach the trail to boardRoot + self-destruct
             if (bus != null) { Juice.StopPunch(bus.transform); Destroy(bus.gameObject); } // evict punch state, then destroy off-frame
             busy--;
             CheckEnd();
@@ -1349,7 +1363,7 @@ namespace BusJam
             if (faceB.size.x > faceB.size.z)
                 model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw + 90f, 0);
 
-            // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2 / Limo 3).
+            // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2).
             float target = Vehicles.CellLength(type) * CellSize * vehicleCatalog.fitFactor;
 
             var rends = model.GetComponentsInChildren<Renderer>();
@@ -1447,8 +1461,8 @@ namespace BusJam
             float frameHalf = (signW + 0.14f) * 0.5f;
             // Just LEFT of the first (leftmost) bus stop, but CLAMPED so the whole sign stays on-screen
             // even when a level has many parking slots (SlotX(0) can run off the left edge otherwise).
-            float sx = Mathf.Max(SlotX(0) - 0.85f, -(VisHalfW(ParkingZ) - frameHalf - 0.08f));
-            float sz = ParkingZ;          // at the bus-stop row
+            float sz = ParkingZ - 1.4f;   // pulled FORWARD of the bus-stop props (z≈9) so it isn't occluded behind one
+            float sx = Mathf.Max(SlotX(0) - 0.85f, -(VisHalfW(sz) - frameHalf - 0.08f)); // clamp on-screen at the new depth
             float topY = 1.5f;
 
             // Post + a NEON emissive frame (glows under bloom) with a dark board in front for contrast.
@@ -1524,7 +1538,7 @@ namespace BusJam
             float zFront = -span * 0.05f, zBack = span * 0.46f;           // start clear of the front arrow zone
             float rowPitch = rows > 1 ? (zBack - zFront) / (rows - 1) : 0f;
             float colX = cols > 1 ? Mathf.Clamp(halfWidth * 0.55f, 0.1f, 0.4f) : 0f;
-            // Head diameter keyed off BOTH spacings so heads never overlap (dense Limo = 16 seats).
+            // Head diameter keyed off BOTH spacings so heads never overlap (dense Bus = 10 seats).
             float rowSpace = rows > 1 ? rowPitch : span * 0.5f;
             float colSpace = cols > 1 ? colX * 1.7f : halfWidth * 1.5f;
             float d = Mathf.Clamp(Mathf.Min(rowSpace, colSpace) * 0.85f, 0.11f, 0.28f);
@@ -1810,20 +1824,11 @@ namespace BusJam
 
         void ApplyTheme(Theme th)
         {
-            // T2: per-theme COSMETIC env prefab overrides (Resources/Environments). Empty slots -> procedural.
-            // Optional color override re-tints even procedural elements (modify the local th copy before anything reads it).
-            var env = EnvCatalogFor(th.name);
-            if (env != null && env.overrideColors && env.colors != null)
-            {
-                var c = env.colors;
-                th.sky = c.sky; th.ground = c.ground; th.field = c.field; th.road = c.road; th.accent = c.accent;
-                th.propMain = c.propMain; th.propAlt = c.propAlt; th.foliage = c.foliage; th.trunk = c.trunk;
-                th.grass = c.grass; th.ambient = c.ambient; th.lightColor = c.lightColor; th.lightIntensity = c.lightIntensity;
-            }
             if (cam != null)
             {
-                if (env != null && env.skyboxMaterial != null) { RenderSettings.skybox = env.skyboxMaterial; cam.clearFlags = CameraClearFlags.Skybox; }
-                else { RenderSettings.skybox = null; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = th.sky; }
+                RenderSettings.skybox = null;
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = th.sky;
             }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = th.ambient * 1.0f;   // a touch less fill = more contrast/pop (post-exposure adds brightness back)
@@ -1836,6 +1841,20 @@ namespace BusJam
                 sun.shadows = lowEnd ? LightShadows.None : LightShadows.Soft; // budget phones skip the shadowmap pass (objects still read grounded on the ground slab)
                 sun.shadowStrength = 0.55f;                                 // soft, not pitch-black
             }
+
+            // T4: distance fog on DARK themes only (Night/Bonus); EXPLICITLY off on every bright theme so the
+            // global RenderSettings.fog state can't linger after switching away from a dark level. (URP honors
+            // legacy RenderSettings.fog — no Volume override needed; the Cody Dreams SS-fog pack shipped broken.)
+            bool darkTheme = th.name == "Night" || th.name == "Bonus";
+            if (darkTheme && !lowEnd)
+            {
+                RenderSettings.fog = true;
+                RenderSettings.fogMode = FogMode.Linear;
+                RenderSettings.fogColor = new Color(0.692f, 0.928f, 1f);
+                RenderSettings.fogStartDistance = 12f;
+                RenderSettings.fogEndDistance = 42f;
+            }
+            else RenderSettings.fog = false;
 
             // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
             // smoothness/emission here MATCH MaterialLibrary.ThemeTypes so the fallback looks like the asset.
@@ -1851,42 +1870,31 @@ namespace BusJam
             Material cloud  = MaterialLibrary.GetTheme(th.name, "Cloud", new Color(1f, 1f, 1f), 0f, 0.18f);
             // slotMat is now a stable, editable asset set in BuildMaterials (no theme override).
 
-            if (env != null && env.groundPrefab != null)
-                InstantiateEnv(env, env.groundPrefab, new Vector3(0, 0, 3f));
-            else
-            {
-                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
-                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
-            }
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
             // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
             // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
-            if (env != null && env.roadPrefab != null)
-                InstantiateEnv(env, env.roadPrefab, new Vector3(0, -0.10f, RoadZ));
-            else
-                LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
 
-            if (env != null && env.fencePrefab != null)
-                InstantiateEnv(env, env.fencePrefab, new Vector3(0, 0, FenceZ));
-            else
-                for (int i = -4; i <= 4; i++)
-                {
-                    var post = MakeCube(boardRoot, accent, new Vector3(0.1f, 0.5f, 0.1f));
-                    post.transform.position = new Vector3(i * 1.1f, 0.25f, FenceZ);
-                    var bar = MakeCube(boardRoot, accent, new Vector3(1.1f, 0.06f, 0.05f));
-                    bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
-                }
+            for (int i = -4; i <= 4; i++)
+            {
+                var post = MakeCube(boardRoot, accent, new Vector3(0.1f, 0.5f, 0.1f));
+                post.transform.position = new Vector3(i * 1.1f, 0.25f, FenceZ);
+                var bar = MakeCube(boardRoot, accent, new Vector3(1.1f, 0.06f, 0.05f));
+                bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
+            }
 
-            // Side scatter — alternate the theme's two prop kinds (halved on low-end), or your own prefabs.
+            // Side scatter — real SimplePoly trees/bushes down each side (fit-to-size); procedural props if the pack
+            // is missing. Halved on low-end.
             int sideN = lowEnd ? 3 : 6;
-            bool sideCustom = env != null && env.sidePropPrefabs != null && env.sidePropPrefabs.Length > 0;
+            bool useTrees = cityTrees != null && cityTrees.Length > 0;
             for (int i = 0; i < sideN; i++)
             {
                 float z = -1f + i * 2.6f;
-                if (sideCustom)
+                if (useTrees)
                 {
-                    var p = env.sidePropPrefabs[i % env.sidePropPrefabs.Length];
-                    InstantiateEnv(env, p, new Vector3(env.sideScatterX.x, 0, z));
-                    InstantiateEnv(env, p, new Vector3(env.sideScatterX.y, 0, z));
+                    FitDecor(cityTrees[i % cityTrees.Length], new Vector3(-6.8f, 0, z), 1.5f, Quaternion.Euler(0, i * 47f, 0));
+                    FitDecor(cityTrees[(i + 2) % cityTrees.Length], new Vector3(6.8f, 0, z), 1.5f, Quaternion.Euler(0, i * 53f + 90f, 0));
                 }
                 else
                 {
@@ -1900,38 +1908,35 @@ namespace BusJam
             // the legacy house centerpiece / prop row.
             doorXs = null;
             float backZ = PeopleZ + 4f;
+            bool cityOk = cityBuildings != null && cityBuildings.Length > 0;
             if (th.hasFacade)
             {
-                if (env != null && env.facadePrefab != null) InstantiateFacade(env); // sets doorXs/exitDoorX from a door anchor
-                else BuildFacade(th, accent, window);
+                if (cityOk) BuildCityFacade(th);        // a real SimplePoly building people walk OUT of (sets doorXs/exitDoorX)
+                else BuildFacade(th, accent, window);   // procedural fallback only if the pack is missing
+            }
+            else if (cityOk)
+            {
+                BuildCityBackRow(th, backZ);            // SimplePoly building row (no boarding door) — different per theme
             }
             else if (th.hasHouse)
             {
-                if (env != null && env.housePrefab != null)
-                    InstantiateEnv(env, env.housePrefab, new Vector3(0, 0, backZ + 0.6f), 1.8f);
-                else
-                {
-                    LowPolyBuilder.BuildProp(boardRoot, PropKind.House, new Vector3(0, 0, backZ + 0.6f), main, alt, foliage, trunk, window, 1.8f);
-                    LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(-4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
-                    LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
-                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(-2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
-                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
-                }
+                LowPolyBuilder.BuildProp(boardRoot, PropKind.House, new Vector3(0, 0, backZ + 0.6f), main, alt, foliage, trunk, window, 1.8f);
+                LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(-4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
+                LowPolyBuilder.BuildProp(boardRoot, PropKind.RoundTree, new Vector3(4.4f, 0, backZ), main, alt, foliage, trunk, window, 1.8f);
+                LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(-2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
+                LowPolyBuilder.BuildProp(boardRoot, PropKind.Bush, new Vector3(2.1f, 0, backZ - 1.3f), main, alt, foliage, trunk, window, 1.4f);
             }
             else
             {
-                bool backCustom = env != null && env.backRowPrefabs != null && env.backRowPrefabs.Length > 0;
                 for (int i = 0; i < 5; i++)
                 {
-                    if (backCustom)
-                        InstantiateEnv(env, env.backRowPrefabs[i % env.backRowPrefabs.Length], new Vector3(-5f + i * 2.5f, 0, backZ), 1.7f);
-                    else
-                    {
-                        PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
-                        LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
-                    }
+                    PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
+                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-5f + i * 2.5f, 0, backZ), main, alt, foliage, trunk, window, 1.7f);
                 }
             }
+
+            BuildCityDecor(th); // T3: road assets ON the road lane + side bus stops + per-theme street props (cosmetic)
+            if (doorXs != null) BuildDoorPortal(th, accent); // themed door portal at the boarding door — people emerge from it
 
             // Grass tufts dressing the back lawn — skipped behind the closed facade (paved terminal plaza,
             // and they would otherwise poke through the wall front).
@@ -1944,52 +1949,244 @@ namespace BusJam
                 }
 
             int cloudN = lowEnd ? 2 : 4;
-            bool cloudCustom = env != null && env.cloudPrefabs != null && env.cloudPrefabs.Length > 0;
             for (int k = 0; k < cloudN; k++)
             {
                 Vector3 cp = new Vector3(-5.5f + k * 3.5f, 9f + (k % 2) * 1.2f, 10f + (k % 3) * 2.5f);
-                if (cloudCustom) InstantiateEnv(env, env.cloudPrefabs[k % env.cloudPrefabs.Length], cp);
-                else MakeCloud(cp, cloud, k);
+                MakeCloud(cp, cloud, k);
             }
         }
 
-        // ---- T2 environment-catalog helpers (COSMETIC; never touch occ/slots/queue/solver) -------------------
-        EnvironmentCatalog EnvCatalogFor(string themeName) =>
-            (envCatalogs != null && !string.IsNullOrEmpty(themeName) && envCatalogs.TryGetValue(themeName, out var ec)) ? ec : null;
+        // Cosmetic-only: strip physics so nothing intercepts the tap raycast. LODGroup is left intact.
+        static void StripPhysics(GameObject go)
+        {
+            foreach (var c in go.GetComponentsInChildren<Collider>(true))  Destroy(c);
+            foreach (var r in go.GetComponentsInChildren<Rigidbody>(true)) Destroy(r);
+        }
 
-        // Instantiate a cosmetic env prefab under boardRoot, STRIP physics (so it can't fall or be hit by the tap
-        // raycast — no collider may survive), and apply the catalog fit (propScale*extra, yOffset). Returns the instance.
-        GameObject InstantiateEnv(EnvironmentCatalog env, GameObject prefab, Vector3 pos, float extraScale = 1f)
+        // Combined world-space renderer bounds of an instantiated object (for fit-to-size placement).
+        static Bounds RendererBounds(GameObject go)
+        {
+            var rs = go.GetComponentsInChildren<Renderer>();
+            if (rs.Length == 0) return new Bounds(go.transform.position, Vector3.one);
+            var b = rs[0].bounds;
+            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+            return b;
+        }
+
+        // T3: instantiate a city-pack prefab, strip physics, SCALE so its XZ footprint ~= targetWidth (the pack is
+        // authored far bigger than our 1.1-cell board) and sit its BASE on the ground at pos. Null prefab -> no-op.
+        GameObject FitDecor(GameObject prefab, Vector3 pos, float targetWidth, Quaternion rot)
         {
             if (prefab == null) return null;
             var go = Instantiate(prefab, boardRoot, false);
-            foreach (var rb in go.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
-            foreach (var col in go.GetComponentsInChildren<Collider>(true)) Destroy(col); // CRITICAL: no collider may block a bus/slot tap
-            go.transform.position = pos + new Vector3(0, env != null ? env.yOffset : 0f, 0);
-            go.transform.localScale = Vector3.one * ((env != null ? env.propScale : 1f) * extraScale);
+            StripPhysics(go);
+            go.transform.SetPositionAndRotation(Vector3.zero, rot);
+            go.transform.localScale = Vector3.one;
+            var b = RendererBounds(go);
+            float maxXZ = Mathf.Max(b.size.x, b.size.z, 0.01f);
+            go.transform.localScale = Vector3.one * (targetWidth / maxXZ);
+            b = RendererBounds(go);                                                       // recompute after scaling
+            go.transform.position += new Vector3(pos.x - b.center.x, pos.y - b.min.y, pos.z - b.center.z); // center XZ, base on ground
             return go;
         }
 
-        // Custom facade: instantiate it, then set the boarding-queue door (doorXs/exitDoorX) from a named child
-        // anchor's world-X — the ONE gameplay-adjacent detail. Fallback x=3.5 (today's value) if no anchor exists.
-        void InstantiateFacade(EnvironmentCatalog env)
+        // Per-theme, per-slot DISTINCT index into a pack array, so DIFFERENT themes show different buildings/props.
+        static int ThemePick(Theme th, int count, int slot)
         {
-            var go = InstantiateEnv(env, env.facadePrefab, new Vector3(0, 0, FacadeZ));
-            float doorX = 3.5f;
-            if (go != null && !string.IsNullOrEmpty(env.doorAnchorName))
-            {
-                var anchor = FindChildByName(go.transform, env.doorAnchorName);
-                if (anchor != null) doorX = anchor.position.x;
-            }
-            doorXs = new[] { doorX };
-            exitDoorX = doorX;
+            if (count <= 0) return 0;
+            int t = Mathf.Abs((th.name ?? "").GetHashCode() % 997);
+            return (t * 3 + slot * 7) % count;
         }
 
-        static Transform FindChildByName(Transform root, string name)
+        // T3: a real SimplePoly building as the TERMINAL people walk out of. The boarding queue spawns at exitDoorX
+        // (kept ~3.5), so the door building is centered on that x and faces the buses; flanked by MORE distinct
+        // buildings for a per-theme city block. Sets doorXs/exitDoorX (the one gameplay-adjacent detail).
+        void BuildCityFacade(Theme th)
         {
-            if (root.name == name) return root;
-            foreach (Transform c in root) { var r = FindChildByName(c, name); if (r != null) return r; }
-            return null;
+            float doorX = 3.5f;
+            doorXs = new[] { doorX };
+            exitDoorX = doorX;
+            var door = FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 0)], new Vector3(doorX, 0, FacadeZ + 1.2f), 4.5f, Quaternion.Euler(0, 180f, 0));
+            AddToonOutline(door);
+            if (lowEnd) return;
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 1)], new Vector3(doorX - 5.0f, 0, FacadeZ + 1.5f), 3.6f, Quaternion.Euler(0, 180f, 0));
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 2)], new Vector3(doorX - 9.0f, 0, FacadeZ + 1.3f), 3.4f, Quaternion.Euler(0, 180f, 0));
+        }
+
+        // T3: SimplePoly building row across the back for non-facade themes (no boarding door). Different per theme.
+        void BuildCityBackRow(Theme th, float backZ)
+        {
+            int n = lowEnd ? 3 : 5;
+            for (int i = 0; i < n; i++)
+                FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, i)], new Vector3(-6f + i * 3f, 0, backZ + 0.5f + (i % 2) * 0.6f), 3.4f, Quaternion.Euler(0, 180f, 0));
+        }
+
+        // T3: dress the ACTUAL road lane (RoadZ — where full buses drive off) with real SimplePoly road tiles, plus
+        // side bus stops and per-theme street props. Cosmetic; fit-to-size + ground-placed; never touches the play grid.
+        void BuildCityDecor(Theme th)
+        {
+            // Road tiles laid along RoadZ across the width (the buses drive ON this lane).
+            if (cityRoads != null && cityRoads.Length > 0)
+                for (int i = 0; i < 5; i++)
+                    FitDecor(cityRoads[ThemePick(th, cityRoads.Length, i)], new Vector3(-4.4f + i * 2.2f, 0.01f, RoadZ), 2.6f, Quaternion.Euler(0, 90f, 0)); // narrower span -> outer tiles stay on-screen
+
+            // Side bus stops, OUTSIDE the outer slot (~±4.9 at SlotSpacing 1.4) so they never cover a pad/lane.
+            if (busStopFx != null)
+            {
+                FitDecor(busStopFx, new Vector3(-5.5f, 0, ParkingZ - 0.3f), 1.5f, Quaternion.Euler(0, 90f, 0));
+                FitDecor(busStopFx, new Vector3(5.5f, 0, ParkingZ - 0.3f), 1.5f, Quaternion.Euler(0, -90f, 0));
+            }
+
+            // Per-theme street props down the sides of the PEOPLE area (the boarding zone) — NOT on the road/jam.
+            if (!lowEnd && cityProps != null && cityProps.Length > 0)
+                for (int i = 0; i < 3; i++)
+                {
+                    float z = PeopleZ + 0.5f + i * 1.0f; // BEHIND the bus-stop props (z≈9) so cones etc. don't mesh them
+                    FitDecor(cityProps[ThemePick(th, cityProps.Length, i)],     new Vector3(-5.5f, 0, z), 1.0f, Quaternion.Euler(0, 90f, 0));
+                    FitDecor(cityProps[ThemePick(th, cityProps.Length, i + 1)], new Vector3(5.5f, 0, z), 1.0f, Quaternion.Euler(0, -90f, 0));
+                }
+
+            BuildJamProps(th); // little theme props framing the FRONT of the jam (small; foreground, out of the slots)
+        }
+
+        // A little BLACK door PORTAL right at the boarding door (exitDoorX, DoorSpawnZ) the people queue walks out
+        // of — a near-black opening in a theme-accent frame, facing the buses (-Z). Built every level that has a door.
+        void BuildDoorPortal(Theme th, Material frameMat)
+        {
+            var pm = MaterialLibrary.MakeRuntime(th.accent, 0.1f, 0.7f); // GLOWING portal in the theme's accent color (per level)
+            float x = exitDoorX, z = DoorSpawnZ;
+            var op = MakeCube(boardRoot, pm, new Vector3(1.05f, 1.7f, 0.1f));              // the themed glowing opening people step out of
+            op.transform.position = new Vector3(x, 0.85f, z + 0.06f);
+            var lp = MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.0f, 0.22f)); lp.transform.position = new Vector3(x - 0.62f, 1.0f, z);  // left post
+            var rp = MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.0f, 0.22f)); rp.transform.position = new Vector3(x + 0.62f, 1.0f, z);  // right post
+            var lt = MakeCube(boardRoot, frameMat, new Vector3(1.40f, 0.18f, 0.22f)); lt.transform.position = new Vector3(x, 1.95f, z);        // lintel
+        }
+
+        // Little theme props (small, fit-to-size) tucked into the FRONT CORNERS of the jam's foreground — out of the
+        // slots/parking and mostly clear of the central exit lanes. Different per theme. No-op without the pack.
+        void BuildJamProps(Theme th)
+        {
+            if (lowEnd || cityProps == null || cityProps.Length == 0) return;
+            Vector3[] spots = {
+                new Vector3(-4.0f, 0, -5.2f), new Vector3(4.0f, 0, -5.2f),
+                new Vector3(-3.6f, 0, -6.0f), new Vector3(3.6f, 0, -6.0f), // pulled in + shallower -> on-screen, clear of reversing away-exit buses
+            };
+            for (int i = 0; i < spots.Length; i++)
+                FitDecor(cityProps[ThemePick(th, cityProps.Length, i + 3)], spots[i], 0.7f, Quaternion.Euler(0, i * 73f, 0));
+        }
+
+        // ---- T5/T6 imported VFX (COSMETIC; lowEnd-gated; missing prefab -> no-op / cheap procedural fallback) ----
+
+        // Built-in (legacy) particle materials render MAGENTA under URP. Swap BILLBOARD particles to a cached
+        // runtime URP particle (alpha-blend) material, keeping the texture, so the imported VFX show WITHOUT a
+        // manual material-conversion step. Mesh particles / already-URP materials are left alone.
+        void FixParticleMaterials(GameObject go, ref Material cache, Color tint)
+        {
+            foreach (var psr in go.GetComponentsInChildren<ParticleSystemRenderer>(true))
+            {
+                if (psr.renderMode == ParticleSystemRenderMode.Mesh) continue;            // mesh debris -> rely on the editor URP conversion
+                var src = psr.sharedMaterial;
+                if (src != null && src.shader != null && src.shader.name.StartsWith("Universal")) continue; // already URP
+                if (cache == null)
+                {
+                    var urp = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+                    if (urp == null) return;                                              // not URP / stripped -> leave original (user converts)
+                    var m = new Material(urp);
+                    if (src != null && src.mainTexture != null) m.mainTexture = src.mainTexture;
+                    m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f);                 // transparent, alpha blend
+                    m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    m.SetFloat("_ZWrite", 0f);
+                    m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    m.color = tint;
+                    cache = m;
+                }
+                psr.sharedMaterial = cache;
+            }
+        }
+
+        // T5: take the imported Smoke03 prefab AS-IS, parent it BEHIND the vehicle, and let it PLAY as it drives.
+        // No material/size overrides (those broke it before). NOT lowEnd-gated, so it always shows. Physics stripped
+        // so no collider blocks the tap. null only if the prefab somehow didn't load.
+        GameObject SpawnExhaust(Bus bus)
+        {
+            if (bus == null || smokeFx == null) return null;
+            var go = Instantiate(smokeFx, bus.transform, false);
+            StripPhysics(go);
+            float halfLen = LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f;
+            go.transform.localPosition = new Vector3(0f, 0.15f, halfLen); // right behind the rear
+            go.transform.localRotation = Quaternion.identity;
+            // The Polygonal pack material is a built-in shader -> magenta/invisible under URP. Keep Smoke03's OWN
+            // texture but on the URP-safe Sprites/Default shader so it's guaranteed visible (white, alpha-blended).
+            if (smokeMat == null)
+            {
+                var sp = Shader.Find("Sprites/Default");
+                if (sp != null)
+                {
+                    var src = go.GetComponentInChildren<ParticleSystemRenderer>();
+                    smokeMat = new Material(sp) { color = Color.white };
+                    if (src != null && src.sharedMaterial != null && src.sharedMaterial.mainTexture != null)
+                        smokeMat.mainTexture = src.sharedMaterial.mainTexture;
+                }
+            }
+            if (smokeMat != null)
+                foreach (var psr in go.GetComponentsInChildren<ParticleSystemRenderer>(true)) psr.sharedMaterial = smokeMat;
+            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) ps.Play(); // play it
+            return go;
+        }
+
+        // Stop emitting + self-destruct after the puff fades. detach=true reparents to boardRoot first (dispatch
+        // case: the bus is about to be Destroyed, so the trail must outlive it without being yanked away).
+        void StopExhaust(GameObject smoke, bool detach)
+        {
+            if (smoke == null) return;
+            if (detach && boardRoot != null) smoke.transform.SetParent(boardRoot, true);
+            float life = 2.5f;
+            var ps = smoke.GetComponentInChildren<ParticleSystem>();
+            if (ps != null) { ps.Stop(true, ParticleSystemStopBehavior.StopEmitting); life = Mathf.Max(1.5f, ps.main.startLifetime.constantMax) + 0.5f; }
+            Destroy(smoke, life);
+        }
+
+        // T6: one-shot impact burst at a world pos. Returns false on lowEnd / missing prefab so the caller can use
+        // the cheap Juice.Burst fallback. Self-destructs after its lifetime; parented under boardRoot.
+        bool SpawnHit(Vector3 pos)
+        {
+            if (lowEnd || hitFx == null) return false;
+            var go = Instantiate(hitFx, boardRoot, false);
+            StripPhysics(go);
+            FixParticleMaterials(go, ref hitMat, new Color(0.82f, 0.72f, 0.55f, 1f));
+            go.transform.position = pos;
+            var ps = go.GetComponentInChildren<ParticleSystem>();
+            if (ps != null) ps.Play();                                                    // ensure the one-shot fires
+            float life = ps != null ? ps.main.duration + ps.main.startLifetime.constantMax + 0.2f : 0.4f;
+            Destroy(go, life);
+            return true;
+        }
+
+        // T6: blocked-tap impact at the bus NOSE (NOSE is local -Z -> world -forward). Real debris poof, else
+        // the cheap procedural burst on lowEnd / missing prefab.
+        void SpawnBlockedHit(Bus bus)
+        {
+            if (bus == null) return;
+            float halfLen = LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f;
+            Vector3 pos = bus.transform.position + (-bus.transform.forward) * halfLen + Vector3.up * 0.4f;
+            if (!SpawnHit(pos)) Juice.Burst(this, boardRoot, pos, bodyMats[bus.color], 8, 3f);
+        }
+
+        // T7 (MINIMAL): add the Gritline back-face outline as a SECOND material slot for a cohesive toon edge on
+        // SCENERY ONLY (backdrop buildings). Keeps each renderer's ORIGINAL material (slot 0) so textures stay and
+        // no tinted/_BaseColor gameplay material is touched. Only single-submesh renderers (a sharedMaterials
+        // length mismatch would drop other submeshes) so multi-submesh meshes are skipped, never broken. Per-object
+        // + lowEnd-gated (renders each mesh twice). No-op if the toon outline isn't loaded.
+        void AddToonOutline(GameObject go)
+        {
+            if (lowEnd || go == null || toonOutlineFx == null) return;
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var mats = r.sharedMaterials;
+                if (mats.Length != 1) continue; // single-submesh only -> safe to append the outline pass
+                r.sharedMaterials = new[] { mats[0], toonOutlineFx };
+            }
         }
 
         void MakeCloud(Vector3 pos, Material mat, int seed)
