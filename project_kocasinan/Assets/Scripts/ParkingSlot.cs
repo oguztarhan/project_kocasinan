@@ -2,11 +2,12 @@ using UnityEngine;
 
 namespace BusJam
 {
-    /// <summary>A parking bay. Extra bays start locked and cost coins to open.</summary>
+    /// <summary>A parking bay. Extra bays start locked; one opens by watching an ad, the rest cost coins.</summary>
     public class ParkingSlot : MonoBehaviour
     {
         public int index;
         public bool locked;
+        public bool adUnlock;   // when locked: true = opens by watching a rewarded ad; false = opens with coins
         public Bus occupant;
         public GameObject lockMarker;
 

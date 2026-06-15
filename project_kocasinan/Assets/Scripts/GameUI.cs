@@ -30,7 +30,7 @@ namespace BusJam
         Font title, num;
         Transform root;
         GameObject hudPanel, settingsPanel, successPanel, continuePanel, failedPanel, shopPanel;
-        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward, continuePrice;
+        Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward, continuePrice, bonusCountdown;
         GameObject jokerBuyPanel; Image jokerBuyIcon; Text jokerBuyPrice; int buyKind, buyCost;
         readonly GameObject[] jokerBuyPanels = new GameObject[3]; // baked per-joker buy panels (0/1/2)
         readonly Sprite[] jokerIcons = new Sprite[3];
@@ -129,6 +129,7 @@ namespace BusJam
             jSwap    = AdoptJoker(h.swap,    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             RefreshJokers();
+            BuildBonusCountdown();
         }
 
         Joker AdoptJoker(HudJoker hj, int cost, int unlock, int kind, System.Action use)
@@ -195,6 +196,7 @@ namespace BusJam
             jSwap    = JokerButton(0,    UIKit.JokerSwap(),    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = JokerButton(260,  UIKit.JokerHeli(),    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             RefreshJokers();
+            BuildBonusCountdown();
         }
 
         Joker JokerButton(float x, Sprite icon, int cost, int unlock, int kind, System.Action use)
@@ -794,6 +796,24 @@ namespace BusJam
             Invoke(nameof(ClearCombo), 0.8f);
         }
         void ClearCombo() { if (comboText) comboText.gameObject.SetActive(false); }
+
+        // Bonus-only countdown (top-center mm:ss, red under 10s). Built on BOTH HUD paths; lives on hudPanel,
+        // so HideHud auto-hides it at the bonus end.
+        void BuildBonusCountdown()
+        {
+            if (hudPanel == null || bonusCountdown != null) return;
+            bonusCountdown = Label(hudPanel.transform, "", title, new Vector2(0, 560), new Vector2(420, 130), 90, White);
+            bonusCountdown.gameObject.SetActive(false);
+        }
+        public void SetBonusCountdown(float seconds)
+        {
+            if (!bonusCountdown) return;
+            if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
+            int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
+            bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
+            bonusCountdown.color = s <= 10 ? new Color(1f, 0.35f, 0.30f) : White; // urgent red under 10s
+        }
+        public void HideBonusCountdown() { if (bonusCountdown) bonusCountdown.gameObject.SetActive(false); }
 
         // ---- Builders -------------------------------------------------------
         GameObject Panel(string name, Color bg)

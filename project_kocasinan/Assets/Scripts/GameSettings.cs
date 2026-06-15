@@ -36,5 +36,15 @@ namespace BusJam
 
         [Tooltip("Vehicle size multiplier. 1 = default. Above ~1.1 vehicles may visually overlap neighbours.")]
         [Range(0.6f, 1.4f)] public float vehicleSize = 1f;
+
+        [Header("Bonus night traffic (every 10th level)")]
+        [Tooltip("Cross-traffic car speed along the road (world units / sec).")]
+        [Range(1f, 8f)] public float trafficSpeed = 3f;
+
+        [Tooltip("World-units between cars in a lane (smaller = denser, fewer = bigger gaps). Cars/lane = ceil(18 / period).")]
+        [Range(2f, 10f)] public float trafficPeriod = 4.5f;
+
+        [Tooltip("How close (world units) a car may be to the crossing X before it blocks the pull-in (T3 gate).")]
+        [Range(0.5f, 3f)] public float trafficClearance = 1.4f;
     }
 }

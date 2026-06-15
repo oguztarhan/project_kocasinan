@@ -36,6 +36,7 @@ namespace BusJam
 
         public int CurrentLevel => currentLevel;
         public int Coins => SaveSystem.Coins;
+        public bool IsBonus => currentLevel % 10 == 0; // every 10th level = the night traffic-dodge bonus round
 
         const int RecolorCost = 80, SwapCost = 40, HeliCost = 100, SlotUnlockCost = 80;
         const int ContinueBaseCost = 150;   // 1st continue costs this; doubles each further continue in the level
@@ -51,7 +52,7 @@ namespace BusJam
         const float RoadZ = 6.9f;             // road/drive-in lane — WIDE gap below it (to the jam) and above it (to the stops) so a
                                               // vehicle can drive ALONG it to its slot without clipping the jam OR the parked cars
         const float ParkingZ = 9.3f;          // bus stop (parking row); +1.4 vs before to open the drive-in lane below it
-        const float SlotSpacing = 1.4f;       // wide enough for the widest vehicle (limo ~1.27) side-by-side; 8 pads still fit (~±4.9 < visible)
+        const float SlotSpacing = 1.4f;       // wide enough for the widest vehicle (bus) side-by-side; 7 pads fit (~±4.2 < visible)
         const float PeopleZ = 10.4f;          // mid of the people area (+1.4 to track the parking row)
         const float PeopleSpacing = 0.85f;    // (queue is an L from the top-right door)
         const float FenceZ = 10.0f;           // fence IN FRONT of the people line (toward the buses), per request
@@ -83,6 +84,7 @@ namespace BusJam
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
         Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
         Material roadMat, neonMat;            // fixed asphalt road (same every level) + emissive neon for the people-left sign
+        Material headlightMat, beamMat;       // T4: warm emissive lamp lens + soft translucent night beam
         Material[] confettiMats;
 
         LevelData level;
@@ -95,6 +97,21 @@ namespace BusJam
         float lastBoardTime = -10f;
         int busy;
         bool pumpRunning, pumpDirty;
+
+        // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
+        const float BonusTime = 60f;        // bonus-only countdown length (seconds)
+        const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
+        const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
+        float bonusTimeLeft;
+        bool crashedThisBonus;              // set on a T3 crash -> disqualifies the perfect bonus
+        bool nightMode;                     // cached in ApplyTheme (Night/Bonus) -> board + traffic headlights
+        ColorAdjustments postCA;            // cached post-grade (deepened on dark themes, restored on bright)
+        Vignette postVig;
+        // Pooled cross-traffic (bonus only): plain position model, NO colliders, NO per-car Update.
+        class TrafficCar { public Transform tf; public float x; public int dir; public int lane; }
+        readonly List<TrafficCar> traffic = new List<TrafficCar>();
+        float trafficHalfLoop, trafficLoop; // wrap bounds (even spacing) shared by both lanes
+        int trafficSpawnIdx;                // deterministic variety counter (no Random in the hot path)
 
         ParkingSlot[] slots;
         readonly Dictionary<Vector2Int, Bus> occ = new Dictionary<Vector2Int, Bus>();
@@ -165,8 +182,18 @@ namespace BusJam
             levelSelect.Build(this);
             ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
 
-            if (autoStart) LoadLevel(SaveSystem.Level);
+            if (autoStart) StartCoroutine(AutoStartFirstLevel());
             else { state = GameState.Menu; ui.HideHud(); }
+        }
+
+        // Build the FIRST level on the NEXT frame rather than inside Start(): on frame 1 some freshly-instantiated
+        // imported-vehicle meshes aren't active/registered yet, so the body re-centering came out a touch off (roof
+        // arrows sat slightly LEFT) until the player reloaded. One frame later the engine is warmed up exactly like
+        // a reload, so the first level matches every subsequent load. (Pairs with the include-inactive mesh queries.)
+        IEnumerator AutoStartFirstLevel()
+        {
+            yield return null;
+            LoadLevel(SaveSystem.Level);
         }
 
         // ---- Public control ------------------------------------------------
@@ -205,6 +232,9 @@ namespace BusJam
         void Update()
         {
             if (state != GameState.Playing) return;
+            // The bonus timer may end the level THIS frame (FinishBonus -> NextLevel rebuilds + re-sets Playing),
+            // so bail if the level changed or we left Playing — never run taps against a half-swapped board.
+            if (IsBonus) { int lv0 = currentLevel; TickBonusTimer(); if (currentLevel != lv0 || state != GameState.Playing) return; }
 #if UNITY_EDITOR
             AssertNoOccOverlap(); // invariant watchdog: logs to the Console if two vehicles ever share a cell
 #endif
@@ -724,7 +754,7 @@ namespace BusJam
             // Defer ALL end-decisions until in-flight walks/drive-offs settle (busy brackets every async
             // boarder), so Win can't pop while the last passengers are still walking to their bus.
             if (busy > 0) return;
-            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { Win(); return; }
+            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { if (IsBonus) FinishBonus(true); else Win(); return; }
             if (visible.Count == 0) return;
 
             // The front passenger can board one of the parked buses -> keep playing.
@@ -734,7 +764,11 @@ namespace BusJam
             // another bus that might match -> parking is NOT full yet, so this is not a deadlock.
             if (FirstFreeSlot() != null) return;
 
-            // Otherwise: the front passenger matches NO parked bus AND the parking is full.
+            // On a BONUS level a "deadlock" is NOT a hard loss — soft-advance (the timer is the only failure
+            // pressure; a bonus never shows the Continue panel). Routes through the SAME single FinishBonus.
+            if (IsBonus) { FinishBonus(true); return; }
+
+            // Otherwise (normal level): the front passenger matches NO parked bus AND the parking is full.
             // This is a genuine deadlock -> lose. Locked slots, the number of remaining grid buses
             // and joker coins are intentionally NOT treated as an escape (per design: the front
             // passenger being unable to board with a full parking == loss -> Continue panel).
@@ -747,7 +781,25 @@ namespace BusJam
         void TryUnlockSlot(ParkingSlot slot)
         {
             if (!slot.locked) return;
+            if (slot.adUnlock) { WatchAdToUnlock(slot); return; }   // ad pad: open by watching a rewarded ad
             if (!Spend(SlotUnlockCost)) { sfx.Error(); StartCoroutine(Bump(slot.transform)); return; }
+            slot.Unlock();
+            sfx.Coin();
+            TryStartBoardingPump();
+        }
+
+        // AD-unlock pad. No rewarded-ad SDK is wired, so this grants the open immediately as a placeholder
+        // "ad reward". To ship a REAL ad: show the rewarded ad here and call DoAdUnlock(slot) ONLY from its
+        // reward callback (and an Error()/Bump on dismiss-without-reward).
+        // TODO: integrate a rewarded-ad SDK (Unity Ads / AdMob) and gate DoAdUnlock behind the reward.
+        void WatchAdToUnlock(ParkingSlot slot)
+        {
+            DoAdUnlock(slot);
+        }
+
+        void DoAdUnlock(ParkingSlot slot)
+        {
+            if (slot == null || !slot.locked) return;
             slot.Unlock();
             sfx.Coin();
             TryStartBoardingPump();
@@ -941,6 +993,16 @@ namespace BusJam
             state = GameState.Playing;
             StartCoroutine(LineLayoutLoop()); // continuous queue re-spacing for the duration of the level
             ui.ShowHud();
+            if (IsBonus)
+            {
+                // Night traffic-dodge bonus: start the 60s countdown + spawn the pooled cross-traffic (T2).
+                crashedThisBonus = false;
+                bonusTimeLeft = BonusTime;
+                ui.SetBonusCountdown(bonusTimeLeft);
+                BuildTraffic();
+                StartCoroutine(TrafficLoop());
+            }
+            else ui.HideBonusCountdown();
             ui.SetLevel(levelNumber);
             ui.SetTheme(theme.name);
             ui.SetCoins(SaveSystem.Coins);
@@ -956,6 +1018,7 @@ namespace BusJam
             Juice.ClearAllPunches(); // drop punch state left by hard-stopped coroutines (no cross-level leak)
             busy = 0; pumpRunning = false; pumpDirty = false;
             occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); visible.Clear(); slots = null;
+            traffic.Clear(); // T2: drop pooled traffic refs (the cars themselves die with boardRoot below)
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
@@ -1007,6 +1070,34 @@ namespace BusJam
             // The Continue panel (ui.ShowContinue) now owns the loss flow — no auto-retry.
         }
 
+        // ---- Bonus night-mode timer + soft end (every 10th level) -----------------------------------------
+        void TickBonusTimer()
+        {
+            bonusTimeLeft -= Time.deltaTime;
+            ui.SetBonusCountdown(bonusTimeLeft);
+            if (bonusTimeLeft <= 0f) FinishBonus(false); // ran out of time -> soft end, NO reward
+        }
+
+        // The ONE bonus completion path. inTime = solved/deadlocked before 0:00 (grants the reward); !inTime =
+        // timed out (no reward). Soft-advances STRAIGHT to the next level — never the Success or Continue panel
+        // (the timer is the only pressure; a bonus can't hard-lose). Guarded so it fires exactly once per bonus.
+        void FinishBonus(bool inTime)
+        {
+            if (state != GameState.Playing) return;
+            state = GameState.Win;
+            SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1); // lock progression (mirror Win)
+            SaveSystem.BestLevel = currentLevel;
+            ui.HideBonusCountdown();
+            ui.HideHud();
+            if (inTime)
+            {
+                AddCoins(BonusReward);                                              // normal bonus reward
+                if (!crashedThisBonus && PerfectBonus > 0) AddCoins(PerfectBonus);  // optional no-crash bonus (opt-in)
+                sfx.Win();
+            }
+            NextLevel(); // advance directly — no blocking panel, no ClaimWinReward
+        }
+
         // ====================================================================
         // Build
         // ====================================================================
@@ -1014,10 +1105,12 @@ namespace BusJam
         {
             slots = new ParkingSlot[totalSlots];
             // Unlock EXACTLY baseSlots pads (== the BuildQueue servability window); lock the rest at the
-            // edges so the open pads are central and the player unlocks outward.
+            // edges so the open pads are central and the player unlocks outward. Of the locked pads, the
+            // FIRST opens by watching an AD; the rest open with COINS (e.g. 4 open + 1 ad + 2 coin = 7).
             int lockCount = Mathf.Max(0, totalSlots - level.baseSlots);
             int leftLocks = lockCount / 2;
             int rightStart = totalSlots - (lockCount - leftLocks);
+            bool adAssigned = false;
             for (int i = 0; i < totalSlots; i++)
             {
                 var pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -1030,20 +1123,38 @@ namespace BusJam
                 var slot = pad.AddComponent<ParkingSlot>();
                 slot.index = i;
                 slot.locked = (i < leftLocks) || (i >= rightStart); // central pads unlocked
+                if (slot.locked && !adAssigned) { slot.adUnlock = true; adAssigned = true; } // first locked pad = AD; rest = COINS
                 slots[i] = slot;
 
                 if (slot.locked)
                 {
-                    var marker = new GameObject("Lock");
+                    Material mk = slot.adUnlock ? neonMat : lockMat;        // ad pad glows; coin pads use the lock material
+                    var marker = new GameObject(slot.adUnlock ? "AdLock" : "CoinLock");
                     marker.transform.SetParent(pad.transform, false);
                     marker.transform.localPosition = new Vector3(0, 0.7f, 0);
-                    MakeCube(marker.transform, lockMat, new Vector3(0.55f, 0.12f, 0.14f));
-                    MakeCube(marker.transform, lockMat, new Vector3(0.14f, 0.12f, 0.55f));
+                    MakeCube(marker.transform, mk, new Vector3(0.55f, 0.12f, 0.14f));
+                    MakeCube(marker.transform, mk, new Vector3(0.14f, 0.12f, 0.55f));
                     var pulse = marker.AddComponent<IdleBob>();
                     pulse.scalePulse = true; pulse.scaleAmp = 0.12f; pulse.speed = 3f; pulse.amp = 0f;
                     slot.lockMarker = marker;
+                    // Billboard label so the player knows HOW to open it (parented to the marker -> removed on Unlock).
+                    BuildSlotLabel(marker.transform, slot.adUnlock ? "AD" : SlotUnlockCost.ToString(),
+                                   slot.adUnlock ? new Color(0.35f, 1f, 0.55f) : new Color(1f, 0.85f, 0.25f));
                 }
             }
+        }
+
+        // Small camera-facing text above a locked pad's marker (e.g. "AD" or the coin cost).
+        void BuildSlotLabel(Transform parent, string text, Color color)
+        {
+            var go = new GameObject("SlotLabel", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
+            go.transform.localPosition = new Vector3(0, 0.55f, 0);
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.5f / 120f); // -X cancels the BillboardUp flip
+            go.AddComponent<BillboardUp>();
+            AddSignText(go.transform, text, 64, Vector2.zero, Vector2.one, color);
         }
 
         void BuildGrid()
@@ -1326,6 +1437,7 @@ namespace BusJam
                     BuildSpecialBadge(root.transform, advanceN, new Vector3(0, cbTop + 0.12f, -cbLen * 0.42f), Mathf.Clamp(CellSize * 0.42f, 0.3f, 0.6f));
             }
             root.transform.localScale = Vector3.one * gameSettings.vehicleSize; // editable vehicle-size multiplier (both render paths)
+            if (nightMode) AttachHeadlights(root.transform, LowPolyBuilder.VehicleLength(type, CellSize) * 0.5f, false); // T4: night headlights (no real spot on the jam vehicles)
             return bus;
         }
 
@@ -1366,14 +1478,18 @@ namespace BusJam
             // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2).
             float target = Vehicles.CellLength(type) * CellSize * vehicleCatalog.fitFactor;
 
-            var rends = model.GetComponentsInChildren<Renderer>();
+            var rends = model.GetComponentsInChildren<Renderer>(true); // include inactive for first-frame consistency (matches the mesh queries)
             float span = target, wid = target * 0.5f, roofY = CellSize * 0.5f;
 
             // Measure the model in its OWN LOCAL frame (from mesh bounds), NOT a world AABB: a world AABB
             // inflates for a 45deg-yawed (diagonal) body, which would make diagonal vehicles a DIFFERENT size
             // than straight ones. Local measurement -> every bus is identical regardless of direction.
             Bounds lb = default; bool localFrame = false;
-            foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+            // include INACTIVE meshes: on the FIRST frame (this build runs in Start) the model's mesh children
+            // aren't active/registered yet, so an active-only query finds NONE -> localFrame stays false -> the
+            // body is never re-centered onto the root -> the centered arrow sits a bit LEFT until a level reload
+            // rebuilds it on a later frame. Including inactive makes it identical first-build and reload.
+            foreach (var mf in model.GetComponentsInChildren<MeshFilter>(true))
             {
                 if (mf.sharedMesh == null) continue;
                 Matrix4x4 toModel = model.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
@@ -1404,18 +1520,12 @@ namespace BusJam
                 wid = widRaw * scl;
             }
 
-            // True top of the model (recompute AFTER scaling/positioning) so the roof markers
-            // always sit ABOVE the body and never sink into it.
+            // Roof-marker height. Use the MESH-derived roofY (frame-independent), NOT Renderer.bounds: on the
+            // FIRST frame of Play, Renderer.bounds is still zero/stale (Unity hasn't run a cull pass yet), which
+            // put the arrow + heads + badge + tap-box at the wrong height on level 1 until a Replay rebuilt them
+            // on a later frame ("buses look funny on Play, Replay fixes it"). roofY already == the scaled model
+            // height with the base sitting at y=0, so it IS the true top — and matches Renderer.bounds when valid.
             float topY = roofY;
-            {
-                var rr = model.GetComponentsInChildren<Renderer>();
-                if (rr.Length > 0)
-                {
-                    Bounds tb = rr[0].bounds;
-                    for (int i = 1; i < rr.Length; i++) tb.Encapsulate(rr[i].bounds);
-                    topY = tb.max.y - root.position.y; // root unscaled & only Y-rotated, so world maxY == local top
-                }
-            }
 
             // Tappable box (the prefab's colliders were stripped).
             var box = root.gameObject.AddComponent<BoxCollider>();
@@ -1504,23 +1614,28 @@ namespace BusJam
             return txt;
         }
 
-        // Clean, SYMMETRIC roof arrow (a diamond head + shaft) centered on x=0, pointing local -Z (the exit
+        // Clean, SYMMETRIC roof arrow (a triangular head + shaft) centered on x=0, pointing local -Z (the exit
         // dir), flat on the roof front. Used on the imported path; the code-built path has its own.
         void BuildRoofArrow(Transform root, float topY, float halfWidth, float span)
         {
-            float y = topY + 0.05f;
+            // Clear arrow pointing -Z: a SOLID TRIANGULAR head + a shaft (reads as an arrow from the top-down
+            // camera, unlike the old ambiguous 45° "diamond"). Lives in the front ~third of the roof.
+            float y = topY + 0.06f;
             float frontZ = -span * 0.5f;
-            float zoneLen = span * 0.32f;                                           // arrow lives in the front ~third
-            float aw = Mathf.Clamp(Mathf.Min(halfWidth * 0.85f, zoneLen * 0.45f), 0.12f, 0.4f);
-            float headZ = frontZ + aw + 0.03f;                                      // diamond head just inside the nose
-            float shaftLen = Mathf.Max(zoneLen - aw * 1.6f, aw * 0.7f);
+            float headW = Mathf.Clamp(halfWidth * 1.6f, 0.18f, 0.5f);   // wide head -> unmistakably an arrowhead
+            float headL = Mathf.Clamp(span * 0.20f, 0.14f, 0.4f);
+            float shaftLen = Mathf.Clamp(span * 0.18f, 0.12f, 0.36f);
+            float tipZ = frontZ + 0.05f;                                // tip just inside the nose
 
-            var head = MakeCube(root, arrowMat, new Vector3(aw * 1.3f, 0.05f, aw * 1.3f));
-            head.transform.localPosition = new Vector3(0, y, headZ);
-            head.transform.localRotation = Quaternion.Euler(0, 45f, 0);             // 45° cube = diamond, tip toward -Z
+            var head = new GameObject("ArrowHead");
+            head.transform.SetParent(root, false);
+            head.transform.localPosition = new Vector3(0, y, tipZ + headL * 0.5f);  // tip at tipZ (-Z)
+            head.transform.localScale = new Vector3(headW, 1f, headL);
+            head.AddComponent<MeshFilter>().sharedMesh = LowPolyBuilder.ArrowHeadMesh();
+            head.AddComponent<MeshRenderer>().sharedMaterial = arrowMat;
 
-            var shaft = MakeCube(root, arrowMat, new Vector3(aw * 0.42f, 0.05f, shaftLen));
-            shaft.transform.localPosition = new Vector3(0, y, headZ + aw * 0.7f + shaftLen * 0.5f);
+            var shaft = MakeCube(root, arrowMat, new Vector3(headW * 0.32f, 0.05f, shaftLen));
+            shaft.transform.localPosition = new Vector3(0, y, tipZ + headL + shaftLen * 0.5f);
         }
 
         // Cute heads on the roof — one per seat, HIDDEN until that passenger boards (Bus.LightSeat pops it in).
@@ -1573,7 +1688,7 @@ namespace BusJam
         static Bounds ModelBoundsIn(Transform root, GameObject model)
         {
             Bounds b = default; bool init = false;
-            foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+            foreach (var mf in model.GetComponentsInChildren<MeshFilter>(true)) // include inactive (first-frame meshes may be inactive) so the auto-face decides identically first-build and reload
             {
                 if (mf.sharedMesh == null) continue;
                 Matrix4x4 toRoot = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
@@ -1810,6 +1925,9 @@ namespace BusJam
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
             roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
+            headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.96f, 0.80f), 0.5f, 3f);        // T4: warm emissive headlight lens (glows under bloom)
+            var beamShader = Shader.Find("Sprites/Default");                                          // URP-safe translucent (never magenta), like the smoke fix
+            if (beamShader != null) beamMat = new Material(beamShader) { color = new Color(1f, 0.95f, 0.72f, 0.22f) }; // T4: soft forward beam
         }
 
         GameObject MakeCube(Transform parent, Material mat, Vector3 scale)
@@ -1846,15 +1964,23 @@ namespace BusJam
             // global RenderSettings.fog state can't linger after switching away from a dark level. (URP honors
             // legacy RenderSettings.fog — no Volume override needed; the Cody Dreams SS-fog pack shipped broken.)
             bool darkTheme = th.name == "Night" || th.name == "Bonus";
-            if (darkTheme && !lowEnd)
+            nightMode = darkTheme; // T4: gate board + traffic headlights on the dark themes
+            if (darkTheme)
             {
+                // Fog runs on EVERY device now (legacy Linear fog is ~free); night-tinted to match the dark sky.
                 RenderSettings.fog = true;
                 RenderSettings.fogMode = FogMode.Linear;
-                RenderSettings.fogColor = new Color(0.692f, 0.928f, 1f);
+                RenderSettings.fogColor = new Color(0.10f, 0.12f, 0.22f);
                 RenderSettings.fogStartDistance = 12f;
                 RenderSettings.fogEndDistance = 42f;
             }
             else RenderSettings.fog = false;
+
+            // T1: deepen the global grade on dark themes (lower exposure + stronger vignette) so the gold accent
+            // and headlights pop at night; restore the bright-theme values otherwise. postCA/postVig are cached
+            // once in SetupPostFX — the single Volume is NEVER rebuilt per level.
+            if (postCA != null) postCA.postExposure.Override(darkTheme ? -0.55f : 0.12f);
+            if (postVig != null) postVig.intensity.Override(darkTheme ? 0.42f : 0.24f);
 
             // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
             // smoothness/emission here MATCH MaterialLibrary.ThemeTypes so the fallback looks like the asset.
@@ -2030,7 +2156,7 @@ namespace BusJam
                 for (int i = 0; i < 5; i++)
                     FitDecor(cityRoads[ThemePick(th, cityRoads.Length, i)], new Vector3(-4.4f + i * 2.2f, 0.01f, RoadZ), 2.6f, Quaternion.Euler(0, 90f, 0)); // narrower span -> outer tiles stay on-screen
 
-            // Side bus stops, OUTSIDE the outer slot (~±4.9 at SlotSpacing 1.4) so they never cover a pad/lane.
+            // Side bus stops, OUTSIDE the outer slot (~±4.2 at SlotSpacing 1.4, 7 pads) so they never cover a pad/lane.
             if (busStopFx != null)
             {
                 FitDecor(busStopFx, new Vector3(-5.5f, 0, ParkingZ - 0.3f), 1.5f, Quaternion.Euler(0, 90f, 0));
@@ -2102,6 +2228,164 @@ namespace BusJam
                     cache = m;
                 }
                 psr.sharedMaterial = cache;
+            }
+        }
+
+        // ====================================================================
+        // T2: Bonus cross-traffic — pooled, collider-free, phase-locked, fair
+        // ====================================================================
+        // Two opposing lanes straddling the RoadZ band. Every car in a lane is rigidly phase-locked at a fixed
+        // `period` (world units) apart, so gaps are CONSTANT and can never close into a wall — always dodgeable.
+        // No colliders (taps never blocked), no per-car Update: ONE TrafficLoop advances all cars by writing x.
+        void BuildTraffic()
+        {
+            traffic.Clear();
+            trafficSpawnIdx = 0;
+            var prefabs = Resources.LoadAll<GameObject>("Fx/Traffic"); // may be empty -> code-built fallback
+            float period = lowEnd ? gameSettings.trafficPeriod + 1.5f : gameSettings.trafficPeriod; // bigger gaps + fewer cars on lowEnd
+            const float SPAN = 18f;                                       // off-screen -9..+9 across the road
+            int perLane = Mathf.Max(2, Mathf.CeilToInt(SPAN / period));   // 4 full / 3 lowEnd
+            trafficLoop = perLane * period;                              // wrap length -> EVEN spacing (no seam gap)
+            trafficHalfLoop = trafficLoop * 0.5f;
+            float width = CellSize * 0.95f;                             // ~a single road car
+            for (int lane = 0; lane < 2; lane++)
+            {
+                int dir = lane == 0 ? +1 : -1;                         // lane 0 -> +X, lane 1 -> -X
+                float laneZ = RoadZ + (lane == 0 ? -0.30f : 0.30f);
+                float phase = lane == 1 ? period * 0.5f : 0f;          // offset the lanes so their gaps never align
+                for (int i = 0; i < perLane; i++)
+                {
+                    float x = -trafficHalfLoop + Mathf.Repeat(i * period + phase, trafficLoop);
+                    var pivot = BuildTrafficCar(prefabs, width, dir);
+                    pivot.transform.position = new Vector3(x, 0f, laneZ);
+                    traffic.Add(new TrafficCar { tf = pivot.transform, x = x, dir = dir, lane = lane });
+                }
+            }
+        }
+
+        // ONE car: a pivot at the lane spot holding a fit/recentered model whose NOSE (local -Z) faces travel.
+        GameObject BuildTrafficCar(GameObject[] prefabs, float width, int dir)
+        {
+            var pivot = new GameObject("TrafficCar");
+            pivot.transform.SetParent(boardRoot, false); // fit at the origin (boardRoot sits at world 0)
+            float halfLen = width * 0.5f;
+            if (prefabs != null && prefabs.Length > 0)
+            {
+                var src = prefabs[trafficSpawnIdx % prefabs.Length];
+                var model = Instantiate(src, pivot.transform, false);
+                model.name = "Model";
+                StripPhysics(model);
+                FitModelLocal(model, width);
+                var b = RendererBounds(model);                          // measured at the origin -> world == local
+                if (b.size.x > b.size.z) model.transform.localRotation = Quaternion.Euler(0, 90f, 0); // long axis -> Z
+                b = RendererBounds(model);
+                halfLen = Mathf.Max(b.size.z, b.size.x) * 0.5f;         // real span -> nose lamps land on the bumper
+            }
+            else
+            {
+                // Fallback: code-built car (nose = local -Z), tinted for variety. Never hard-fails.
+                var palette = (PieceColor[])System.Enum.GetValues(typeof(PieceColor));
+                var color = palette[trafficSpawnIdx % palette.Length];
+                LowPolyBuilder.BuildVehicle(pivot.transform, VehicleType.Car, CellSize,
+                    bodyMats[color], glassMat, wheelMat, lightMat, arrowMat);
+                halfLen = LowPolyBuilder.VehicleLength(VehicleType.Car, CellSize) * 0.5f;
+            }
+            // Pivot faces travel: nose (local -Z) points the drive dir (+X -> yaw -90, -X -> yaw +90).
+            pivot.transform.localRotation = Quaternion.Euler(0, dir > 0 ? -90f : 90f, 0);
+            StripPhysics(pivot); // CRITICAL: the code-built body keeps a collider -> strip so traffic never eats a tap
+            if (nightMode) AttachHeadlights(pivot.transform, halfLen, true); // T4: moving cars get the real spot
+            trafficSpawnIdx++;
+#if UNITY_EDITOR
+            if (pivot.GetComponentsInChildren<Collider>(true).Length != 0)
+                Debug.LogError("[Traffic] a traffic car still has a collider — it would block taps!");
+#endif
+            return pivot;
+        }
+
+        // Fit a model to `targetWidth` and recenter it at its parent's LOCAL origin (XZ centered, base on y=0).
+        // Parent must be at the world origin when called (boardRoot is), so world bounds == local offsets.
+        void FitModelLocal(GameObject model, float targetWidth)
+        {
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+            model.transform.localScale = Vector3.one;
+            var b = RendererBounds(model);
+            float maxXZ = Mathf.Max(b.size.x, b.size.z, 0.01f);
+            model.transform.localScale = Vector3.one * (targetWidth / maxXZ);
+            b = RendererBounds(model);
+            model.transform.localPosition += new Vector3(-b.center.x, -b.min.y, -b.center.z);
+        }
+
+        // ONE driver for every car: advance x, wrap within the loop, write position.x only (keeps the FitModelLocal
+        // y/z). No allocation, no per-car component. Exits when the level leaves Playing (StopAllCoroutines also kills it).
+        IEnumerator TrafficLoop()
+        {
+            while (state == GameState.Playing)
+            {
+                float step = gameSettings.trafficSpeed * Time.deltaTime;
+                for (int i = 0; i < traffic.Count; i++)
+                {
+                    var c = traffic[i];
+                    if (c.tf == null) continue;
+                    c.x += c.dir * step;
+                    if (c.x >= trafficHalfLoop) c.x -= trafficLoop;
+                    else if (c.x < -trafficHalfLoop) c.x += trafficLoop;
+                    var p = c.tf.position; p.x = c.x; c.tf.position = p;
+                }
+                yield return null;
+            }
+        }
+
+        // T3 crossing checkpoint (pure arithmetic against the x the loop just wrote — NO colliders). Always true
+        // on non-bonus levels, so the normal dispatch path is untouched.
+        bool RoadClearAt(float crossX, float clearance)
+        {
+            if (!IsBonus || traffic.Count == 0) return true;
+            for (int i = 0; i < traffic.Count; i++)
+                if (Mathf.Abs(traffic[i].x - crossX) < clearance) return false;
+            return true;
+        }
+
+        // T4: cheap forward headlights at a vehicle's NOSE (local -Z): emissive lamp lenses + a soft translucent
+        // beam on the road (URP-safe, never magenta). withSpot adds ONE shadowless real Spot on !lowEnd (moving
+        // traffic only — the 32-car bonus JAM with a real light each would be far too many). Parented to the
+        // vehicle, so it is reaped with boardRoot. No-op if the night materials didn't build.
+        void AttachHeadlights(Transform root, float halfLen, bool withSpot)
+        {
+            if (headlightMat == null) return;
+            var grp = new GameObject("Headlights");
+            grp.transform.SetParent(root, false);
+            grp.transform.localPosition = new Vector3(0f, 0.12f, -halfLen - 0.05f); // nose = local -Z
+
+            for (int s = -1; s <= 1; s += 2) // two emissive lamp lenses at ±X
+            {
+                var lamp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(lamp.GetComponent<Collider>());
+                lamp.transform.SetParent(grp.transform, false);
+                lamp.transform.localPosition = new Vector3(s * 0.18f, 0f, 0f);
+                lamp.transform.localScale = Vector3.one * 0.13f;
+                lamp.GetComponent<Renderer>().sharedMaterial = headlightMat;
+            }
+
+            if (beamMat != null) // soft beam pooled forward onto the dark road
+            {
+                var beam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(beam.GetComponent<Collider>());
+                beam.transform.SetParent(grp.transform, false);
+                beam.transform.localScale = new Vector3(0.5f, 0.01f, 1.2f);
+                beam.transform.localPosition = new Vector3(0f, -0.04f, -0.65f); // extends forward (-Z), near the ground
+                beam.transform.localRotation = Quaternion.Euler(8f, 0f, 0f);    // tilt the front down onto the road
+                beam.GetComponent<Renderer>().sharedMaterial = beamMat;
+            }
+
+            if (withSpot && !lowEnd) // ONE real shadowless spot (capable devices, moving cars only)
+            {
+                var lgo = new GameObject("Spot");
+                lgo.transform.SetParent(grp.transform, false);
+                lgo.transform.localRotation = Quaternion.Euler(10f, 180f, 0f); // face the car's -Z nose, tilt down
+                var l = lgo.AddComponent<Light>();
+                l.type = LightType.Spot; l.range = 4f; l.spotAngle = 50f;
+                l.color = new Color(1f, 0.96f, 0.80f); l.intensity = 2f; l.shadows = LightShadows.None;
             }
         }
 
@@ -2263,18 +2547,18 @@ namespace BusJam
             tm.mode.Override(TonemappingMode.Neutral);
 
             // Global color grade — THE main "un-fade" lift; touches every pixel of every material.
-            var ca = p.Add<ColorAdjustments>();
-            ca.postExposure.Override(0.12f); // a hair brighter (compensates the trimmed ambient)
-            ca.contrast.Override(12f);       // deeper shadows = more pop
-            ca.saturation.Override(18f);     // vivid, not faded
+            postCA = p.Add<ColorAdjustments>();
+            postCA.postExposure.Override(0.12f); // a hair brighter (compensates the trimmed ambient)
+            postCA.contrast.Override(12f);       // deeper shadows = more pop
+            postCA.saturation.Override(18f);     // vivid, not faded
 
             var wb = p.Add<WhiteBalance>();
             wb.temperature.Override(6f);     // a touch warmer — friendlier, toy-like
 
-            var vig = p.Add<Vignette>();     // subtle focus on the play area
-            vig.intensity.Override(0.24f);
-            vig.smoothness.Override(0.45f);
-            vig.rounded.Override(true);
+            postVig = p.Add<Vignette>();     // subtle focus on the play area
+            postVig.intensity.Override(0.24f);
+            postVig.smoothness.Override(0.45f);
+            postVig.rounded.Override(true);
 
             // ---- Bloom: the priciest mobile post effect (HDR + extra blur passes). Capable devices only. ----
             if (!lowEnd)

@@ -126,13 +126,15 @@ namespace BusJam
             // BONUS theme (every 10th level) — festive purple + gold. MUST stay LAST in All (Themes.For
             // returns it only for level%10==0 and rotates the OTHERS over All.Length-1).
             new Theme {
-                name = "Bonus", sky = new Color(0.20f,0.11f,0.34f), ground = new Color(0.42f,0.27f,0.56f),
-                field = new Color(0.30f,0.19f,0.44f), road = new Color(0.47f,0.34f,0.60f),
+                // NIGHT bonus round: dark sky + dim cool key (copied from Night) so it reads as night; KEEP the
+                // gold accent + festive gold/pink props so gameplay still pops against the dark.
+                name = "Bonus", sky = new Color(0.09f,0.10f,0.20f), ground = new Color(0.26f,0.22f,0.40f),
+                field = new Color(0.17f,0.16f,0.30f), road = new Color(0.20f,0.21f,0.28f),
                 accent = new Color(1f,0.84f,0.32f), propMain = new Color(0.98f,0.78f,0.30f),
-                propAlt = new Color(0.93f,0.41f,0.63f), foliage = new Color(0.58f,0.86f,0.58f),
-                trunk = new Color(0.50f,0.36f,0.24f), grass = new Color(0.60f,0.50f,0.76f),
+                propAlt = new Color(0.93f,0.41f,0.63f), foliage = new Color(0.40f,0.62f,0.45f),
+                trunk = new Color(0.40f,0.30f,0.24f), grass = new Color(0.34f,0.30f,0.46f),
                 prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
-                ambient = new Color(0.56f,0.49f,0.64f), lightColor = new Color(1f,0.92f,0.70f), lightIntensity = 1.45f
+                ambient = new Color(0.30f,0.32f,0.44f), lightColor = new Color(0.62f,0.66f,0.90f), lightIntensity = 0.85f
             },
         };
 

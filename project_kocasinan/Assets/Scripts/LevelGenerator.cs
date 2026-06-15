@@ -45,8 +45,8 @@ namespace BusJam
 
     public static class LevelGenerator
     {
-        public const int BaseSlots = 5;   // unlocked parking == BuildQueue servability window
-        public const int ExtraSlots = 3;  // locked, unlock for coins -> ~8 total pads
+        public const int BaseSlots = 4;   // unlocked parking == BuildQueue servability window (4 OPEN stops)
+        public const int ExtraSlots = 3;  // locked: 1 opens by AD, 2 by COINS -> 7 total pads
 
         /// <summary>Procedural levels (used for 6+ and as the fallback). Gets harder
         /// as the level rises: more colors, more buses, more specials.</summary>
@@ -217,6 +217,10 @@ namespace BusJam
             float goldenP, float mysteryP, VehicleMix mix,
             float specialChance, int specialMaxAdvance, int minRun)
         {
+            // FIXED slot layout for EVERY level (procedural + authored): exactly BaseSlots OPEN stops +
+            // ExtraSlots locked = 7 pads. Overriding here (not trusting def.baseSlots) keeps it uniform; the
+            // queue/grid below are then built solvable-by-construction with this 4-slot servability window.
+            baseSlots = BaseSlots; extraSlots = ExtraSlots;
             int maxAdvance = Mathf.Max(2, specialMaxAdvance); // N >= 2 so a special always makes progress on a clear lane
             var buses = new List<BusDef>(busCount);
             for (int i = 0; i < busCount; i++)

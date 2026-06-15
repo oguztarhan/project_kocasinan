@@ -27,6 +27,27 @@ namespace BusJam
         /// vehicle spans its WHOLE footprint and the board reads as a packed jam.</summary>
         public static float VehicleLength(VehicleType type, float cellSize) => cellSize * Vehicles.CellLength(type) * 0.9f;
 
+        static Mesh _arrowHead;
+        /// <summary>Shared flat triangular arrowhead (unit: tip at -Z, base at +Z, width 1). Scale per use; ONE
+        /// mesh is reused by every vehicle so there is no per-vehicle allocation or cross-level leak.</summary>
+        public static Mesh ArrowHeadMesh()
+        {
+            if (_arrowHead == null)
+            {
+                _arrowHead = new Mesh { name = "ArrowHead" };
+                _arrowHead.vertices = new[]
+                {
+                    new Vector3(0f, 0f, -0.5f),   // tip toward -Z (the exit direction)
+                    new Vector3(-0.5f, 0f, 0.5f), // back-left
+                    new Vector3(0.5f, 0f, 0.5f),  // back-right
+                };
+                _arrowHead.triangles = new[] { 0, 1, 2 }; // single up-facing tri (winding -> +Y normal so the sun lights it; the top-down camera always sees this face)
+                _arrowHead.RecalculateNormals();
+                _arrowHead.RecalculateBounds();
+            }
+            return _arrowHead;
+        }
+
         // Car = short & tall, Bus = standard. Roof heads (boarded passengers) are built separately by
         // BusJamGame.BuildRoofHeads, unified across both render paths.
         public static void BuildVehicle(Transform root, VehicleType type, float cellSize,
@@ -57,17 +78,20 @@ namespace BusJam
                 sw.transform.localPosition = new Vector3(side * (w * 0.5f + 0.005f), bodyY + h * 0.15f, 0);
             }
 
-            // Arrow on top, pointing -Z. Static (no idle pulse) so the grid is dead-still.
+            // Clear arrow on top, pointing -Z (the exit dir): a SOLID TRIANGULAR head + a shaft. Reads as a real
+            // arrow from the top-down camera (the old 45° "diamond" head was ambiguous). Static, no idle pulse.
             var arrowPivot = new GameObject("Arrow");
             arrowPivot.transform.SetParent(root, false);
-            arrowPivot.transform.localPosition = new Vector3(0, top + 0.12f, -len * 0.5f + 0.06f);
+            arrowPivot.transform.localPosition = new Vector3(0, top + 0.10f, -len * 0.5f + 0.06f);
+            var head = new GameObject("ArrowHead");
+            head.transform.SetParent(arrowPivot.transform, false);
+            head.transform.localPosition = new Vector3(0, 0.03f, -cellSize * 0.02f);  // tip toward -Z
+            head.transform.localScale = new Vector3(cellSize * 0.44f, 1f, cellSize * 0.24f);
+            head.AddComponent<MeshFilter>().sharedMesh = ArrowHeadMesh();
+            head.AddComponent<MeshRenderer>().sharedMaterial = arrowMat;
             var shaft = Prim(PrimitiveType.Cube, arrowPivot.transform, arrowMat);
-            shaft.transform.localScale = new Vector3(cellSize * 0.06f, 0.06f, cellSize * 0.22f);
-            shaft.transform.localPosition = new Vector3(0, 0, cellSize * 0.1f);
-            var head = Prim(PrimitiveType.Cube, arrowPivot.transform, arrowMat);
-            head.transform.localScale = new Vector3(cellSize * 0.18f, 0.06f, cellSize * 0.18f);
-            head.transform.localPosition = new Vector3(0, 0, -cellSize * 0.03f);
-            head.transform.localRotation = Quaternion.Euler(0, 45, 0);
+            shaft.transform.localScale = new Vector3(cellSize * 0.15f, 0.05f, cellSize * 0.20f);
+            shaft.transform.localPosition = new Vector3(0, 0.03f, cellSize * 0.20f);
 
             // Wheels (along ±X, front/back)
             float wx = w * 0.52f, wz = len * 0.34f;
