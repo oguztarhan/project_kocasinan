@@ -19,6 +19,7 @@ namespace BusJam
         public System.Action OnHome, OnReplay, OnLevels;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
+        public System.Action<int> OnFreeCoins; // +coins rewarded button -> BusJamGame grants coins & fires CoinsChanged
 
         static readonly Color White = Color.white;
         static readonly Color Gold  = new Color(1f, 0.85f, 0.30f);
@@ -35,6 +36,11 @@ namespace BusJam
         readonly GameObject[] jokerBuyPanels = new GameObject[3]; // baked per-joker buy panels (0/1/2)
         readonly Sprite[] jokerIcons = new Sprite[3];
         readonly int[] jokerCosts = new int[3];
+
+        // Bottom space reserved for the AdMob adaptive banner so the joker row never sits under it (T3). Tunable.
+        const float BannerReservePx = 190f;
+        const float JokerBaseBottom = 70f;  // original bottom offset of the joker row
+        const int   FreeCoinsReward = 50;   // coins granted by the "+coins" rewarded button (T5)
 
         struct Joker
         {
@@ -128,6 +134,8 @@ namespace BusJam
             jRecolor = AdoptJoker(h.recolor, recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
             jSwap    = AdoptJoker(h.swap,    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
+            ReserveBannerSpace(h.recolor); ReserveBannerSpace(h.swap); ReserveBannerSpace(h.heli); // lift baked jokers above the banner (T3)
+            BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
             RefreshJokers();
             BuildBonusCountdown();
         }
@@ -186,6 +194,8 @@ namespace BusJam
             // SETTINGS gear: TOP-RIGHT.
             Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
 
+            BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
+
             // (People-left count now lives ONLY on the neon world sign by the first bus stop — HUD chip removed.)
 
             comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
@@ -201,10 +211,10 @@ namespace BusJam
 
         Joker JokerButton(float x, Sprite icon, int cost, int unlock, int kind, System.Action use)
         {
-            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(0.5f, 0), new Vector2(x, 70), new Vector2(180, 180), null);
+            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(0.5f, 0), new Vector2(x, JokerBaseBottom + BannerReservePx), new Vector2(180, 180), null);
             var rt = btn.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0); rt.pivot = new Vector2(0.5f, 0);
-            rt.anchoredPosition = new Vector2(x, 70);
+            rt.anchoredPosition = new Vector2(x, JokerBaseBottom + BannerReservePx);
             var bg = btn.GetComponent<Image>();
             var ico = Img(btn.transform, icon, White); ico.raycastTarget = false;
             Center(ico.rectTransform, new Vector2(112, 112));
@@ -215,6 +225,30 @@ namespace BusJam
             Place(cb.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-4, -4), new Vector2(72, 72));
             var ct = Label(cb.transform, "0", num, Vector2.zero, new Vector2(72, 50), 32, White);
             return MakeJoker(btn, bg, ico, lk.gameObject, cb.gameObject, ct, cost, unlock, kind, use);
+        }
+
+        // --- T3/T5 helpers ---
+        // Lift a baked joker button up by the reserved banner height so the adaptive banner never covers it.
+        void ReserveBannerSpace(HudJoker hj)
+        {
+            if (hj == null || hj.button == null) return;
+            var rt = hj.button.GetComponent<RectTransform>();
+            if (rt != null) rt.anchoredPosition += new Vector2(0, BannerReservePx);
+        }
+
+        // Small "+coins (watch ad)" button by the coin bar: grants FreeCoinsReward via a rewarded ad.
+        void BuildFreeCoinsButton(Transform parent)
+        {
+            if (parent == null) return;
+            var btn = Btn(parent, UIKit.PriceBtnA(), new Color(0.28f, 0.72f, 0.38f), new Vector2(0.5f, 1), new Vector2(245, -100), new Vector2(140, 92), () =>
+            {
+                var ad = AdManager.Instance;
+                if (ad != null) ad.ShowRewarded("freecoins", onReward: () => OnFreeCoins?.Invoke(FreeCoinsReward), onClosedNoReward: null);
+            });
+            var ic = Img(btn.transform, UIKit.Coin(), Gold); ic.raycastTarget = false;
+            Place(ic.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(32, 8), new Vector2(48, 48));
+            Label(btn.transform, "+", title, new Vector2(36, 10), new Vector2(80, 56), 44, White);
+            Label(btn.transform, "AD", num, new Vector2(0, -28), new Vector2(120, 28), 20, White);
         }
 
         void RefreshJokers() { SetJoker(jRecolor); SetJoker(jSwap); SetJoker(jHeli); }
@@ -748,7 +782,16 @@ namespace BusJam
             successPanel.SetActive(false);
         }
 
-        void ClaimReward(int amount) { successPanel.SetActive(false); OnClaimReward?.Invoke(amount); }
+        void ClaimReward(int amount)
+        {
+            successPanel.SetActive(false);
+            // AD ×2 (40) must be EARNED via a rewarded ad; base NEXT (20) is instant. Skip/close/no-ad -> base 20. (T5)
+            var ad = AdManager.Instance;
+            if (amount >= 40 && ad != null)
+                ad.ShowRewarded("doublecoins", onReward: () => OnClaimReward?.Invoke(amount), onClosedNoReward: () => OnClaimReward?.Invoke(20));
+            else
+                OnClaimReward?.Invoke(amount);
+        }
 
         public static void Vibrate()
         {

@@ -45,6 +45,7 @@ public class MenuController : MonoBehaviour
 
     void Start()
     {
+        AdManager.Ensure(); // create the ad singleton in the menu too, so the "watch ad → gold" button works here
         homeOnly = new[]
         {
             FindByName("Coin_Bar"),    // gold counter
@@ -117,8 +118,14 @@ public class MenuController : MonoBehaviour
     public void OpenTikTok()    { OpenUrl(tiktokUrl); }
     static void OpenUrl(string url) { if (!string.IsNullOrWhiteSpace(url)) Application.OpenURL(url); }
 
-    // Watch-ad reward: grant 10 gold (placeholder until a real rewarded ad is wired).
-    public void WatchAdReward() { SaveSystem.AddCoins(10); Refresh(); }
+    // Watch-ad reward: show a rewarded ad; grant 10 gold ONLY when it completes (skip/close -> nothing).
+    public void WatchAdReward()
+    {
+        var ad = AdManager.Instance;
+        if (ad != null)
+            ad.ShowRewarded("menucoins", onReward: () => { SaveSystem.AddCoins(10); Refresh(); }, onClosedNoReward: null);
+        else { SaveSystem.AddCoins(10); Refresh(); } // AdManager yoksa (olmaması lazım) eski davranış
+    }
 
     public void Play() { SceneManager.LoadScene(gameSceneName); }
 

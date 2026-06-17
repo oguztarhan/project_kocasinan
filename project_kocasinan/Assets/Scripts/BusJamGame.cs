@@ -156,6 +156,7 @@ namespace BusJam
 
             sfx = gameObject.AddComponent<Sfx>();
             ui = gameObject.AddComponent<GameUI>();
+            var ad = AdManager.Ensure(this); // AdMob singleton (DontDestroyOnLoad); created from the gameplay scene
             ui.OnMenu = () => { sfx.Click(); PauseRequested?.Invoke(); };
             ui.OnRecolor = JokerRecolor;
             ui.OnSwap = JokerSwapPeople;
@@ -175,9 +176,22 @@ namespace BusJam
                 }
                 else sfx.Error();
             };
-            ui.OnContinueAd = () => { ui.HideContinue(); ContinueLevel(); };   // TODO: gate behind a real rewarded ad
-            ui.OnContinueDeclined = () => { ui.HideContinue(); ui.ShowFailed(); };
+            ui.OnContinueAd = () => ad.ShowRewarded("continue",
+                onReward: () => { ui.HideContinue(); ContinueLevel(); },          // revive ONLY on a completed rewarded ad
+                onClosedNoReward: () => sfx.Error());                              // skip / no-ad -> stay on the continue panel
+            ui.OnContinueDeclined = () =>                                          // leaving the loss flow: loss-interstitial (if eligible) THEN Failed
+            {
+                ui.HideContinue();
+                Time.timeScale = 0f;
+                ad.ShowInterstitialIfEligible(() => { Time.timeScale = 1f; ui.ShowFailed(); });
+            };
+            ui.OnFreeCoins = n => { SaveSystem.AddCoins(n); ui.SetCoins(SaveSystem.Coins); CoinsChanged?.Invoke(SaveSystem.Coins); }; // +coins rewarded button
             ui.Build(RecolorCost, SwapCost, HeliCost, J1UnlockLevel, J2UnlockLevel, J3UnlockLevel);
+
+            // AdMob cadence signals + banner — subscribe with += so any existing handlers are preserved.
+            LevelCompleted += (earned, stars) => ad.AddInterstitialWin();   // WIN signal (Win); increment only — success panel is up
+            LevelFailed    += reason => ad.AddInterstitialLoss();           // LOSS signal (Lose); increment only — continue panel is up
+            LevelStarted   += _ => ad.ShowBanner();                         // banner shown during gameplay
 
             levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
@@ -204,7 +218,7 @@ namespace BusJam
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
 
         // Settings panel: HOME button -> back to the main menu scene.
-        public void GoToMainMenu() { sfx.Click(); SceneManager.LoadScene("MainMenu"); }
+        public void GoToMainMenu() { sfx.Click(); AdManager.Instance?.HideBanner(); SceneManager.LoadScene("MainMenu"); }
 
         // Success panel: grant the reward (base 20 / ad 40) then advance a level.
         void ClaimWinReward(int amount)
@@ -212,7 +226,11 @@ namespace BusJam
             if (state != GameState.Win) return;
             AddCoins(amount);
             sfx.Coin();
-            NextLevel(); // SaveSystem.Level was already advanced in Win()
+            // Win-interstitial fires AFTER the claim, with time FROZEN so the next level can't build under the ad;
+            // the ad close (or the immediate no-ad fallback) un-pauses and advances. (SaveSystem.Level already advanced in Win.)
+            var ad = AdManager.Instance;
+            if (ad != null) { Time.timeScale = 0f; ad.ShowInterstitialIfEligible(() => { Time.timeScale = 1f; NextLevel(); }); }
+            else NextLevel();
         }
 
         public void ContinueLevel()
@@ -232,6 +250,11 @@ namespace BusJam
         // ====================================================================
         void Update()
         {
+#if UNITY_EDITOR
+            // TEMP AD DEBUG (editor only): press I to force an interstitial. Gated by AdManager.SHOW_AD_DEBUG.
+            if (AdManager.SHOW_AD_DEBUG && Keyboard.current != null && Keyboard.current.iKey.wasPressedThisFrame)
+                AdManager.Instance?.ForceInterstitial(null);
+#endif
             if (state != GameState.Playing) return;
             // The bonus timer may end the level THIS frame (FinishBonus -> NextLevel rebuilds + re-sets Playing),
             // so bail if the level changed or we left Playing — never run taps against a half-swapped board.
@@ -925,7 +948,12 @@ namespace BusJam
         // TODO: integrate a rewarded-ad SDK (Unity Ads / AdMob) and gate DoAdUnlock behind the reward.
         void WatchAdToUnlock(ParkingSlot slot)
         {
-            DoAdUnlock(slot);
+            var ad = AdManager.Instance;
+            if (ad != null)
+                ad.ShowRewarded("padunlock",
+                    onReward: () => DoAdUnlock(slot),                                       // unlock ONLY on a completed rewarded ad
+                    onClosedNoReward: () => { sfx.Error(); StartCoroutine(Bump(slot.transform)); });
+            else DoAdUnlock(slot); // no AdManager (degenerate) -> grant so the pad isn't permanently stuck
         }
 
         void DoAdUnlock(ParkingSlot slot)
@@ -1251,7 +1279,6 @@ namespace BusJam
             int lockCount = Mathf.Max(0, totalSlots - level.baseSlots);
             int leftLocks = lockCount / 2;
             int rightStart = totalSlots - (lockCount - leftLocks);
-            bool adAssigned = false;
             for (int i = 0; i < totalSlots; i++)
             {
                 var pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -1264,7 +1291,7 @@ namespace BusJam
                 var slot = pad.AddComponent<ParkingSlot>();
                 slot.index = i;
                 slot.locked = (i < leftLocks) || (i >= rightStart); // central pads unlocked
-                if (slot.locked && !adAssigned) { slot.adUnlock = true; adAssigned = true; } // first locked pad = AD; rest = COINS
+                slot.adUnlock = slot.locked && (i >= totalSlots - 2); // the 2 RIGHTMOST locked pads open by rewarded ad; the rest by coins
                 slots[i] = slot;
 
                 if (slot.locked)
