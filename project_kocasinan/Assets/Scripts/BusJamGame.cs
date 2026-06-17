@@ -48,7 +48,7 @@ namespace BusJam
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
         const float CellSize = 1.1f;          // BIG cells: a 6-wide jam fills the portrait at the zoomed camera; vehicles scale with this
         const float GridExitZ = 5.5f;         // grid row y=0 (exit edge); the H9 jam fills the lower screen (deepest row stays on)
-        const float ScreenFloorZ = -7.7f;     // lowest on-screen ground z (tied to the pulled-back PlaceCamera) — away-exits keep their near edge above this
+        const float ScreenFloorZ = -7.3f;     // lowest on-screen ground z (tied to PlaceCamera FOV 52) — away-exits keep their near edge above this
         const float RoadZ = 6.9f;             // road/drive-in lane — WIDE gap below it (to the jam) and above it (to the stops) so a
                                               // vehicle can drive ALONG it to its slot without clipping the jam OR the parked cars
         const float ParkingZ = 9.3f;          // bus stop (parking row); +1.4 vs before to open the drive-in lane below it
@@ -99,7 +99,7 @@ namespace BusJam
         bool pumpRunning, pumpDirty;
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
-        const float BonusTime = 60f;        // bonus-only countdown length (seconds)
+        const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
         const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
         float bonusTimeLeft;
@@ -112,6 +112,7 @@ namespace BusJam
         readonly List<TrafficCar> traffic = new List<TrafficCar>();
         float trafficHalfLoop, trafficLoop; // wrap bounds (even spacing) shared by both lanes
         int trafficSpawnIdx;                // deterministic variety counter (no Random in the hot path)
+        float trafficCarSpeed;              // progressive car speed (eased by bonus index in BuildTraffic): slow at L10, faster later
 
         ParkingSlot[] slots;
         readonly Dictionary<Vector2Int, Bus> occ = new Dictionary<Vector2Int, Bus>();
@@ -318,18 +319,12 @@ namespace BusJam
             // while planning/waiting below — keep us visible to other buses' paths until we actually move off.
             ReserveCorridor(bus, new List<Vector2Int> { bus.cell });
 
-            // SERIALIZE the WHOLE approach: only ONE bus drives from the jam to its stop at a time (the lock is held
-            // until it PARKS, below), so two exiting vehicles can never meet — not mid-jam, not on the road, not at
-            // a stop. We keep our reserved spot above while waiting our turn. Timeout is generous for a tap queue.
-            float turnWait = 0f;
-            while (gridDriver != null && gridDriver != bus && turnWait < 20f)
-            {
-                yield return null;
-                if (bus == null || state != GameState.Playing) { busy--; yield break; }
-                turnWait += Time.deltaTime;
-            }
-            gridDriver = bus;
-            StartCoroutine(FreeCorridorWhenClear(bus));
+            // CONCURRENT exits on ALL levels (normal AND bonus): do NOT wait for another vehicle to arrive. TryTapBus
+            // only starts an exit when this vehicle's slide lane is already clear of jammed cars AND every in-flight
+            // corridor, so vehicles in non-conflicting columns slide out TOGETHER — tap several (with free stops) and
+            // they all move at once. A vehicle whose lane conflicts with one in flight just doesn't start an exit yet.
+            // (reservedByMoving keeps the jam slides collision-free; the bonus crash/cross logic is all per-vehicle.)
+            var freeCorr = StartCoroutine(FreeCorridorWhenClear(bus)); // handle kept so a T3 crash can stop it (else it outlives the retreat)
             var exhaust = SpawnExhaust(bus); // T5: rear exhaust trail while it drives off (null on lowEnd / unbuilt catalog)
 
             // Exit GROUNDED, never hitting a vehicle. The bus already FACES `dir`; if its straight `dir` lane is
@@ -394,7 +389,21 @@ namespace BusJam
                 rest.Add(new Vector3(slotX, 0, RoadZ));             // along the open road to the slot's x (no parked cars on the road)
                 rest.Add(new Vector3(slotX, 0, ParkingZ));          // pull up into the slot (perpendicular; ~0.05u gap to neighbours)
                 for (int i = 0; i < rest.Count; i++) rest[i] = OnScreenX(rest[i], 1.0f);  // keep every waypoint on-screen (slot x is already in-frame)
-                yield return DrivePath(bus.transform, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                // T3 (BONUS only): drive the whole approach with CONTINUOUS mesh-checking. The OLD code took a single
+                // RoadClearAt snapshot before the pull-up, so a car that ARRIVED during the slow perpendicular cross
+                // slipped through (the reported "bus meshes a car without crashing"). DriveBonusApproach crashes the
+                // instant the body actually overlaps a car WHILE crossing a lane. Non-bonus keeps the single drive.
+                if (IsBonus)
+                {
+                    yield return DriveBonusApproach(bus, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                    if (bus.crossMeshed)
+                    {
+                        yield return CrashAndReturn(bus, slot, exhaust, freeCorr, rest, clearPt); // penalty + grounded reverse-path return + re-claim
+                        yield break;                                     // never fall into the park tail below
+                    }
+                }
+                else
+                    yield return DrivePath(bus.transform, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
             }
             else
             {
@@ -412,6 +421,119 @@ namespace BusJam
             busy--;
             TryStartBoardingPump();
             CheckEnd();
+        }
+
+        // T3 (BONUS): a mistimed crossing — the tapped bus reached the road but cross-traffic is in the way. Crash
+        // FX + a 3s time penalty, then DRIVE BACK GROUNDED to its jam cell and re-claim it (re-tappable). The bus is
+        // NEVER lost and NEVER lifts/flies; the penalty only costs TIME (and the perfect bonus), never solvability.
+        IEnumerator CrashAndReturn(Bus bus, ParkingSlot slot, GameObject exhaust, Coroutine freeCorr, List<Vector3> rest, Vector3 clearPt)
+        {
+            if (bus == null || slot == null) { busy--; yield break; }  // teardown insurance (keep busy balanced)
+            // Kill THIS exit's in-flight FreeCorridorWhenClear: a multi-cell bus that crashed before its tail crossed
+            // RoadZ leaves that coroutine still waiting, and it would otherwise survive the retreat and later free a
+            // RE-TAPPED exit's live jam corridor at the wrong moment (desync). CrashAndReturn frees this exit's own
+            // corridor below (FreeCorridor), so stopping it here loses nothing.
+            if (freeCorr != null) StopCoroutine(freeCorr);
+
+            // FX + feedback IN PLACE at the road: shake HERE first (NOT concurrent with any move) so it clearly reads
+            // as "THIS vehicle crashed here", then it drives back. (The old code shook while MoveTo'ing -> jitter.)
+            Vector3 hitPos = bus.transform.position + Vector3.up * 0.5f;
+            SpawnHit(hitPos);                                                       // HitRock debris poof (no-op on lowEnd)
+            Juice.Burst(this, boardRoot, hitPos, bodyMats[bus.color], 18, 5.5f);    // ALWAYS a big colored spark burst so the crash is unmistakable
+            Juice.Burst(this, boardRoot, hitPos, goldMat, 10, 4f);                  // + a bright spark flash
+            sfx.Crash();                                                           // impact sound
+            sfx.Screech();                                                         // + tyre screech
+            StopExhaust(exhaust, false);                           // stop the exit trail
+            yield return Bump(bus.transform);                      // shake IN PLACE (yielded -> nothing else moves it -> no jitter/teleport)
+            if (bus == null || state != GameState.Playing) { busy--; yield break; }
+
+            // Penalty: TIME only. A resulting timeout funnels through the SAME single FinishBonus(false) below.
+            bonusTimeLeft -= 3f;
+            crashedThisBonus = true;                               // a crash this run drops a star on the success panel
+            ui.SetBonusCountdown(bonusTimeLeft);
+            SpawnPenaltyText(bus.transform.position, "-3", new Color(1f, 0.28f, 0.24f)); // red floating "-3" at the crash
+
+            // GROUNDED return: DRIVE BACK retracing the (clear) exit lane IN REVERSE — never cuts straight across the
+            // jam, the NOSE follows the path (reads as driving, not sliding/flying), y stays 0, NO MoveAndRotateArc.
+            Vector3 home = GridWorldCenter(bus.cell, bus.dir, bus.length); // bus.cell is UNCHANGED on the ExitRoutine path
+            ReserveCorridor(bus, new List<Vector2Int> { bus.cell });        // re-hold the landing cell across the retreat
+            var back = new List<Vector3>();
+            for (int i = rest.Count - 3; i >= 0; i--) back.Add(rest[i]);    // road/side-lane waypoints reversed (we're at rest[len-2]=(slotX,RoadZ); the ParkingZ pull-up we never reached is skipped)
+            back.Add(clearPt);                                              // back to the slide start (just outside the jam)
+            back.Add(home);                                                // ...then slide straight into the jam cell
+            yield return DrivePath(bus.transform, back, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+            if (bus == null || state != GameState.Playing) { busy--; yield break; } // mid-frame teardown insurance
+            bus.transform.rotation = Quaternion.Euler(0, DirYaw(bus.dir), 0);       // restore the arrow facing in the cell
+
+            // RE-CLAIM (mirror-reverse of TryTapBus's claim). The occ re-add + corridor-free happen in the SAME frame
+            // (no yield), so there is no window where the home cells are unheld. AssertNoOccOverlap catches a slip in-editor.
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus; // re-add the footprint
+            if (!gridBuses.Contains(bus)) gridBuses.Add(bus);     // undo the gridBuses.Remove
+            slot.occupant = null; bus.slotIndex = -1;             // release the stop it had claimed
+            bus.state = BusState.Queued;                          // re-tappable
+            FreeCorridor(bus);                                    // drop reservedByMoving (occ holds the cells now)
+            if (gridDriver == bus) gridDriver = null;             // release the serialize lock -> next tap isn't deadlocked
+            busy--;                                               // exactly ONE busy-- (the busy++ was taken in ExitRoutine)
+
+            if (bonusTimeLeft <= 0f) { FinishBonus(false); yield break; } // the crash ran the clock out -> single soft end
+            TryStartBoardingPump();
+            CheckEnd();
+        }
+
+        // T3 (BONUS): drive the crossing approach like DrivePath, but CONTINUOUSLY check for a REAL traffic mesh and
+        // bail (-> bonusCrossMeshed) the instant the body overlaps a car WHILE crossing a lane. Driving ALONG the road
+        // (moving in x) sits in the median BETWEEN the two lanes and never meshes, so we only test when moving
+        // PERPENDICULAR (mostly in z) inside the lane band — which is exactly when the body sweeps a lane. This
+        // replaces the old single pre-pull-up snapshot that missed cars arriving mid-cross.
+        IEnumerator DriveBonusApproach(Bus bus, List<Vector3> pts, float speed, float turnLerp)
+        {
+            if (bus == null || pts == null || pts.Count == 0) yield break;
+            bus.crossMeshed = false; // per-VEHICLE flag (not a shared field) so concurrent bonus crossings each track their own mesh
+            float halfLen = LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f; // body half-length = its z-extent while crossing
+            var c = new List<Vector3>(pts.Count + 1) { bus.transform.position };
+            c.AddRange(pts);
+            Vector3 C(int i) => c[Mathf.Clamp(i, 0, c.Count - 1)];
+            var s = new List<Vector3> { c[0] };                                   // dense arc-length spline samples (same as DrivePath)
+            for (int i = 0; i < c.Count - 1; i++)
+            {
+                int n = Mathf.Max(2, Mathf.CeilToInt(Vector3.Distance(C(i), C(i + 1)) / 0.1f));
+                for (int k = 1; k <= n; k++) s.Add(CatmullRom(C(i - 1), C(i), C(i + 1), C(i + 2), k / (float)n));
+            }
+            int idx = 0;
+            while (idx < s.Count - 1)
+            {
+                if (bus == null) yield break;
+                Vector3 prev = bus.transform.position;
+                float move = Mathf.Max(speed, 0.01f) * Time.deltaTime;
+                while (idx < s.Count - 1 && move > 0f)
+                {
+                    float d = Vector3.Distance(bus.transform.position, s[idx + 1]);
+                    if (d <= move) { move -= d; bus.transform.position = s[idx + 1]; idx++; }
+                    else { bus.transform.position = Vector3.MoveTowards(bus.transform.position, s[idx + 1], move); break; }
+                }
+                Vector3 look = s[Mathf.Min(idx + 1, s.Count - 1)] - bus.transform.position;
+                if (look.sqrMagnitude > 1e-5f)
+                    bus.transform.rotation = Quaternion.Slerp(bus.transform.rotation,
+                        Quaternion.Euler(0, Mathf.Atan2(-look.x, -look.z) * Mathf.Rad2Deg, 0), 1f - Mathf.Exp(-turnLerp * Time.deltaTime));
+                // Crash on a REAL mesh while CROSSING (moving perpendicular, mostly in z). Per-car x AND z overlap
+                // test using the car's ACTUAL lane z, so it never false-fires below the lanes or while merging
+                // ALONG the road's median (where the bus moves in x and its z-extent is just its narrow width).
+                Vector3 vel = bus.transform.position - prev;
+                if (Mathf.Abs(vel.z) > Mathf.Abs(vel.x))
+                {
+                    Vector3 bp = bus.transform.position;
+                    for (int ti = 0; ti < traffic.Count; ti++)
+                    {
+                        var car = traffic[ti];
+                        if (car.tf != null && Mathf.Abs(car.x - bp.x) < gameSettings.trafficClearance
+                            && Mathf.Abs(car.tf.position.z - bp.z) < halfLen + 0.4f)
+                        { bus.crossMeshed = true; break; }
+                    }
+                    if (bus.crossMeshed) yield break;
+                }
+                yield return null;
+            }
+            if (bus != null) bus.transform.position = s[s.Count - 1];
         }
 
         // occ (jammed) OR a live in-flight corridor holds this cell for a DIFFERENT bus.
@@ -447,8 +569,9 @@ namespace BusJam
             // must sit a half-body PAST RoadZ so the rear cells are out. length-1 Car -> margin 0 (identical to before).
             yield return new WaitUntil(() => bus == null ||
                 bus.transform.position.z >= RoadZ + (bus.length - 1) * 0.5f * CellSize - 0.05f);
-            FreeCorridor(bus); // free the JAM lane for crawls once the tail is out — but gridDriver is held until PARK
-        }                      // (the road approach is still this bus's; the next bus must wait until we're parked)
+            FreeCorridor(bus); // free the JAM lane for crawls once the tail is out (normal levels don't use gridDriver
+                               // at all now; on BONUS the serialize lock is released at PARK / on crash, not here)
+        }
 
 #if UNITY_EDITOR
         // Invariant watchdog (Editor only, every frame): NO grid cell may be held by two DIFFERENT vehicles across
@@ -538,7 +661,7 @@ namespace BusJam
         // Visible half-width (world units) at ground depth z, for a tall portrait (aspect 0.462).
         // Tied to PlaceCamera (pos 0,21.2,-8.99 / target 0,0,3.2 / FOV 54). The +6.0 vs the old 13.867 is the
         // camera pulled back 6.0u along the view axis (the ~25% zoom-out). Keep in sync if the camera changes.
-        static float VisHalfW(float z) => (19.867f + 0.4983f * (z + 6f)) * 0.2356f;
+        static float VisHalfW(float z) => (19.867f + 0.4983f * (z + 6f)) * 0.2255f; // 0.2255 = aspect*tan(FOV/2) at FOV 52 (was 0.2356 at FOV 54)
 
         // Clamp a waypoint's X so the whole body (+ spline bow, ~margin) stays inside the camera frustum at depth z.
         static Vector3 OnScreenX(Vector3 p, float margin)
@@ -690,7 +813,7 @@ namespace BusJam
             else sfx.Board();
 
             AddCoins(coins);
-            if (combo >= 2) ui.ShowCombo(combo);
+            // (combo popup text removed per design; the combo streak still drives the win star rating via maxCombo)
         }
 
         Bus FindParkedBus(PieceColor color)
@@ -720,6 +843,15 @@ namespace BusJam
             float side = start.x >= 0f ? 1f : -1f;                                  // exit the closer side
             Vector3 backUp = new Vector3(start.x, start.y, ParkingZ - 1.2f);        // reverse a little (faces +Z, so a -Z move reads as backing up)
             yield return MoveTo(bus.transform, backUp, 0.35f);                       // back up a little out of the stop
+            // T3 (BONUS only): a FULL bus leaving is automatic, NOT a player skill check — so it WAITS for a clear
+            // gap in the cross-traffic before merging (it never crashes). Generous timeout so it can't ever hang.
+            if (IsBonus)
+            {
+                float gapWait = 0f;
+                yield return new WaitUntil(() => bus == null || state != GameState.Playing ||
+                    RoadClearAt(start.x, gameSettings.trafficClearance) || (gapWait += Time.deltaTime) > 3f);
+                if (bus == null || state != GameState.Playing) { busy--; yield break; }
+            }
             yield return DrivePath(bus.transform, new List<Vector3> {
                 new Vector3(start.x + side * 1.4f, start.y, RoadZ),                  // sweep onto the road toward the exit side
                 new Vector3(side * 14f, start.y, RoadZ),                            // cruise off-screen along the road
@@ -764,9 +896,8 @@ namespace BusJam
             // another bus that might match -> parking is NOT full yet, so this is not a deadlock.
             if (FirstFreeSlot() != null) return;
 
-            // On a BONUS level a "deadlock" is NOT a hard loss — soft-advance (the timer is the only failure
-            // pressure; a bonus never shows the Continue panel). Routes through the SAME single FinishBonus.
-            if (IsBonus) { FinishBonus(true); return; }
+            // On a BONUS level a deadlock (stuck: parking full, front passenger matches nothing) = FAILED.
+            if (IsBonus) { FinishBonus(false); return; }
 
             // Otherwise (normal level): the front passenger matches NO parked bus AND the parking is full.
             // This is a genuine deadlock -> lose. Locked slots, the number of remaining grid buses
@@ -983,7 +1114,6 @@ namespace BusJam
             ApplyTheme(theme);
             BuildSlots();
             BuildGrid();
-            BuildBoardBackground(theme);
             BuildPeopleLeftSign();
             BuildLine();
 
@@ -1075,27 +1205,38 @@ namespace BusJam
         {
             bonusTimeLeft -= Time.deltaTime;
             ui.SetBonusCountdown(bonusTimeLeft);
-            if (bonusTimeLeft <= 0f) FinishBonus(false); // ran out of time -> soft end, NO reward
+            if (bonusTimeLeft <= 0f) FinishBonus(false); // ran out of time -> the FAILED panel
         }
 
-        // The ONE bonus completion path. inTime = solved/deadlocked before 0:00 (grants the reward); !inTime =
-        // timed out (no reward). Soft-advances STRAIGHT to the next level — never the Success or Continue panel
-        // (the timer is the only pressure; a bonus can't hard-lose). Guarded so it fires exactly once per bonus.
+        // The ONE bonus completion path (guarded so it fires exactly once). inTime = solved before 0:00 -> SUCCESS
+        // panel (advances on CLAIM); !inTime = timed out OR stuck -> FAILED panel (RETRY replays the bonus, no advance).
         void FinishBonus(bool inTime)
         {
             if (state != GameState.Playing) return;
-            state = GameState.Win;
-            SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1); // lock progression (mirror Win)
-            SaveSystem.BestLevel = currentLevel;
             ui.HideBonusCountdown();
-            ui.HideHud();
             if (inTime)
             {
-                AddCoins(BonusReward);                                              // normal bonus reward
-                if (!crashedThisBonus && PerfectBonus > 0) AddCoins(PerfectBonus);  // optional no-crash bonus (opt-in)
+                // SUCCESS — lock progression + the win panel (CLAIM/AD grants the reward, then NextLevel).
+                state = GameState.Win;
+                SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
+                SaveSystem.BestLevel = currentLevel;
                 sfx.Win();
+                ui.HideHud();
+                ConfettiFromCorners();
+                int stars = crashedThisBonus ? 2 : 3;             // a clean (no-crash) run earns the full 3 stars
+                LevelCompleted?.Invoke(earnedThisLevel, stars);
+                ui.ShowSuccess(stars);
             }
-            NextLevel(); // advance directly — no blocking panel, no ClaimWinReward
+            else
+            {
+                // FAILED (time up / stuck) — the Failed panel: RETRY replays the bonus, HOME -> menu. No progression.
+                state = GameState.Lose;
+                sfx.Lose();
+                ui.HideHud();
+                LevelFailed?.Invoke("Bonus failed");
+                OnGameOver?.Invoke("Bonus failed");
+                ui.ShowFailed();
+            }
         }
 
         // ====================================================================
@@ -1170,19 +1311,6 @@ namespace BusJam
                 foreach (var c in LevelGenerator.OccCells(gb.cell, gb.dir, bus.length)) occ[c] = bus;
                 gridBuses.Add(bus);
             }
-        }
-
-        // Seamless packed-lot ground under the jam grid (no cell lattice) so vehicles sit on a
-        // surface that blends with the theme. Pure visual — all grid logic is unchanged.
-        void BuildBoardBackground(Theme th)
-        {
-            float w = gridW * CellSize;
-            float d = gridH * CellSize;
-            float cz = GridExitZ - (gridH - 1) * CellSize * 0.5f;
-
-            // One ground/parking slab in the theme ground color (fallback args MATCH ApplyTheme's "Ground").
-            Material lot = MaterialLibrary.GetTheme(th.name, "Ground", th.ground, 0.35f, 0.05f);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.07f, cz), new Vector3(w + 0.6f, 0.12f, d + 0.6f), lot);
         }
 
         // Wide mall/terminal facade behind the people band. Themed (Facade/Trim/Door materials),
@@ -1270,6 +1398,7 @@ namespace BusJam
                 person.transform.SetParent(boardRoot, false);
                 person.transform.position = new Vector3(lineXZ[i].x, 0, lineXZ[i].y);
                 BuildCrowdMember(person.transform, crowdColors[i % crowdColors.Length]);
+                OutlineAll(person); // toon ink edge on the background crowd figure
             }
 
             // sign band over the entrance
@@ -1344,6 +1473,7 @@ namespace BusJam
             var u = go.AddComponent<LineUnit>();
             u.color = g.color; u.golden = g.golden; u.mystery = g.mystery;
             BuildPersonVisual(u, go.transform, g.color, g.golden, g.mystery);
+            OutlineAll(go); // toon ink edge on the boarding person (imported skinned OR code fallback)
             return u;
         }
 
@@ -1437,6 +1567,7 @@ namespace BusJam
                     BuildSpecialBadge(root.transform, advanceN, new Vector3(0, cbTop + 0.12f, -cbLen * 0.42f), Mathf.Clamp(CellSize * 0.42f, 0.3f, 0.6f));
             }
             root.transform.localScale = Vector3.one * gameSettings.vehicleSize; // editable vehicle-size multiplier (both render paths)
+            OutlineAll(root); // toon ink edge on the vehicle body + roof markers (before headlights so the glowing lenses stay clean)
             if (nightMode) AttachHeadlights(root.transform, LowPolyBuilder.VehicleLength(type, CellSize) * 0.5f, false); // T4: night headlights (no real spot on the jam vehicles)
             return bus;
         }
@@ -1612,6 +1743,38 @@ namespace BusJam
             var outline = go.AddComponent<UnityEngine.UI.Outline>();
             outline.effectColor = Color.black; outline.effectDistance = new Vector2(3, 3);
             return txt;
+        }
+
+        // A floating damage-style number (e.g. a red "-3" at a bonus crash): world-space canvas that BillboardUps to
+        // the camera, then RISES + FADES and self-destructs, so the player clearly sees the time penalty land.
+        void SpawnPenaltyText(Vector3 worldPos, string text, Color color)
+        {
+            var go = new GameObject("PenaltyText", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+            go.transform.SetParent(boardRoot, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 80);
+            go.transform.position = worldPos + Vector3.up * 1.2f;
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.9f / 120f); // -X cancels the BillboardUp flip
+            go.AddComponent<BillboardUp>();
+            AddSignText(go.transform, text, 80, Vector2.zero, Vector2.one, color);
+            StartCoroutine(FloatAndFade(go.transform, go.GetComponent<CanvasGroup>(), 1.1f));
+        }
+
+        static IEnumerator FloatAndFade(Transform t, CanvasGroup cg, float dur)
+        {
+            if (t == null) yield break;
+            Vector3 from = t.position;
+            float e = 0f;
+            while (e < dur)
+            {
+                if (t == null) yield break;
+                e += Time.deltaTime;
+                float k = Mathf.Clamp01(e / dur);
+                t.position = from + Vector3.up * (k * 1.6f);   // rise
+                if (cg != null) cg.alpha = 1f - k;             // fade (whole canvas, incl. outline)
+                yield return null;
+            }
+            if (t != null) Destroy(t.gameObject);
         }
 
         // Clean, SYMMETRIC roof arrow (a triangular head + shaft) centered on x=0, pointing local -Z (the exit
@@ -1946,10 +2109,10 @@ namespace BusJam
             {
                 RenderSettings.skybox = null;
                 cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = th.sky;
+                cam.backgroundColor = MaterialLibrary.Mute(th.sky);   // T2: quieter sky so gameplay pops (separate from any post-FX grade)
             }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = th.ambient * 1.0f;   // a touch less fill = more contrast/pop (post-exposure adds brightness back)
+            RenderSettings.ambientLight = MaterialLibrary.Mute(th.ambient);   // T2: muted (desaturated) env fill, separate from any post-FX grade
             var sun = Object.FindAnyObjectByType<Light>();
             if (sun != null && sun.type == LightType.Directional)
             {
@@ -1984,8 +2147,9 @@ namespace BusJam
 
             // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
             // smoothness/emission here MATCH MaterialLibrary.ThemeTypes so the fallback looks like the asset.
-            Material ground = MaterialLibrary.GetTheme(th.name, "Ground", th.ground, 0.35f, 0.05f);
-            Material field  = MaterialLibrary.GetTheme(th.name, "Field", th.field, 0.28f, 0.03f);
+            Color.RGBToHSV(th.ground, out float gh, out float gs, out _);                                     // PEOPLE area — keep the theme HUE...
+            Material ground      = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(gh, gs, 0.40f), 0.35f, 0f);  // ...but force a DARK value, ~as dark as the vehicle area
+            Material vehicleZone = MaterialLibrary.MakeRuntimeMuted(new Color(0.34f, 0.35f, 0.38f), 0.32f, 0f); // VEHICLE area (below the road) — gray, same every theme
             Material accent = MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.45f, 0.06f);
             Material main   = MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.45f, 0.05f);
             Material alt    = MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.45f, 0.05f);
@@ -1996,8 +2160,12 @@ namespace BusJam
             Material cloud  = MaterialLibrary.GetTheme(th.name, "Cloud", new Color(1f, 1f, 1f), 0f, 0.18f);
             // slotMat is now a stable, editable asset set in BuildMaterials (no theme override).
 
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.32f, 3f), new Vector3(46, 0.3f, 70), field);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, 3f), new Vector3(12f, 0.2f, 30), ground);
+            // The ground is TWO colors split at the ROAD, spanning the FULL width (sides included): the VEHICLE area
+            // below the road (toward the camera) is gray; the PEOPLE area above the road is the themed ground. The
+            // road slab at RoadZ hides the seam on-screen (it is off-screen at the far sides).
+            const float gFront = -32f, gBack = 38f; // full ground z-extent (replaces the old field + central plaza)
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (gFront + RoadZ) * 0.5f), new Vector3(46f, 0.2f, RoadZ - gFront), vehicleZone);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (RoadZ + gBack) * 0.5f), new Vector3(46f, 0.2f, gBack - RoadZ), ground);
             // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
             // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
@@ -2106,6 +2274,8 @@ namespace BusJam
             if (prefab == null) return null;
             var go = Instantiate(prefab, boardRoot, false);
             StripPhysics(go);
+            MuteRenderers(go); // T2: quiet the city-pack prefab's OWN bright materials (per-INSTANCE; never the shared .mat)
+            OutlineAll(go);    // toon ink edge on every env prefab (buildings, trees, road, stops, props) — AFTER mute so the outline stays black
             go.transform.SetPositionAndRotation(Vector3.zero, rot);
             go.transform.localScale = Vector3.one;
             var b = RendererBounds(go);
@@ -2114,6 +2284,39 @@ namespace BusJam
             b = RendererBounds(go);                                                       // recompute after scaling
             go.transform.position += new Vector3(pos.x - b.center.x, pos.y - b.min.y, pos.z - b.center.z); // center XZ, base on ground
             return go;
+        }
+
+        // T2 env mute: which shader color slots to pull toward grey. Covers URP/standard (_BaseColor/_Color) AND the
+        // SimplePoly/POLYGON pack shaders (_Color01.._Color08), so every pack prefab is handled regardless of shader.
+        static readonly string[] EnvColorProps =
+            { "_BaseColor", "_Color", "_Color01", "_Color02", "_Color03", "_Color04", "_Color05", "_Color06", "_Color07", "_Color08" };
+        static readonly Color EnvMuteGrey = new Color(0.5f, 0.5f, 0.5f);
+
+        // T2: desaturate a city-pack prefab's OWN materials so the environment recedes behind the popped gameplay.
+        // The pack prefabs carry their own BRIGHT .mat (untouched by Theme.cs/Vibrant) and are the LOUDEST env. Pull
+        // every color slot HALFWAY to mid-grey. Per-INSTANCE via MaterialPropertyBlock so the shared on-disk .mat is
+        // NEVER mutated (can't bleed into other instances or gameplay). Gameplay vehicles colour their body via the
+        // bodyMats/_Color01 path (separate from FitDecor), so this can never leak onto gameplay.
+        void MuteRenderers(GameObject go)
+        {
+            if (go == null) return;
+            var mpb = new MaterialPropertyBlock();
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var sm = r.sharedMaterial;
+                if (sm == null) continue;
+                r.GetPropertyBlock(mpb);
+                bool any = false;
+                foreach (var p in EnvColorProps)
+                {
+                    if (!sm.HasProperty(p)) continue;
+                    Color c = sm.GetColor(p);
+                    if (c.maxColorComponent <= 0.02f) continue;          // skip black/unused slots
+                    mpb.SetColor(p, Color.Lerp(c, EnvMuteGrey, 0.5f));   // halfway to mid-grey -> desaturate + recede
+                    any = true;
+                }
+                if (any) r.SetPropertyBlock(mpb);
+            }
         }
 
         // Per-theme, per-slot DISTINCT index into a pack array, so DIFFERENT themes show different buildings/props.
@@ -2132,11 +2335,10 @@ namespace BusJam
             float doorX = 3.5f;
             doorXs = new[] { doorX };
             exitDoorX = doorX;
-            var door = FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 0)], new Vector3(doorX, 0, FacadeZ + 1.2f), 4.5f, Quaternion.Euler(0, 180f, 0));
-            AddToonOutline(door);
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 0)], new Vector3(doorX, 0, FacadeZ + 2.2f), 4.5f, Quaternion.Euler(0, 180f, 0)); // pushed back (+1.0) so it sits higher in frame; FitDecor outlines it
             if (lowEnd) return;
-            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 1)], new Vector3(doorX - 5.0f, 0, FacadeZ + 1.5f), 3.6f, Quaternion.Euler(0, 180f, 0));
-            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 2)], new Vector3(doorX - 9.0f, 0, FacadeZ + 1.3f), 3.4f, Quaternion.Euler(0, 180f, 0));
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 1)], new Vector3(doorX - 5.0f, 0, FacadeZ + 2.5f), 3.6f, Quaternion.Euler(0, 180f, 0));
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 2)], new Vector3(doorX - 9.0f, 0, FacadeZ + 2.3f), 3.4f, Quaternion.Euler(0, 180f, 0));
         }
 
         // T3: SimplePoly building row across the back for non-facade themes (no boarding door). Different per theme.
@@ -2144,17 +2346,23 @@ namespace BusJam
         {
             int n = lowEnd ? 3 : 5;
             for (int i = 0; i < n; i++)
-                FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, i)], new Vector3(-6f + i * 3f, 0, backZ + 0.5f + (i % 2) * 0.6f), 3.4f, Quaternion.Euler(0, 180f, 0));
+                FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, i)], new Vector3(-6f + i * 3f, 0, backZ + 1.5f + (i % 2) * 0.6f), 3.4f, Quaternion.Euler(0, 180f, 0)); // +1.0 back -> sits higher in frame
         }
 
         // T3: dress the ACTUAL road lane (RoadZ — where full buses drive off) with real SimplePoly road tiles, plus
         // side bus stops and per-theme street props. Cosmetic; fit-to-size + ground-placed; never touches the play grid.
         void BuildCityDecor(Theme th)
         {
-            // Road tiles laid along RoadZ across the width (the buses drive ON this lane).
+            // Road tiles laid along RoadZ across the FULL width — extended PAST both screen edges so the drive-in lane
+            // runs OFF-screen left AND right (a continuous road, not one that visibly ends on-screen).
             if (cityRoads != null && cityRoads.Length > 0)
-                for (int i = 0; i < 5; i++)
-                    FitDecor(cityRoads[ThemePick(th, cityRoads.Length, i)], new Vector3(-4.4f + i * 2.2f, 0.01f, RoadZ), 2.6f, Quaternion.Euler(0, 90f, 0)); // narrower span -> outer tiles stay on-screen
+            {
+                float reach = VisHalfW(RoadZ) + 1.0f;                   // reach ~1u past the screen edge on each side
+                const float step = 2.2f, tileHalf = 1.3f;              // 2.6-wide tiles (half 1.3), 2.2 step -> overlap, no gaps
+                int half = Mathf.CeilToInt((reach - tileHalf) / step); // tiles each side of center -> lane crosses both edges
+                for (int i = -half; i <= half; i++)
+                    FitDecor(cityRoads[ThemePick(th, cityRoads.Length, i + half)], new Vector3(i * step, 0.01f, RoadZ), 2.6f, Quaternion.Euler(0, 90f, 0));
+            }
 
             // Side bus stops, OUTSIDE the outer slot (~±4.2 at SlotSpacing 1.4, 7 pads) so they never cover a pad/lane.
             if (busStopFx != null)
@@ -2242,9 +2450,16 @@ namespace BusJam
             traffic.Clear();
             trafficSpawnIdx = 0;
             var prefabs = Resources.LoadAll<GameObject>("Fx/Traffic"); // may be empty -> code-built fallback
-            float period = lowEnd ? gameSettings.trafficPeriod + 1.5f : gameSettings.trafficPeriod; // bigger gaps + fewer cars on lowEnd
+            // PROGRESSIVE difficulty: the FIRST bonus (level 10) is the gentlest so players LEARN the dodge — few,
+            // slow cars with big gaps — ramping to fast/denser by ~level 60. lowEnd thins it further. (This is the
+            // fix for "too confusing / too much traffic": L10 has ~4 slow cars with huge gaps -> tap during an obvious opening.)
+            int bonusIdx = Mathf.Max(1, currentLevel / 10);            // 1 at L10, 2 at L20, ...
+            float diff = Mathf.Clamp01((bonusIdx - 1) / 5f);          // 0 at L10 -> 1 at L60+
+            trafficCarSpeed = Mathf.Lerp(1.8f, 3.0f, diff);          // slow & readable at L10, faster later
+            float period = Mathf.Lerp(18.0f, 4.5f, diff);          // L10: 1 car/lane (2 total, HUGE gaps) -> L60+: 4/lane (8 cars)
+            if (lowEnd) period += 1.5f;                              // even fewer cars on budget phones
             const float SPAN = 18f;                                       // off-screen -9..+9 across the road
-            int perLane = Mathf.Max(2, Mathf.CeilToInt(SPAN / period));   // 4 full / 3 lowEnd
+            int perLane = Mathf.Max(1, Mathf.CeilToInt(SPAN / period));
             trafficLoop = perLane * period;                              // wrap length -> EVEN spacing (no seam gap)
             trafficHalfLoop = trafficLoop * 0.5f;
             float width = CellSize * 0.95f;                             // ~a single road car
@@ -2322,7 +2537,7 @@ namespace BusJam
         {
             while (state == GameState.Playing)
             {
-                float step = gameSettings.trafficSpeed * Time.deltaTime;
+                float step = trafficCarSpeed * Time.deltaTime;
                 for (int i = 0; i < traffic.Count; i++)
                 {
                     var c = traffic[i];
@@ -2457,20 +2672,53 @@ namespace BusJam
             if (!SpawnHit(pos)) Juice.Burst(this, boardRoot, pos, bodyMats[bus.color], 8, 3f);
         }
 
-        // T7 (MINIMAL): add the Gritline back-face outline as a SECOND material slot for a cohesive toon edge on
-        // SCENERY ONLY (backdrop buildings). Keeps each renderer's ORIGINAL material (slot 0) so textures stay and
-        // no tinted/_BaseColor gameplay material is touched. Only single-submesh renderers (a sharedMaterials
-        // length mismatch would drop other submeshes) so multi-submesh meshes are skipped, never broken. Per-object
-        // + lowEnd-gated (renders each mesh twice). No-op if the toon outline isn't loaded.
-        void AddToonOutline(GameObject go)
+        // TOON (game-wide): give every model a cohesive Gritline ink edge by drawing a DUPLICATE of its mesh with the
+        // back-face outline material (inverted hull) on EVERY submesh. Unlike the old single-slot append, this works
+        // for multi-submesh meshes AND skinned meshes (people) by sharing the original bones, so the outline covers
+        // the whole silhouette and never drops submeshes. lowEnd skips it (it renders each mesh twice). Call ONCE on a
+        // freshly-built model root; the duplicate has NO collider (taps unaffected) and is a child so Teardown reaps it.
+        void OutlineAll(GameObject go)
         {
             if (lowEnd || go == null || toonOutlineFx == null) return;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
+            foreach (var mr in go.GetComponentsInChildren<MeshRenderer>(true))
             {
-                var mats = r.sharedMaterials;
-                if (mats.Length != 1) continue; // single-submesh only -> safe to append the outline pass
-                r.sharedMaterials = new[] { mats[0], toonOutlineFx };
+                var mf = mr.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
+                var dup = new GameObject("ToonEdge") { layer = mr.gameObject.layer };
+                dup.transform.SetParent(mr.transform, false);          // child at identity -> overlaps the source mesh exactly
+                dup.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+                var dmr = dup.AddComponent<MeshRenderer>();
+                dmr.sharedMaterials = OutlineSlots(mf.sharedMesh.subMeshCount);
+                dmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                dmr.receiveShadows = false;
+                dmr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             }
+            foreach (var smr in go.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (smr.sharedMesh == null) continue;
+                var dup = new GameObject("ToonEdge") { layer = smr.gameObject.layer };
+                dup.transform.SetParent(smr.transform.parent, false);  // sibling in the same skeleton space
+                dup.transform.localPosition = smr.transform.localPosition;
+                dup.transform.localRotation = smr.transform.localRotation;
+                dup.transform.localScale = smr.transform.localScale;
+                var dsmr = dup.AddComponent<SkinnedMeshRenderer>();
+                dsmr.sharedMesh = smr.sharedMesh;
+                dsmr.bones = smr.bones;                                 // share the ORIGINAL skeleton -> deforms identically with the animation
+                dsmr.rootBone = smr.rootBone;
+                dsmr.localBounds = smr.localBounds;
+                dsmr.sharedMaterials = OutlineSlots(smr.sharedMesh.subMeshCount);
+                dsmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                dsmr.receiveShadows = false;
+                dsmr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            }
+        }
+
+        // All submesh slots point at the single shared outline material.
+        Material[] OutlineSlots(int subMeshCount)
+        {
+            var a = new Material[Mathf.Max(1, subMeshCount)];
+            for (int i = 0; i < a.Length; i++) a[i] = toonOutlineFx;
+            return a;
         }
 
         void MakeCloud(Vector3 pos, Material mat, int seed)
@@ -2505,7 +2753,7 @@ namespace BusJam
             Vector3 target = new Vector3(0f, 0f, 3.2f);
             cam.transform.position = pos;
             cam.transform.rotation = Quaternion.LookRotation(target - pos, Vector3.up);
-            cam.fieldOfView = 54f;
+            cam.fieldOfView = 52f; // subtle zoom-in (was 54); camera pos/angle UNCHANGED so no new specular sheen (white-safe). VisHalfW + ScreenFloorZ re-fit to this.
         }
 
         // Builds the whole "fantastic look" in code (matches the build-on-Start philosophy):

@@ -14,6 +14,7 @@ namespace BusJam
         public int seatsFilled;
         public BusState state = BusState.Queued;
         public int slotIndex = -1;
+        public bool crossMeshed; // T3 bonus: set by DriveBonusApproach when THIS vehicle overlaps a traffic car mid-cross (per-vehicle so concurrent crossings don't race)
 
         // Jam-grid placement. `cell` = leading cell (nearest the exit edge); the body
         // extends backward as cell - i*dir for i in 0..length-1. occ holds every body cell.

@@ -21,7 +21,8 @@ namespace BusJam
             public Color color;
             public float smoothness;
             public float emission;
-            public Spec(string k, Color c, float s, float e) { key = k; color = c; smoothness = s; emission = e; }
+            public bool mute;   // true = ENVIRONMENT material: build via MakeRuntimeMuted (desaturate) instead of Vibrant() (boost)
+            public Spec(string k, Color c, float s, float e, bool mute = false) { key = k; color = c; smoothness = s; emission = e; this.mute = mute; }
         }
 
         public static string BusKey(PieceColor c) => "Bus_" + c;
@@ -32,7 +33,7 @@ namespace BusJam
         {
             var list = new List<Spec>();
             foreach (PieceColor c in System.Enum.GetValues(typeof(PieceColor)))
-                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.65f, 0.12f)); // smooth candy bodies (metallic forced 0 in MakeRuntime; lower emission = no eye-hurt)
+                list.Add(new Spec(BusKey(c), Palette.ToColor(c), 0.65f, 0.18f)); // EMISSION RIM: gameplay bodies glow brighter (0.18) than the desaturated env so they pop; metallic forced 0 in MakeRuntime
 
             list.Add(new Spec("Glass",     new Color(0.18f, 0.26f, 0.40f), 0.85f, 0f));
             list.Add(new Spec("Wheel",     new Color(0.12f, 0.12f, 0.14f), 0.2f,  0f));
@@ -88,7 +89,7 @@ namespace BusJam
             var list = new List<Spec>();
             foreach (var th in Themes.AllThemes())
                 foreach (var (type, smooth, emission) in ThemeTypes)
-                    list.Add(new Spec(ThemeKey(th.name, type), ThemeColor(th, type), smooth, emission));
+                    list.Add(new Spec(ThemeKey(th.name, type), ThemeColor(th, type), smooth, emission, true)); // env -> MUTED (desaturated) path
             return list;
         }
 
@@ -96,7 +97,7 @@ namespace BusJam
         public static Material GetTheme(string themeName, string type, Color defColor, float smooth, float emission = 0f)
         {
             var asset = Resources.Load<Material>(ResourcePrefix + ThemeKey(themeName, type));
-            return asset != null ? asset : MakeRuntime(defColor, smooth, emission);
+            return asset != null ? asset : MakeRuntimeMuted(defColor, smooth, emission); // env fallback is MUTED so the environment recedes (gameplay keeps Vibrant)
         }
 
         /// <summary>Resolves every spec: the editable asset if present, else a runtime material.</summary>
@@ -127,10 +128,32 @@ namespace BusJam
             return rgb;
         }
 
-        /// <summary>The single URP/Lit factory used by the runtime fallback and the asset generator.</summary>
-        public static Material MakeRuntime(Color col, float smooth, float emission = 0f)
+        /// <summary>The OPPOSITE of Vibrant(): pulls a color DOWN toward a quiet neutral (halve saturation, a touch
+        /// darker) so ENVIRONMENT surfaces recede while gameplay bodies (which keep Vibrant) pop. Hue is preserved,
+        /// so themes stay distinguishable (Park greenish, Sunset warm, Snow cool-white, Night dark-blue). This is a
+        /// SEPARATE per-material path from Vibrant — NOT a global grade — so muting the env never dulls the buses.</summary>
+        public static Color Mute(Color c)
         {
-            col = Vibrant(col); // bright candy look — faded source colors come out vivid
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            s = Mathf.Clamp01(s * 0.5f);    // halve saturation -> quiet
+            v = Mathf.Clamp01(v * 0.95f);   // a hair darker -> recedes (no brighten, so dark themes stay dark)
+            Color rgb = Color.HSVToRGB(h, s, v);
+            rgb.a = c.a;
+            return rgb;
+        }
+
+        /// <summary>The GAMEPLAY URP/Lit factory (Vibrant boost), used by the runtime fallback and asset generator.</summary>
+        public static Material MakeRuntime(Color col, float smooth, float emission = 0f)
+            => BuildLit(Vibrant(col), smooth, emission); // bright candy look — faded source colors come out vivid
+
+        /// <summary>Env twin of MakeRuntime: identical build but the color goes through Mute() (desaturate) instead
+        /// of Vibrant() (boost). Used for every environment material so the env recedes without a global grade.</summary>
+        public static Material MakeRuntimeMuted(Color col, float smooth, float emission = 0f)
+            => BuildLit(Mute(col), smooth, emission);
+
+        /// <summary>Shared URP/Lit builder from an ALREADY-final color (Vibrant or Mute applied by the caller).</summary>
+        static Material BuildLit(Color col, float smooth, float emission)
+        {
             Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var m = new Material(sh);
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);

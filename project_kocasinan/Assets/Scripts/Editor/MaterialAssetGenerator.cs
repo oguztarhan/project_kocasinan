@@ -25,7 +25,8 @@ namespace BusJam
                 string path = MaterialLibrary.AssetFolder + "/" + s.key + ".mat";
                 if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) { kept++; continue; }
 
-                var m = MaterialLibrary.MakeRuntime(s.color, s.smoothness, s.emission);
+                var m = s.mute ? MaterialLibrary.MakeRuntimeMuted(s.color, s.smoothness, s.emission)  // env -> desaturated
+                               : MaterialLibrary.MakeRuntime(s.color, s.smoothness, s.emission);     // gameplay -> Vibrant
                 m.name = s.key;
                 AssetDatabase.CreateAsset(m, path);
                 created++;
