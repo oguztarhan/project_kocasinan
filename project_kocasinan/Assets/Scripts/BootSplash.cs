@@ -161,12 +161,11 @@ namespace BusJam
             Place(word, 0, -80, 1080, 460);
             var wg = word.gameObject.AddComponent<CanvasGroup>();
 
-            var svgLogo = Resources.Load<Sprite>("IntakeLogo");
-            if (svgLogo != null)
+            var logoSprite = BootIntakeLogo.Get();   // rasterised from your original SVG paths — no package/import needed
+            if (logoSprite != null)
             {
-                var logo = Img(word, "Logo", svgLogo);
-                float lw = 840f;                                  // preserve the SVG's 326x150 aspect
-                Place(logo.rectTransform, 0, 0, lw, lw * 150f / 326f);
+                var logo = Img(word, "Logo", logoSprite);
+                Place(logo.rectTransform, 0, 0, 880f, 880f * 150f / 326f);    // preserve the SVG's 326x150 aspect
             }
             else
             {
@@ -229,8 +228,6 @@ namespace BusJam
             float na = GcA(prog);
             for (float r = -rOut * 0.16f; r <= rOut * 0.92f; r += 0.6f) Dot(buf, S, cx + Mathf.Cos(na) * r, cy + Mathf.Sin(na) * r, 2.4f, Hex("#FF8A3C"));
             FillCircle(buf, S, cx, cy, S * 0.022f, Amber);
-            Color wd = prog > 0.8f ? new Color(1f, 0.23f, 0.23f, 1f) : new Color(1, 1, 1, 0.2f);
-            FillCircle(buf, S, cx, cy - rOut - S * 0.055f, S * 0.016f, wd);
         }
 
         // =====================================================================================
@@ -249,9 +246,9 @@ namespace BusJam
             sceneGo.transform.SetParent(go, false);
             Stretch(sceneGo.GetComponent<RectTransform>());
             var rimg = sceneGo.GetComponent<RawImage>(); rimg.raycastTarget = false;
-            int sh = Mathf.Clamp(Screen.height, 1000, 1600);                                                    // render near-native res so it isn't pixelated
-            int sw = Mathf.Clamp(Mathf.RoundToInt(sh * (float)Screen.width / Mathf.Max(1, Screen.height)), 480, 900);
-            go.gameObject.AddComponent<BootCanvasScene>().Setup(rimg, sw, sh);
+            // BootCanvasScene bakes an HD static backdrop onto this RawImage and overlays a small per-frame
+            // road-band layer for the moving cars/lamps — crisp + cheap (see BootCanvasScene).
+            go.gameObject.AddComponent<BootCanvasScene>().Setup(rimg);
 
             // ---------- BUS JAM / TRAFFIC RUSH title ----------
             TitleRow(go, "BUS JAM", 720, 122, 0);
@@ -276,16 +273,19 @@ namespace BusJam
 
         void TitleRow(RectTransform parent, string s, float y, float size, int colOffset)
         {
-            float total = s.Length * size * 0.62f;
+            float total = s.Length * size * 0.62f;       // per-letter advance wide enough that bold glyphs don't overlap
             float x = -total * 0.5f + size * 0.31f;
             for (int i = 0; i < s.Length; i++)
             {
                 char c = s[i];
-                if (c == ' ') { x += size * 0.5f; continue; }
+                if (c == ' ') { x += size * 0.50f; continue; }
                 var t = Txt(parent, c.ToString(), (int)size, LetterCols[(i + colOffset) % LetterCols.Length], FontStyle.Bold, TextAnchor.MiddleCenter);
-                Outline(t, Hex("#241544"), 3);
-                Place(t.rectTransform, x, y, size * 1.1f, size * 1.3f);
-                var bob = t.gameObject.AddComponent<BootBob>(); bob.phase = i * 0.5f;
+                // HTML look: chunky dark-purple border (two outlines for a solid edge) + a soft drop shadow under each letter.
+                var sh = t.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.5f); sh.effectDistance = new Vector2(0, -size * 0.07f);
+                Outline(t, Hex("#241544"), Mathf.Max(3, Mathf.RoundToInt(size * 0.055f)));
+                Outline(t, Hex("#241544"), Mathf.Max(2, Mathf.RoundToInt(size * 0.03f)));
+                Place(t.rectTransform, x, y, size * 1.2f, size * 1.5f);
+                var bob = t.gameObject.AddComponent<BootBob>(); bob.phase = i * 0.5f; bob.amp = size * 0.06f;
                 x += size * 0.62f;
             }
         }
