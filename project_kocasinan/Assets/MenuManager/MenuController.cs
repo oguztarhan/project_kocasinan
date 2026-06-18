@@ -56,6 +56,19 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
+        // Set the menu background to the sunset-coast art (Resources/MenuBg). Replaces the old purple UI-kit
+        // sprite. Runtime-only & non-destructive; falls back to a solid menu colour if the image is missing.
+        var bgGo = FindByName("Background");
+        if (bgGo)
+        {
+            var bgImg = bgGo.GetComponent<Image>();
+            if (bgImg)
+            {
+                var bgSprite = Resources.Load<Sprite>("MenuBg");
+                if (bgSprite) { bgImg.sprite = bgSprite; bgImg.color = Color.white; bgImg.type = Image.Type.Simple; bgImg.preserveAspect = false; }
+                else { bgImg.sprite = null; bgImg.color = new Color(0.22f, 0.47f, 0.80f); }
+            }
+        }
         Localizer.LocalizeScene(); // translate all baked menu text to the saved language
     }
 
