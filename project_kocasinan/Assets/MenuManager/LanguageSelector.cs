@@ -45,7 +45,7 @@ public class LanguageSelector : MonoBehaviour
 
     void Select(int index)
     {
-        SaveSystem.Language = index;
+        Loc.SetLanguage(index); // stores the choice AND fires OnLanguageChanged -> every visible text refreshes live
         Reconcile();
         foreach (var o in options)
             if (o.index == index && o.check) StartCoroutine(Pop(o.check.transform));

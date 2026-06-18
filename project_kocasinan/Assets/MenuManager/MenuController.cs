@@ -56,6 +56,7 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
+        Localizer.LocalizeScene(); // translate all baked menu text to the saved language
     }
 
     void Update() { Refresh(); }
@@ -97,6 +98,7 @@ public class MenuController : MonoBehaviour
         Set(panel, true);
         SetHomeOnly(false);   // hide gold/settings/no-ads/PLAY while the panel is open
         Sel(navSel);
+        Localizer.LocalizeScene(); // panel is active now -> its text is found, tagged and translated to the current language
     }
 
     // ---- Button hooks (wired by the baker as persistent OnClick events) ----
@@ -109,7 +111,7 @@ public class MenuController : MonoBehaviour
     public void OpenRemoveAds() { Open(removeAdsPanel, null); }
     public void OpenAdReward()  { Open(adRewardPanel, null); }
     // Language pop-up: overlay it on top (don't hide the settings panel behind it).
-    public void OpenLanguage()  { if (languagePanel) languagePanel.SetActive(true); }
+    public void OpenLanguage()  { if (languagePanel) { languagePanel.SetActive(true); Localizer.LocalizeScene(); } }
 
     // Social media buttons: open the pasted link in the device browser.
     public void OpenFacebook()  { OpenUrl(facebookUrl); }

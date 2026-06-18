@@ -87,6 +87,7 @@ namespace BusJam
             SetupJokerBuy();
             ShowHud();
             DisableOldCanvases(); // hide legacy scene canvas (white bg / old coin / texts)
+            Localizer.LocalizeScene(); // translate all in-game text to the saved language
         }
 
         // Hide every canvas that doesn't belong to this game object's hierarchy
@@ -834,7 +835,7 @@ namespace BusJam
         {
             if (!comboText) return;
             comboText.gameObject.SetActive(true);
-            comboText.text = $"COMBO x{combo}!";
+            comboText.text = Loc.Format("COMBO x{0}!", combo);
             CancelInvoke(nameof(ClearCombo));
             Invoke(nameof(ClearCombo), 0.8f);
         }
@@ -916,6 +917,6 @@ namespace BusJam
         { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.sizeDelta = size; }
         void Stretch(RectTransform rt)
         { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
-        void Toggle(GameObject go, bool on) { if (go) go.SetActive(on); }
+        void Toggle(GameObject go, bool on) { if (go) { go.SetActive(on); if (on) Localizer.LocalizeScene(); } } // re-localize when shown -> inactive-built panels translate on open
     }
 }

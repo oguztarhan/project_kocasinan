@@ -49,13 +49,13 @@ namespace BusJam
         const float CellSize = 1.1f;          // BIG cells: a 6-wide jam fills the portrait at the zoomed camera; vehicles scale with this
         const float GridExitZ = 5.5f;         // grid row y=0 (exit edge); the H9 jam fills the lower screen (deepest row stays on)
         const float ScreenFloorZ = -7.3f;     // lowest on-screen ground z (tied to PlaceCamera FOV 52) — away-exits keep their near edge above this
-        const float RoadZ = 6.9f;             // road/drive-in lane — WIDE gap below it (to the jam) and above it (to the stops) so a
+        const float RoadZ = 7.4f;             // road/drive-in lane — pushed back +0.5 so the jam front no longer touches the road band
                                               // vehicle can drive ALONG it to its slot without clipping the jam OR the parked cars
-        const float ParkingZ = 9.3f;          // bus stop (parking row); +1.4 vs before to open the drive-in lane below it
+        const float ParkingZ = 9.7f;          // bus stop (parking row); nudged back +0.4 (clears the moved-back road on the front side)
         const float SlotSpacing = 1.4f;       // wide enough for the widest vehicle (bus) side-by-side; 7 pads fit (~±4.2 < visible)
-        const float PeopleZ = 10.4f;          // mid of the people area (+1.4 to track the parking row)
+        const float PeopleZ = 11.8f;          // mid of the people area — pushed back +1.4 so parked buses no longer clip the queue
         const float PeopleSpacing = 0.85f;    // (queue is an L from the top-right door)
-        const float FenceZ = 10.0f;           // fence IN FRONT of the people line (toward the buses), per request
+        const float FenceZ = 11.4f;           // fence IN FRONT of the people line (toward the buses) — moved back +1.4 with the people
         const float FacadeZ = 13.1f;          // mall/terminal wall center, TOP-RIGHT; the L-queue (vertical 2 + horizontal) feeds its door
         const float DoorSpawnZ = 12.4f;       // people are born at the door (top of the L) and the line runs down 2 then left across
         const int VISIBLE = 10;
@@ -1285,7 +1285,7 @@ namespace BusJam
                 pad.name = "Slot" + i;
                 pad.transform.SetParent(boardRoot, false);
                 pad.transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
-                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 1.6f); // shallower so the stop clears the road band (no overlap)
+                pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.4f); // longer bay (fits the bus length); centred on ParkingZ → spans ~8.5–10.9, still clears the road band (7.9) and fence (11.4)
                 pad.GetComponent<Renderer>().sharedMaterial = slotMat;
 
                 var slot = pad.AddComponent<ParkingSlot>();
@@ -1958,7 +1958,7 @@ namespace BusJam
         // the big jam. bottomZ=8.0 clears the parked vehicles' noses (parking 6.2 + up to ~1.5 half-length).
         Vector3 LinePos(int index)
         {
-            const float doorX = 3.5f, horizZ = 10.3f, vGap = 0.7f, hSpacing = 0.9f;
+            const float doorX = 3.5f, horizZ = PeopleZ, vGap = 0.7f, hSpacing = 0.9f; // queue sits at the people line (BEHIND the fence), tracks PeopleZ
             const int cornerIdx = 8;     // index 9,8 = the 2-person VERTICAL stub at the top-right (8 = corner);
             if (index >= cornerIdx)      // 7..0 = the HORIZONTAL run left across the full width to the front
                 return new Vector3(doorX, 0, horizZ + (index - cornerIdx) * vGap);   // up the right edge (corner -> door)
