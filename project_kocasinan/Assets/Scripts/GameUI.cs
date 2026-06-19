@@ -140,7 +140,7 @@ namespace BusJam
             jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             // (#4) Baked joker positions are now used EXACTLY as placed in the Hierarchy. The old auto-lift
             // (ReserveBannerSpace: +190px to clear the banner) overrode your manual placement, so it's gone.
-            BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
+            // (#1) The watch-ad / +coins button was removed from the in-game HUD per request.
             RefreshJokers();
             BuildBonusCountdown();
         }
@@ -200,7 +200,7 @@ namespace BusJam
             // SETTINGS gear: TOP-RIGHT.
             gearGo = Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings).gameObject; // (#6)
 
-            BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
+            // (#1) The watch-ad / +coins button was removed from the in-game HUD per request.
 
             // (People-left count now lives ONLY on the neon world sign by the first bus stop — HUD chip removed.)
 
@@ -514,6 +514,7 @@ namespace BusJam
                         case InGamePanelButton.Act.Replay: btn.onClick.AddListener(() => { HideFailed(); OnReplay?.Invoke(); }); break;
                     }
                 }
+                AddEmoji(failedPanel, false); // (#4) sad face on the failed screen
                 failedPanel.SetActive(false);
             }
             else BuildFailed();
@@ -536,9 +537,63 @@ namespace BusJam
                         btn.onClick.AddListener(() => ClaimReward(amt));
                     }
                 }
+                AddEmoji(successPanel, true); // (#4) happy face on the success screen
                 successPanel.SetActive(false);
             }
             else BuildSuccess();
+        }
+
+        // (#4) Add a procedural emoji (happy/sad face) sticker just above a baked panel's card.
+        void AddEmoji(GameObject panel, bool happy)
+        {
+            if (panel == null) return;
+            Transform card = panel.transform;
+            foreach (Transform ch in panel.transform) { var im = ch.GetComponent<Image>(); if (im != null && ch.childCount >= 2) { card = ch; break; } }
+            var go = new GameObject("Emoji", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(card, false);
+            var img = go.GetComponent<Image>();
+            img.sprite = MakeEmojiSprite(happy); img.raycastTarget = false; img.preserveAspect = true;
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f); rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0f, 6f); rt.sizeDelta = new Vector2(160, 160);
+        }
+
+        // A round yellow emoji face — smiling (happy) or frowning (sad). Procedural so it renders reliably (no emoji font needed).
+        Sprite MakeEmojiSprite(bool happy)
+        {
+            int S = 128;
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var px = new Color[S * S];
+            float cx = (S - 1) * 0.5f, cy = (S - 1) * 0.5f, r = S * 0.46f;
+            Color face = new Color(1f, 0.83f, 0.22f), dark = new Color(0.18f, 0.12f, 0.04f), edge = new Color(0.82f, 0.58f, 0.10f), clear = new Color(0, 0, 0, 0);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+                    px[y * S + x] = d <= r ? (d > r - S * 0.05f ? edge : face) : clear;
+                }
+            float ex = S * 0.18f, ey = cy + S * 0.13f, er = S * 0.072f;
+            EmojiDisc(px, S, cx - ex, ey, er, dark);
+            EmojiDisc(px, S, cx + ex, ey, er, dark);
+            float mw = S * 0.30f, mcy = cy - S * 0.10f, amp = S * 0.14f, th = S * 0.05f;
+            for (float x = cx - mw; x <= cx + mw; x += 0.5f)
+            {
+                float t = (x - cx) / mw;
+                float yc = happy ? (mcy - amp * (1f - t * t)) : (mcy - amp * t * t);
+                for (float y = yc - th; y <= yc + th; y += 0.5f)
+                {
+                    int xi = Mathf.RoundToInt(x), yi = Mathf.RoundToInt(y);
+                    if (xi >= 0 && xi < S && yi >= 0 && yi < S) px[yi * S + xi] = dark;
+                }
+            }
+            tex.SetPixels(px); tex.Apply(false);
+            return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+        }
+        static void EmojiDisc(Color[] px, int S, float cx, float cy, float r, Color col)
+        {
+            for (int y = (int)(cy - r); y <= cy + r; y++)
+                for (int x = (int)(cx - r); x <= cx + r; x++)
+                    if (x >= 0 && x < S && y >= 0 && y < S) { float dx = x - cx, dy = y - cy; if (dx * dx + dy * dy <= r * r) px[y * S + x] = col; }
         }
 
         // Wire a baked sound/music toggle button: full colour when ON, faded when OFF.

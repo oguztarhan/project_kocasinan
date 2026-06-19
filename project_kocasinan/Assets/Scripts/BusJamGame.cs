@@ -83,7 +83,7 @@ namespace BusJam
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
         Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
-        Material roadMat, neonMat;            // fixed asphalt road (same every level) + emissive neon for the people-left sign
+        Material roadMat, neonMat, stripeMat; // asphalt road + emissive neon (people-left sign) + white parking-bay lane stripes
         Material headlightMat, beamMat;       // T4: warm emissive lamp lens + soft translucent night beam
         Material[] confettiMats;
 
@@ -1311,6 +1311,20 @@ namespace BusJam
                     if (!slot.adUnlock) BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // (#2) "80" under the coin
                 }
             }
+            BuildParkingStripes(); // paint lane-marking stripes between the parking bays
+        }
+
+        // Parking-bay lane markings: a thin white stripe at each bay boundary (left edge, between bays, right edge),
+        // running the bay's depth — so the stops read as a striped parking lot. Rebuilt with the slots each level.
+        void BuildParkingStripes()
+        {
+            if (stripeMat == null) return;
+            float half = SlotSpacing * 0.5f;
+            for (int i = 0; i <= totalSlots; i++)
+            {
+                float x = SlotX(0) - half + i * SlotSpacing;
+                LowPolyBuilder.Slab(boardRoot, new Vector3(x, 0.02f, ParkingZ), new Vector3(0.08f, 0.04f, 2.3f), stripeMat);
+            }
         }
 
         // Small camera-facing ICON (no text) above a locked pad's marker: a coin (gold pads) or a video-ad icon (ad pads).
@@ -1610,8 +1624,7 @@ namespace BusJam
                 // Cute heads pop onto the roof as people board (replaces the empty-seat NUMBER).
                 float cbTop = CellSize * 0.6f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
                 bus.roofPeople = BuildRoofHeads(root.transform, capacity, color, cbTop, CellSize * 0.26f, cbLen);
-                if (advanceN > 0)
-                    BuildSpecialBadge(root.transform, advanceN, new Vector3(0, cbTop + 0.12f, -cbLen * 0.42f), Mathf.Clamp(CellSize * 0.42f, 0.3f, 0.6f));
+                // (Removed) the "«N" advance badge that floated on the roof — advanceN still works in gameplay, it's just no longer shown.
             }
             root.transform.localScale = Vector3.one * gameSettings.vehicleSize; // editable vehicle-size multiplier (both render paths)
             OutlineAll(root); // toon ink edge on the vehicle body + roof markers (before headlights so the glowing lenses stay clean)
@@ -1714,9 +1727,7 @@ namespace BusJam
             BuildRoofArrow(root, topY, wid * 0.5f, span);
             bus.roofPeople = BuildRoofHeads(root, capacity, color, topY, wid * 0.5f, span);
 
-            // Special "<<" crawler badge at the FRONT (distinct Y/Z from the passengers so they never overlap).
-            if (bus.advanceN > 0)
-                BuildSpecialBadge(root, bus.advanceN, new Vector3(0, topY + 0.12f, -span * 0.42f), Mathf.Clamp(wid * 0.6f, 0.3f, 0.7f));
+            // (Removed) the "«N" advance/crawler badge that floated on the roof — advanceN still works in gameplay, it's just no longer drawn.
         }
 
         // The boarding/match color as a Color (from the Bus_<color> palette material's base color).
@@ -2134,6 +2145,7 @@ namespace BusJam
             lockMat      = lib["Lock"];
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
             roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
+            stripeMat    = MaterialLibrary.MakeRuntime(new Color(0.93f, 0.93f, 0.86f), 0.10f);       // white-cream paint for the parking-bay lane markings
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
             headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.97f, 0.86f), 0.5f, 1.6f);       // #5: warm emissive headlight lens — SOFTER glow (was 3.0, looked harsh/blown-out on bonus levels)
             var beamShader = Shader.Find("Sprites/Default");                                          // URP-safe translucent (never magenta), like the smoke fix
@@ -2323,6 +2335,7 @@ namespace BusJam
         GameObject FitDecor(GameObject prefab, Vector3 pos, float targetWidth, Quaternion rot)
         {
             if (prefab == null) return null;
+            if (prefab.name.Contains("Hydrant")) targetWidth *= 0.45f; // #3: the red fire hydrant was too big — scale it down
             var go = Instantiate(prefab, boardRoot, false);
             StripPhysics(go);
             MuteRenderers(go); // T2: quiet the city-pack prefab's OWN bright materials (per-INSTANCE; never the shared .mat)
