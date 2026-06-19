@@ -10,6 +10,7 @@ namespace BusJam
         public bool adUnlock;   // when locked: true = opens by watching a rewarded ad; false = opens with coins
         public Bus occupant;
         public GameObject lockMarker;
+        public GameObject letterP;  // the bay's "P" marking — created hidden while locked, shown on Unlock()
 
         public bool IsFree => !locked && occupant == null;
 
@@ -17,6 +18,7 @@ namespace BusJam
         {
             locked = false;
             if (lockMarker != null) Destroy(lockMarker);
+            if (letterP != null) letterP.SetActive(true); // bay is now usable -> reveal its "P"
         }
     }
 }

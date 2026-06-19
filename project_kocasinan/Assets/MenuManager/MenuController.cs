@@ -40,6 +40,9 @@ public class MenuController : MonoBehaviour
     [SerializeField] public string instagramUrl = "https://instagram.com/";
     [SerializeField] public string tiktokUrl    = "https://tiktok.com/";
 
+    [Header("Website — just paste your URL here")]
+    [SerializeField] public string websiteUrl   = "";   // e.g. "https://yourgame.com"
+
     // Home-only elements (found by name in the baked hierarchy); hidden while a panel is open.
     GameObject[] homeOnly;
 
@@ -60,6 +63,7 @@ public class MenuController : MonoBehaviour
         // disables the static "Background" object itself. We deliberately DON'T override it here anymore — that
         // was a second background fighting the animated one. One source of truth now.
         Localizer.LocalizeScene(); // translate all baked menu text to the saved language
+        BuildWebsiteButton();      // (website) runtime-create the WEB button — you only need to paste the URL above
     }
 
     void Update() { Refresh(); }
@@ -136,7 +140,39 @@ public class MenuController : MonoBehaviour
     public void OpenX()         { OpenUrl(xUrl); }
     public void OpenInstagram() { OpenUrl(instagramUrl); }
     public void OpenTikTok()    { OpenUrl(tiktokUrl); }
+    public void OpenWebsite()   { OpenUrl(websiteUrl); }
     static void OpenUrl(string url) { if (!string.IsNullOrWhiteSpace(url)) Application.OpenURL(url); }
+
+    // Creates the WEBSITE button at runtime (top-left corner) wired to OpenWebsite, so NO re-bake is needed — you
+    // just paste your link into the websiteUrl field above. Tapping it does nothing until a URL is set.
+    void BuildWebsiteButton()
+    {
+        var canvas = GetComponentInChildren<Canvas>();
+        if (canvas == null) return;
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        // Borrow a rounded button sprite from an existing baked menu button (BEFORE we create ours, so we don't pick
+        // up our own). The old GetBuiltinResource("UI/Skin/UISprite.psd") isn't available in this Unity version.
+        Sprite btnSprite = null; Image.Type btnType = Image.Type.Sliced;
+        var sample = canvas.GetComponentInChildren<Button>(true);
+        if (sample != null) { var si = sample.GetComponent<Image>(); if (si != null) { btnSprite = si.sprite; btnType = si.type; } }
+        var go = new GameObject("Btn_Website", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(canvas.transform, false);
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);    // top-left corner
+        rt.anchoredPosition = new Vector2(120f, -120f);
+        rt.sizeDelta = new Vector2(150f, 150f);
+        var img = go.GetComponent<Image>();
+        if (btnSprite != null) { img.sprite = btnSprite; img.type = btnType; } // rounded like the rest; otherwise a plain solid rect
+        img.color = new Color(0.30f, 0.55f, 0.92f);
+        go.GetComponent<Button>().onClick.AddListener(OpenWebsite);
+        var lblGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
+        lblGo.transform.SetParent(go.transform, false);
+        var lrt = (RectTransform)lblGo.transform;
+        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+        var lbl = lblGo.GetComponent<Text>();
+        lbl.text = "WEB"; lbl.font = font; lbl.fontSize = 40; lbl.fontStyle = FontStyle.Bold;
+        lbl.alignment = TextAnchor.MiddleCenter; lbl.color = Color.white;
+    }
 
     // Watch-ad reward: show a rewarded ad; grant 10 gold ONLY when it completes (skip/close -> nothing).
     public void WatchAdReward()
