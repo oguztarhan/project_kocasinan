@@ -45,7 +45,7 @@ public static class Loc
         // ---- Main menu + bottom nav ----
         { "PLAY",     new[]{ "OYNA","PLAY","SPIELEN","GIOCA","JUGAR","开始","JOUER","JOGAR","MAIN" } },
         { "DAILY",    new[]{ "GÜNLÜK","DAILY","TÄGLICH","GIORNALIERO","DIARIO","每日","QUOTIDIEN","DIÁRIO","HARIAN" } },
-        { "HOME",     new[]{ "ANA SAYFA","HOME","START","HOME","INICIO","主页","ACCUEIL","INÍCIO","BERANDA" } },
+        { "HOME",     new[]{ "ANASAYFA","HOME","START","HOME","INICIO","主页","ACCUEIL","INÍCIO","BERANDA" } }, // single-word (was "ANA SAYFA")
         { "SHOP",     new[]{ "MAĞAZA","SHOP","SHOP","NEGOZIO","TIENDA","商店","BOUTIQUE","LOJA","TOKO" } },
 
         // ---- Settings / panels common ----
@@ -57,11 +57,11 @@ public static class Loc
 
         // ---- Continue / Fail / Success ----
         { "CONTINUE?",   new[]{ "DEVAM?","CONTINUE?","WEITER?","CONTINUARE?","¿SEGUIR?","继续？","CONTINUER ?","CONTINUAR?","LANJUT?" } },
-        { "WATCH AD",    new[]{ "REKLAM İZLE","WATCH AD","WERBUNG ANSEHEN","GUARDA ANNUNCIO","VER ANUNCIO","观看广告","VOIR PUB","VER ANÚNCIO","TONTON IKLAN" } },
+        { "WATCH AD",    new[]{ "İZLE","WATCH","ANSEHEN","GUARDA","VER","观看","VOIR","VER","TONTON" } }, // single-word verb (icon shows it's an ad); was 2 words and overflowed
         { "FAIL",        new[]{ "BAŞARISIZ","FAIL","VERLOREN","FALLITO","FALLASTE","失败","ÉCHEC","FALHOU","GAGAL" } },
         { "ACHIEVEMENT", new[]{ "BAŞARI","ACHIEVEMENT","ERFOLG","SUCCESSO","LOGRO","成就","SUCCÈS","CONQUISTA","PENCAPAIAN" } },
         { "NEXT",        new[]{ "İLERİ","NEXT","WEITER","AVANTI","SIGUIENTE","下一关","SUIVANT","PRÓXIMO","LANJUT" } },
-        { "AD  x2",      new[]{ "REKLAM  x2","AD  x2","WERBUNG  x2","ANNUNCIO  x2","ANUNCIO  x2","广告  x2","PUB  x2","ANÚNCIO  x2","IKLAN  x2" } },
+        { "AD  x2",      new[]{ "x2","x2","x2","x2","x2","x2","x2","x2","x2" } }, // single token (ad icon conveys the ad); was "REKLAM x2" etc. and overflowed
 
         // ---- HUD ----
         { "LEVEL", new[]{ "BÖLÜM","LEVEL","LEVEL","LIVELLO","NIVEL","关卡","NIVEAU","NÍVEL","LEVEL" } },

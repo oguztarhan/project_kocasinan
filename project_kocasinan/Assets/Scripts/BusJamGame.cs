@@ -1286,7 +1286,9 @@ namespace BusJam
                 pad.transform.SetParent(boardRoot, false);
                 pad.transform.position = new Vector3(SlotX(i), -0.05f, ParkingZ);
                 pad.transform.localScale = new Vector3(SlotSpacing * 0.84f, 0.1f, 2.4f); // longer bay (fits the bus length); centred on ParkingZ → spans ~8.5–10.9, still clears the road band (7.9) and fence (11.4)
-                pad.GetComponent<Renderer>().sharedMaterial = slotMat;
+                var padRend = pad.GetComponent<Renderer>();
+                padRend.sharedMaterial = slotMat;
+                padRend.enabled = false; // hide the box — the bay is shown ONLY by painted lane lines (BuildParkingStripes); the collider + ParkingSlot stay for taps/parking
 
                 var slot = pad.AddComponent<ParkingSlot>();
                 slot.index = i;
@@ -1314,17 +1316,43 @@ namespace BusJam
             BuildParkingStripes(); // paint lane-marking stripes between the parking bays
         }
 
-        // Parking-bay lane markings: a thin white stripe at each bay boundary (left edge, between bays, right edge),
-        // running the bay's depth — so the stops read as a striped parking lot. Rebuilt with the slots each level.
+        // Painted parking-bay markings (no raised boxes): a thin white line down each bay boundary (left edge,
+        // between bays, right edge) running the bay's depth, plus one line across the head of the row. Rebuilt with
+        // the slots each level; the (now hidden) slot cubes still carry the ParkingSlot + tap collider.
         void BuildParkingStripes()
         {
             if (stripeMat == null) return;
+            const float y = 0.01f, h = 0.04f, w = 0.10f, depth = 2.3f;
             float half = SlotSpacing * 0.5f;
-            for (int i = 0; i <= totalSlots; i++)
+            for (int i = 0; i <= totalSlots; i++)                              // side lines: a divider at every bay edge
             {
                 float x = SlotX(0) - half + i * SlotSpacing;
-                LowPolyBuilder.Slab(boardRoot, new Vector3(x, 0.02f, ParkingZ), new Vector3(0.08f, 0.04f, 2.3f), stripeMat);
+                LowPolyBuilder.Slab(boardRoot, new Vector3(x, y, ParkingZ), new Vector3(w, h, depth), stripeMat);
             }
+            float rowW = totalSlots * SlotSpacing;
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0f, y, ParkingZ + depth * 0.5f), new Vector3(rowW + w, h, w), stripeMat); // head line across the back
+            for (int i = 0; i < totalSlots; i++)                              // a "P" per bay — HIDDEN until the bay is unlocked
+            {
+                var p = BuildBayLetterP(SlotX(i));
+                if (slots[i] != null) { p.SetActive(!slots[i].locked); slots[i].letterP = p; }
+            }
+        }
+
+        // A "P" marker in one parking bay. It billboards to the (fixed, steep top-down) camera — the SAME proven
+        // orientation the slot icons use (-X cancels the billboard mirror), so it always reads correctly and looks
+        // nearly flat at this camera angle. Created HIDDEN on locked bays and revealed by ParkingSlot.Unlock() when
+        // the player opens the bay (ad / gold); also naturally hidden under a bus while one is parked there.
+        GameObject BuildBayLetterP(float x)
+        {
+            var go = new GameObject("BayP", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(boardRoot, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(100, 100);
+            go.transform.position = new Vector3(x, 0.15f, ParkingZ);
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.85f / 100f); // -X cancels the BillboardUp mirror
+            go.AddComponent<BillboardUp>();
+            AddSignText(go.transform, "P", 90, Vector2.zero, Vector2.one, new Color(0.95f, 0.95f, 0.9f));
+            return go;
         }
 
         // Small camera-facing ICON (no text) above a locked pad's marker: a coin (gold pads) or a video-ad icon (ad pads).
