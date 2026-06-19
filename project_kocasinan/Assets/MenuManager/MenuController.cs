@@ -59,6 +59,10 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
+        // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
+        // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
+        if (Object.FindAnyObjectByType<BootSplash>() == null)
+            MusicManager.PlayMenu(); // main-menu background music (track 1 by default)
         // (#2) Menu background is owned by the self-spawning MenuBackground.cs (animated coast-sunset), which
         // disables the static "Background" object itself. We deliberately DON'T override it here anymore — that
         // was a second background fighting the animated one. One source of truth now.

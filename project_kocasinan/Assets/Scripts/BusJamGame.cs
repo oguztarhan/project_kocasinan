@@ -84,7 +84,8 @@ namespace BusJam
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
         Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
         Material roadMat, neonMat, stripeMat; // asphalt road + emissive neon (people-left sign) + white parking-bay lane stripes
-        Material headlightMat, beamMat;       // T4: warm emissive lamp lens + soft translucent night beam
+        Material headlightMat, beamMat, beamMatDim, lampGlowMat; // T4: warm emissive lens + night beam (bright for moving traffic / dim for the packed jam) + soft lamp halo
+        Mesh headlightBeamMesh;               // procedural tapered ground cone (built once, shared by every headlight)
         Material[] confettiMats;
 
         LevelData level;
@@ -122,6 +123,7 @@ namespace BusJam
         readonly Dictionary<Vector2Int, Bus> reservedByMoving = new Dictionary<Vector2Int, Bus>();
         Bus gridDriver; // the ONE bus currently driving ACROSS the jam — serialized so two exiting vehicles can never mesh
         readonly List<Bus> gridBuses = new List<Bus>();
+        readonly List<Bus> liveBuses = new List<Bus>(); // EVERY vehicle this level (jam + in-flight + parked) — scanned each frame to drive the engine sound
         // Per (pack material, color) instance with "Main Color 1" (_Color01) driven to the match color.
         readonly Dictionary<(Material, PieceColor), Material> tintedVehicleMats = new Dictionary<(Material, PieceColor), Material>();
 
@@ -154,10 +156,10 @@ namespace BusJam
             PlaceCamera();
             SetupPostFX();
 
-            sfx = gameObject.AddComponent<Sfx>();
+            sfx = Sfx.Ensure(); // ONE persistent SFX voice for the whole game (no mixing); UiClickSound clicks every button
             ui = gameObject.AddComponent<GameUI>();
             var ad = AdManager.Ensure(this); // AdMob singleton (DontDestroyOnLoad); created from the gameplay scene
-            ui.OnMenu = () => { sfx.Click(); PauseRequested?.Invoke(); };
+            ui.OnMenu = () => { PauseRequested?.Invoke(); }; // click handled globally by UiClickSound
             ui.OnRecolor = JokerRecolor;
             ui.OnSwap = JokerSwapPeople;
             ui.OnHeli = JokerHelicopter;
@@ -217,8 +219,8 @@ namespace BusJam
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
 
-        // Settings panel: HOME button -> back to the main menu scene.
-        public void GoToMainMenu() { sfx.Click(); AdManager.Instance?.HideBanner(); SceneManager.LoadScene("MainMenu"); }
+        // Settings panel: HOME button -> back to the main menu scene. (click handled globally by UiClickSound)
+        public void GoToMainMenu() { AdManager.Instance?.HideBanner(); SceneManager.LoadScene("MainMenu"); }
 
         // Success panel: grant the reward (base 20 / ad 40) then advance a level.
         void ClaimWinReward(int amount)
@@ -243,7 +245,6 @@ namespace BusJam
             state = GameState.Playing;
             StartCoroutine(LineLayoutLoop()); // restart queue re-spacing (it exited when state left Playing)
             ui.ShowHud();
-            sfx.Click();
             TryStartBoardingPump();
         }
 
@@ -255,6 +256,7 @@ namespace BusJam
             if (AdManager.SHOW_AD_DEBUG && Keyboard.current != null && Keyboard.current.iKey.wasPressedThisFrame)
                 AdManager.Instance?.ForceInterstitial(null);
 #endif
+            UpdateEngineSfx(); // engine loops while ANY vehicle moves, stops the instant they all stop (runs even when paused -> off)
             if (state != GameState.Playing) return;
             // The bonus timer may end the level THIS frame (FinishBonus -> NextLevel rebuilds + re-sets Playing),
             // so bail if the level changed or we left Playing — never run taps against a half-swapped board.
@@ -288,6 +290,31 @@ namespace BusJam
             return false;
         }
 
+        const float EngineMoveEpsSq = 0.000004f; // ~0.002 units/frame: a vehicle that moved more than this is "driving"
+
+        // Drive the looping engine purely from ACTUAL motion: if any tracked vehicle's position changed since last
+        // frame, the engine plays; the frame they all stop, it stops. Robust to every move path (exit/crawl/drive-
+        // away/heli/crash-return) without touching those coroutines. Cross-traffic cars aren't Bus, so they're excluded.
+        void UpdateEngineSfx()
+        {
+            if (sfx == null) return;
+            bool moving = false;
+            if (state == GameState.Playing)
+            {
+                for (int i = 0; i < liveBuses.Count; i++)
+                {
+                    var b = liveBuses[i];
+                    if (b == null) continue;
+                    Vector3 p = b.transform.position;
+                    if (b.sfxPosInit && (p - b.sfxLastPos).sqrMagnitude > EngineMoveEpsSq) moving = true;
+                    b.sfxLastPos = p; b.sfxPosInit = true;
+                }
+            }
+            sfx.SetEngine(moving);
+        }
+
+        void OnDisable() { if (sfx != null) sfx.SetEngine(false); } // never leave the engine humming if the game scene unloads
+
         void RevealMystery()
         {
             int n = Mathf.Min(visible.Count, 4);
@@ -317,8 +344,7 @@ namespace BusJam
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
-                sfx.Deploy();
-                StartCoroutine(ExitRoutine(bus, slot));
+                StartCoroutine(ExitRoutine(bus, slot)); // engine (vroom) starts automatically while it drives — see UpdateEngineSfx
                 return;
             }
 
@@ -331,8 +357,7 @@ namespace BusJam
             bus.cell += bus.dir * step;
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus;  // add new -- atomic, no leak
             bus.state = BusState.Staging; // not tappable until the crawl animation finishes
-            sfx.Deploy();
-            StartCoroutine(CrawlMove(bus, step));
+            StartCoroutine(CrawlMove(bus, step)); // engine (vroom) plays automatically while it crawls — see UpdateEngineSfx
         }
 
         IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
@@ -348,6 +373,11 @@ namespace BusJam
             // they all move at once. A vehicle whose lane conflicts with one in flight just doesn't start an exit yet.
             // (reservedByMoving keeps the jam slides collision-free; the bonus crash/cross logic is all per-vehicle.)
             var freeCorr = StartCoroutine(FreeCorridorWhenClear(bus)); // handle kept so a T3 crash can stop it (else it outlives the retreat)
+            // Release each reserved lane cell the moment this bus has driven PAST it, so a vehicle queued directly
+            // BEHIND it can follow into the vacated space immediately instead of waiting for the whole exit to finish.
+            // NON-BONUS only: on bonus a mistimed crossing reverses the bus back DOWN this very lane (CrashAndReturn),
+            // so the lane must stay fully reserved for the round trip there.
+            if (!IsBonus) StartCoroutine(ReleaseCorridorBehind(bus));
             var exhaust = SpawnExhaust(bus); // T5: rear exhaust trail while it drives off (null on lowEnd / unbuilt catalog)
 
             // Exit GROUNDED, never hitting a vehicle. The bus already FACES `dir`; if its straight `dir` lane is
@@ -584,6 +614,29 @@ namespace BusJam
             var rm = new List<Vector2Int>();
             foreach (var kv in reservedByMoving) if (kv.Value == bus) rm.Add(kv.Key);
             foreach (var c in rm) reservedByMoving.Remove(c);
+        }
+
+        // Progressively free the reserved corridor cells this bus has already driven PAST (measured along its travel
+        // direction, with a body-length + buffer margin so its current footprint stays reserved). This lets a vehicle
+        // directly behind it FOLLOW into the vacated lane right away. Started from ExitRoutine on NON-bonus levels only.
+        IEnumerator ReleaseCorridorBehind(Bus bus)
+        {
+            if (bus == null) yield break;
+            Vector3 fwd = new Vector3(bus.dir.x, 0f, -bus.dir.y);
+            if (fwd.sqrMagnitude < 1e-4f) yield break;
+            fwd.Normalize();
+            float behind = (bus.length * 0.5f + 0.6f) * CellSize; // free a cell only once it's well behind the tail
+            var passed = new List<Vector2Int>();
+            while (bus != null && bus.state != BusState.Parked)
+            {
+                passed.Clear();
+                Vector3 pos = bus.transform.position;
+                foreach (var kv in reservedByMoving)
+                    if (kv.Value == bus && Vector3.Dot(CellWorld(kv.Key) - pos, fwd) < -behind)
+                        passed.Add(kv.Key);
+                for (int i = 0; i < passed.Count; i++) reservedByMoving.Remove(passed[i]);
+                yield return null;
+            }
         }
 
         IEnumerator FreeCorridorWhenClear(Bus bus)
@@ -1001,7 +1054,7 @@ namespace BusJam
             if (state != GameState.Playing || visible.Count < 2) { sfx.Error(); return; }
             if (SaveSystem.Level < J2UnlockLevel) { sfx.Error(); return; }
             if (!SpendJoker(1, SwapCost)) { sfx.Error(); return; }
-            sfx.Click();
+            // success click handled globally by UiClickSound (button press)
             for (int i = visible.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (visible[i], visible[j]) = (visible[j], visible[i]); }
             StartCoroutine(AfterJoker());
         }
@@ -1025,7 +1078,6 @@ namespace BusJam
             if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }
             if (pick == null) { sfx.Error(); return; }
             if (!SpendJoker(2, HeliCost)) { sfx.Error(); return; }
-            sfx.Deploy();
 
             foreach (var c in LevelGenerator.OccCells(pick.cell, pick.dir, pick.length)) occ.Remove(c); // free ALL body cells (no phantom)
             gridBuses.Remove(pick);
@@ -1140,6 +1192,7 @@ namespace BusJam
 
             Theme theme = Themes.For(levelNumber);
             ApplyTheme(theme);
+            MusicManager.PlayTheme(theme.name); // per-theme background music (night themes -> night track)
             BuildSlots();
             BuildGrid();
             BuildPeopleLeftSign();
@@ -1175,7 +1228,8 @@ namespace BusJam
             StopAllCoroutines();
             Juice.ClearAllPunches(); // drop punch state left by hard-stopped coroutines (no cross-level leak)
             busy = 0; pumpRunning = false; pumpDirty = false;
-            occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); visible.Clear(); slots = null;
+            occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); liveBuses.Clear(); visible.Clear(); slots = null;
+            if (sfx != null) sfx.SetEngine(false); // kill the engine loop across a level rebuild
             traffic.Clear(); // T2: drop pooled traffic refs (the cars themselves die with boardRoot below)
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
             if (boardRoot != null) Destroy(boardRoot.gameObject);
@@ -1639,6 +1693,7 @@ namespace BusJam
             root.transform.rotation = Quaternion.Euler(0, yaw, 0);
             var bus = root.AddComponent<Bus>();
             bus.color = color; bus.type = type; bus.capacity = capacity; bus.advanceN = advanceN;
+            liveBuses.Add(bus); // track for the engine-sound movement scan (cleared on level teardown)
 
             GameObject prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(type) : null;
             if (prefab != null)
@@ -2177,7 +2232,16 @@ namespace BusJam
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
             headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.97f, 0.86f), 0.5f, 1.6f);       // #5: warm emissive headlight lens — SOFTER glow (was 3.0, looked harsh/blown-out on bonus levels)
             var beamShader = Shader.Find("Sprites/Default");                                          // URP-safe translucent (never magenta), like the smoke fix
-            if (beamShader != null) beamMat = new Material(beamShader) { color = new Color(1f, 0.95f, 0.74f, 0.10f) }; // #5: subtler forward beam (was 0.22, too strong/boxy)
+            if (beamShader != null)
+            {
+                // #6: beam tint at FULL alpha — the actual fade comes from per-vertex alpha on the cone mesh
+                // (bright at the lamp, transparent at the far end), so the spill reads soft + realistic, not a flat box.
+                beamMat = new Material(beamShader) { color = new Color(1f, 0.96f, 0.84f, 1f) };    // full spill — MOVING traffic on the dark road
+                beamMatDim = new Material(beamShader) { color = new Color(1f, 0.96f, 0.84f, 0.45f) }; // faint spill — the bumper-to-bumper JAM (otherwise 30 fans = gray clutter)
+                // Soft warm halo around each lens (additive-looking via Sprites/Default alpha) so a lamp reads as a
+                // glowing core with falloff, not a hard dot. Subtle on purpose; bloom does the rest.
+                lampGlowMat = new Material(beamShader) { color = new Color(1f, 0.95f, 0.82f, 0.22f) };
+            }
         }
 
         GameObject MakeCube(Transform parent, Material mat, Vector3 scale)
@@ -2666,25 +2730,44 @@ namespace BusJam
             grp.transform.SetParent(root, false);
             grp.transform.localPosition = new Vector3(0f, 0.12f, -halfLen - 0.05f); // nose = local -Z
 
-            for (int s = -1; s <= 1; s += 2) // two emissive lamp lenses at ±X
+            if (beamMat != null && headlightBeamMesh == null) headlightBeamMesh = BuildHeadlightBeam();
+
+            for (int s = -1; s <= 1; s += 2) // two headlights at ±X — each: lens + glow + its OWN ground pool
             {
+                // #6: flattened oval lens (thin in Z) reads like a real headlight, not a blobby sphere.
                 var lamp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 Destroy(lamp.GetComponent<Collider>());
                 lamp.transform.SetParent(grp.transform, false);
                 lamp.transform.localPosition = new Vector3(s * 0.18f, 0f, 0f);
-                lamp.transform.localScale = Vector3.one * 0.085f; // #5: smaller, softer lamp dots (was 0.13, too blobby)
+                lamp.transform.localScale = new Vector3(0.13f, 0.10f, 0.05f); // wide+short oval, shallow lens
                 lamp.GetComponent<Renderer>().sharedMaterial = headlightMat;
-            }
 
-            if (beamMat != null) // soft beam pooled forward onto the dark road
-            {
-                var beam = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(beam.GetComponent<Collider>());
-                beam.transform.SetParent(grp.transform, false);
-                beam.transform.localScale = new Vector3(0.5f, 0.01f, 1.2f);
-                beam.transform.localPosition = new Vector3(0f, -0.04f, -0.65f); // extends forward (-Z), near the ground
-                beam.transform.localRotation = Quaternion.Euler(8f, 0f, 0f);    // tilt the front down onto the road
-                beam.GetComponent<Renderer>().sharedMaterial = beamMat;
+                if (lampGlowMat != null) // soft warm halo behind the lens → bright core with falloff
+                {
+                    var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    Destroy(glow.GetComponent<Collider>());
+                    glow.transform.SetParent(grp.transform, false);
+                    glow.transform.localPosition = new Vector3(s * 0.18f, 0f, 0.01f);
+                    glow.transform.localScale = Vector3.one * 0.2f;
+                    glow.GetComponent<Renderer>().sharedMaterial = lampGlowMat;
+                }
+
+                // #6: each lamp throws its OWN teardrop pool onto the road, toed slightly inward so the two pools
+                // overlap down the centre — that overlap (real headlights do this) reads far more believable than
+                // one symmetric box-fan. Per-vertex alpha fades it into the dark asphalt. The packed JAM gets a
+                // SHORT, faint pool (bumper-to-bumper cars don't throw long beams, and 30 long fans = gray clutter);
+                // MOVING traffic on the open dark road gets the full bright spill.
+                var beamFor = withSpot ? beamMat : beamMatDim;
+                if (beamFor != null)
+                {
+                    var beam = new GameObject("Beam");
+                    beam.transform.SetParent(grp.transform, false);
+                    beam.transform.localPosition = new Vector3(s * 0.16f, -0.06f, -0.18f); // start at the lamp, near the ground
+                    beam.transform.localRotation = Quaternion.Euler(6f, -s * 5f, 0f);      // tilt down + toe inward
+                    if (!withSpot) beam.transform.localScale = new Vector3(0.8f, 1f, 0.5f); // jam: narrower + much shorter throw
+                    beam.AddComponent<MeshFilter>().sharedMesh = headlightBeamMesh;
+                    beam.AddComponent<MeshRenderer>().sharedMaterial = beamFor;
+                }
             }
 
             if (withSpot && !lowEnd) // ONE real shadowless spot (capable devices, moving cars only)
@@ -2693,12 +2776,44 @@ namespace BusJam
                 lgo.transform.SetParent(grp.transform, false);
                 lgo.transform.localRotation = Quaternion.Euler(10f, 180f, 0f); // face the car's -Z nose, tilt down
                 var l = lgo.AddComponent<Light>();
-                l.type = LightType.Spot; l.range = 4.5f; l.spotAngle = 70f; l.innerSpotAngle = 28f; // #5: wider + soft inner falloff
-                l.color = new Color(1f, 0.97f, 0.86f); l.intensity = 1.25f; l.shadows = LightShadows.None; // #5: gentler (was 2.0)
+                // #6: longer throw + softer inner cone so the pool fades gradually instead of a hard disc.
+                l.type = LightType.Spot; l.range = 6f; l.spotAngle = 64f; l.innerSpotAngle = 16f;
+                l.color = new Color(1f, 0.95f, 0.82f); l.intensity = 1.1f; l.shadows = LightShadows.None; // gentle warm key
             }
             // CreatePrimitive() gives the lamps/beam ENABLED colliders; disable+destroy them so they never block a
             // tap (and never trip the editor "enabled collider" check, which was pausing every bonus level).
             StripPhysics(grp);
+        }
+
+        // #6: a single lamp's ground spill — a TEARDROP pool: narrow + bright at the lens, bulging to its widest a
+        // third of the way out, then tapering to a soft point and fading to fully transparent (per-vertex alpha).
+        // Two of these (one per lamp, toed inward) overlap down the centre like real headlights. Lies in the XZ
+        // plane pointing -Z (forward) so the beam object just tilts it onto the asphalt. Built once, SHARED.
+        static Mesh BuildHeadlightBeam()
+        {
+            const float wNear = 0.09f, wWide = 0.30f; // half-widths: lens → widest bulge
+            const float zWide = -0.7f, zTip = -1.9f;  // bulge distance, then the tip
+            var bright = new Color(1f, 1f, 1f, 0.30f); // hot pool right at the lens
+            var wide   = new Color(1f, 1f, 1f, 0.15f); // the bulge
+            var fade   = new Color(1f, 1f, 1f, 0f);    // melts into the dark road
+            var verts = new Vector3[]
+            {
+                new Vector3(-wNear, 0f, 0f),    new Vector3(wNear, 0f, 0f),    // 0,1 lens
+                new Vector3(-wWide, 0f, zWide), new Vector3(wWide, 0f, zWide), // 2,3 widest bulge
+                new Vector3(0f,     0f, zTip),                                 // 4   soft tip
+            };
+            var cols = new[] { bright, bright, wide, wide, fade };
+            var tris = new[]
+            {
+                0, 2, 1,  1, 2, 3, // lens → bulge band
+                2, 4, 3,           // bulge → tip
+            };
+            var m = new Mesh { name = "HeadlightBeam" };
+            m.vertices = verts;
+            m.colors = cols;
+            m.triangles = tris;
+            m.RecalculateBounds();
+            return m;
         }
 
         // T5: take the imported Smoke03 prefab AS-IS, parent it BEHIND the vehicle, and let it PLAY as it drives.

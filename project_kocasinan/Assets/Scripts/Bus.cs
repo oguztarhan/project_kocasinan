@@ -16,6 +16,11 @@ namespace BusJam
         public int slotIndex = -1;
         public bool crossMeshed; // T3 bonus: set by DriveBonusApproach when THIS vehicle overlaps a traffic car mid-cross (per-vehicle so concurrent crossings don't race)
 
+        // Engine-sound movement tracking: BusJamGame compares position frame-to-frame to know if THIS vehicle is
+        // physically moving, so the looping engine plays while ANY vehicle moves and stops the instant all stop.
+        [System.NonSerialized] public Vector3 sfxLastPos;
+        [System.NonSerialized] public bool sfxPosInit;
+
         // Jam-grid placement. `cell` = leading cell (nearest the exit edge); the body
         // extends backward as cell - i*dir for i in 0..length-1. occ holds every body cell.
         public Vector2Int cell;
