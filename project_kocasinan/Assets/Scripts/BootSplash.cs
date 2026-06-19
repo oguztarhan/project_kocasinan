@@ -107,10 +107,12 @@ namespace BusJam
             gaugeTex.SetPixels(gaugeBuf); gaugeTex.Apply(false);
             yield return Wait(0.5f);
 
-            // ---- crossfade splash -> loading ----
+            // ---- splash -> loading: HARD CUT (no crossfade) ----
+            // Crossfading faded BOTH panels to ~50% at the midpoint, so the Intake splash and the loading scene
+            // visibly blended into each other. Instead bring the (opaque) loading panel up at full alpha — it fully
+            // covers the splash — then drop the splash the same frame, so the two are never both on screen.
+            load.alpha = 1f;
             load.gameObject.SetActive(true);
-            StartCoroutine(Fade(load, 0f, 1f, 0.45f));
-            yield return Fade(splash, 1f, 0f, 0.45f);
             splash.gameObject.SetActive(false);
 
             // ---- 2) loading bar 0..100 ----

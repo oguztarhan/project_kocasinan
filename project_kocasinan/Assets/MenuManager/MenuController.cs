@@ -56,19 +56,9 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
-        // Set the menu background to the sunset-coast art (Resources/MenuBg). Replaces the old purple UI-kit
-        // sprite. Runtime-only & non-destructive; falls back to a solid menu colour if the image is missing.
-        var bgGo = FindByName("Background");
-        if (bgGo)
-        {
-            var bgImg = bgGo.GetComponent<Image>();
-            if (bgImg)
-            {
-                var bgSprite = Resources.Load<Sprite>("MenuBg");
-                if (bgSprite) { bgImg.sprite = bgSprite; bgImg.color = Color.white; bgImg.type = Image.Type.Simple; bgImg.preserveAspect = false; }
-                else { bgImg.sprite = null; bgImg.color = new Color(0.22f, 0.47f, 0.80f); }
-            }
-        }
+        // (#2) Menu background is owned by the self-spawning MenuBackground.cs (animated coast-sunset), which
+        // disables the static "Background" object itself. We deliberately DON'T override it here anymore — that
+        // was a second background fighting the animated one. One source of truth now.
         Localizer.LocalizeScene(); // translate all baked menu text to the saved language
     }
 
@@ -124,7 +114,22 @@ public class MenuController : MonoBehaviour
     public void OpenRemoveAds() { Open(removeAdsPanel, null); }
     public void OpenAdReward()  { Open(adRewardPanel, null); }
     // Language pop-up: overlay it on top (don't hide the settings panel behind it).
-    public void OpenLanguage()  { if (languagePanel) { languagePanel.SetActive(true); Localizer.LocalizeScene(); } }
+    public void OpenLanguage()
+    {
+        // (#1) Same language panel the in-game scene uses (LanguageSelector + 9 options). Find the baked popup if the
+        // reference was lost, and bring it to the FRONT so it isn't hidden behind the open Settings panel.
+        if (languagePanel == null)
+        {
+            var ls = FindFirstObjectByType<LanguageSelector>(FindObjectsInactive.Include);
+            if (ls != null) languagePanel = ls.panelRoot != null ? ls.panelRoot : ls.gameObject;
+        }
+        if (languagePanel)
+        {
+            languagePanel.transform.SetAsLastSibling(); // render on TOP of the open Settings panel
+            languagePanel.SetActive(true);
+            Localizer.LocalizeScene();
+        }
+    }
 
     // Social media buttons: open the pasted link in the device browser.
     public void OpenFacebook()  { OpenUrl(facebookUrl); }

@@ -1296,33 +1296,53 @@ namespace BusJam
 
                 if (slot.locked)
                 {
-                    Material mk = slot.adUnlock ? neonMat : lockMat;        // ad pad glows; coin pads use the lock material
+                    // (#3) The "+" cross-bar marker was removed — the animated coin / video-ad ICON (below) is the
+                    // indicator now. The marker GameObject stays (empty) to host the IdleBob pulse + the icon.
                     var marker = new GameObject(slot.adUnlock ? "AdLock" : "CoinLock");
                     marker.transform.SetParent(pad.transform, false);
                     marker.transform.localPosition = new Vector3(0, 0.7f, 0);
-                    MakeCube(marker.transform, mk, new Vector3(0.55f, 0.12f, 0.14f));
-                    MakeCube(marker.transform, mk, new Vector3(0.14f, 0.12f, 0.55f));
                     var pulse = marker.AddComponent<IdleBob>();
                     pulse.scalePulse = true; pulse.scaleAmp = 0.12f; pulse.speed = 3f; pulse.amp = 0f;
                     slot.lockMarker = marker;
-                    // Billboard label so the player knows HOW to open it (parented to the marker -> removed on Unlock).
-                    BuildSlotLabel(marker.transform, slot.adUnlock ? "AD" : SlotUnlockCost.ToString(),
-                                   slot.adUnlock ? new Color(0.35f, 1f, 0.55f) : new Color(1f, 0.85f, 0.25f));
+                    // Billboard ICON so the player sees HOW to open it: a coin on the gold pads, a video-ad icon on
+                    // the rewarded-ad pads. Coin pads ALSO show the price number ("80") underneath. Parented to the
+                    // marker -> removed on Unlock.
+                    BuildSlotIcon(marker.transform, slot.adUnlock ? UIKit.WatchAd() : UIKit.Coin());
+                    if (!slot.adUnlock) BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // (#2) "80" under the coin
                 }
             }
         }
 
-        // Small camera-facing text above a locked pad's marker (e.g. "AD" or the coin cost).
-        void BuildSlotLabel(Transform parent, string text, Color color)
+        // Small camera-facing ICON (no text) above a locked pad's marker: a coin (gold pads) or a video-ad icon (ad pads).
+        void BuildSlotIcon(Transform parent, Sprite sprite)
         {
-            var go = new GameObject("SlotLabel", typeof(RectTransform), typeof(Canvas));
+            if (sprite == null) return;
+            var go = new GameObject("SlotIcon", typeof(RectTransform), typeof(Canvas));
             go.transform.SetParent(parent, false);
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
             go.transform.localPosition = new Vector3(0, 0.55f, 0);
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.5f / 120f); // -X cancels the BillboardUp flip
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.62f / 120f); // -X cancels the BillboardUp flip
             go.AddComponent<BillboardUp>();
-            AddSignText(go.transform, text, 64, Vector2.zero, Vector2.one, color);
+            var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            iconGo.transform.SetParent(go.transform, false);
+            var rt = (RectTransform)iconGo.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var img = iconGo.GetComponent<UnityEngine.UI.Image>();
+            img.sprite = sprite; img.raycastTarget = false; img.preserveAspect = true;
+        }
+
+        // (#2) Small camera-facing cost number under a coin pad's icon (e.g. "80"), so the price is clear/visible.
+        void BuildSlotCostNumber(Transform parent, string text)
+        {
+            var go = new GameObject("SlotCost", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 70);
+            go.transform.localPosition = new Vector3(0, 0.05f, 0); // just below the coin icon (icon sits at y 0.55)
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.62f / 120f); // match the icon's billboard scale
+            go.AddComponent<BillboardUp>();
+            AddSignText(go.transform, text, 72, Vector2.zero, Vector2.one, new Color(1f, 0.85f, 0.25f));
         }
 
         void BuildGrid()
@@ -2115,9 +2135,9 @@ namespace BusJam
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
             roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
-            headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.96f, 0.80f), 0.5f, 3f);        // T4: warm emissive headlight lens (glows under bloom)
+            headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.97f, 0.86f), 0.5f, 1.6f);       // #5: warm emissive headlight lens — SOFTER glow (was 3.0, looked harsh/blown-out on bonus levels)
             var beamShader = Shader.Find("Sprites/Default");                                          // URP-safe translucent (never magenta), like the smoke fix
-            if (beamShader != null) beamMat = new Material(beamShader) { color = new Color(1f, 0.95f, 0.72f, 0.22f) }; // T4: soft forward beam
+            if (beamShader != null) beamMat = new Material(beamShader) { color = new Color(1f, 0.95f, 0.74f, 0.10f) }; // #5: subtler forward beam (was 0.22, too strong/boxy)
         }
 
         GameObject MakeCube(Transform parent, Material mat, Vector3 scale)
@@ -2212,6 +2232,7 @@ namespace BusJam
             for (int i = 0; i < sideN; i++)
             {
                 float z = -1f + i * 2.6f;
+                if (Mathf.Abs(z - RoadZ) < 1.6f) continue; // #1: skip side decor that would land ON the drive-in road lane (a tree sitting in the road at its start/end)
                 if (useTrees)
                 {
                     FitDecor(cityTrees[i % cityTrees.Length], new Vector3(-6.8f, 0, z), 1.5f, Quaternion.Euler(0, i * 47f, 0));
@@ -2280,8 +2301,11 @@ namespace BusJam
         // Cosmetic-only: strip physics so nothing intercepts the tap raycast. LODGroup is left intact.
         static void StripPhysics(GameObject go)
         {
-            foreach (var c in go.GetComponentsInChildren<Collider>(true))  Destroy(c);
-            foreach (var r in go.GetComponentsInChildren<Rigidbody>(true)) Destroy(r);
+            // Disable BEFORE Destroy: Destroy is deferred to end-of-frame, but a DISABLED collider is ignored by
+            // raycasts immediately — so taps are never blocked, and the synchronous "no enabled collider" check
+            // below can't false-positive (which was tripping Error Pause and freezing every bonus level).
+            foreach (var c in go.GetComponentsInChildren<Collider>(true))  { c.enabled = false; Destroy(c); }
+            foreach (var r in go.GetComponentsInChildren<Rigidbody>(true)) { r.isKinematic = true; Destroy(r); }
         }
 
         // Combined world-space renderer bounds of an instantiated object (for fit-to-size placement).
@@ -2402,7 +2426,7 @@ namespace BusJam
             if (!lowEnd && cityProps != null && cityProps.Length > 0)
                 for (int i = 0; i < 3; i++)
                 {
-                    float z = PeopleZ + 0.5f + i * 1.0f; // BEHIND the bus-stop props (z≈9) so cones etc. don't mesh them
+                    float z = PeopleZ - 0.8f + i * 0.6f; // #3: kept FORWARD of the back buildings (no clipping, e.g. the fire hydrant) but still in the people zone
                     FitDecor(cityProps[ThemePick(th, cityProps.Length, i)],     new Vector3(-5.5f, 0, z), 1.0f, Quaternion.Euler(0, 90f, 0));
                     FitDecor(cityProps[ThemePick(th, cityProps.Length, i + 1)], new Vector3(5.5f, 0, z), 1.0f, Quaternion.Euler(0, -90f, 0));
                 }
@@ -2538,8 +2562,10 @@ namespace BusJam
             if (nightMode) AttachHeadlights(pivot.transform, halfLen, true); // T4: moving cars get the real spot
             trafficSpawnIdx++;
 #if UNITY_EDITOR
-            if (pivot.GetComponentsInChildren<Collider>(true).Length != 0)
-                Debug.LogError("[Traffic] a traffic car still has a collider — it would block taps!");
+            bool blocksTap = false;
+            foreach (var col in pivot.GetComponentsInChildren<Collider>(true)) if (col.enabled) { blocksTap = true; break; }
+            if (blocksTap)
+                Debug.LogError("[Traffic] a traffic car still has an ENABLED collider — it would block taps!");
 #endif
             return pivot;
         }
@@ -2605,7 +2631,7 @@ namespace BusJam
                 Destroy(lamp.GetComponent<Collider>());
                 lamp.transform.SetParent(grp.transform, false);
                 lamp.transform.localPosition = new Vector3(s * 0.18f, 0f, 0f);
-                lamp.transform.localScale = Vector3.one * 0.13f;
+                lamp.transform.localScale = Vector3.one * 0.085f; // #5: smaller, softer lamp dots (was 0.13, too blobby)
                 lamp.GetComponent<Renderer>().sharedMaterial = headlightMat;
             }
 
@@ -2626,9 +2652,12 @@ namespace BusJam
                 lgo.transform.SetParent(grp.transform, false);
                 lgo.transform.localRotation = Quaternion.Euler(10f, 180f, 0f); // face the car's -Z nose, tilt down
                 var l = lgo.AddComponent<Light>();
-                l.type = LightType.Spot; l.range = 4f; l.spotAngle = 50f;
-                l.color = new Color(1f, 0.96f, 0.80f); l.intensity = 2f; l.shadows = LightShadows.None;
+                l.type = LightType.Spot; l.range = 4.5f; l.spotAngle = 70f; l.innerSpotAngle = 28f; // #5: wider + soft inner falloff
+                l.color = new Color(1f, 0.97f, 0.86f); l.intensity = 1.25f; l.shadows = LightShadows.None; // #5: gentler (was 2.0)
             }
+            // CreatePrimitive() gives the lamps/beam ENABLED colliders; disable+destroy them so they never block a
+            // tap (and never trip the editor "enabled collider" check, which was pausing every bonus level).
+            StripPhysics(grp);
         }
 
         // T5: take the imported Smoke03 prefab AS-IS, parent it BEHIND the vehicle, and let it PLAY as it drives.
@@ -2667,10 +2696,23 @@ namespace BusJam
         {
             if (smoke == null) return;
             if (detach && boardRoot != null) smoke.transform.SetParent(boardRoot, true);
-            float life = 2.5f;
-            var ps = smoke.GetComponentInChildren<ParticleSystem>();
-            if (ps != null) { ps.Stop(true, ParticleSystemStopBehavior.StopEmitting); life = Mathf.Max(1.5f, ps.main.startLifetime.constantMax) + 0.5f; }
-            Destroy(smoke, life);
+            // (#7) Fade GRADUALLY, not suddenly. The old code destroyed the whole GameObject at ~0.45x of the
+            // particles' lifetime, cutting the live puff off mid-air -> a visible "pop". Instead: stop emitting and
+            // cap each live particle's REMAINING life to `fade`s, so the trail thins out and dies on its own (its
+            // alpha-over-lifetime fade plays out) within a short, fixed window. Destroy only after they're gone.
+            const float fade = 1.2f;
+            foreach (var ps in smoke.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                int max = ps.particleCount;
+                if (max <= 0) continue;
+                var buf = new ParticleSystem.Particle[max];
+                int n = ps.GetParticles(buf);
+                for (int i = 0; i < n; i++)
+                    if (buf[i].remainingLifetime > fade) buf[i].remainingLifetime = fade;
+                ps.SetParticles(buf, n);
+            }
+            Destroy(smoke, fade + 0.25f);
         }
 
         // T6: one-shot impact burst at a world pos. Returns false on lowEnd / missing prefab so the caller can use

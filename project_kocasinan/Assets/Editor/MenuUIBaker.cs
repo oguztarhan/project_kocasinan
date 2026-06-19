@@ -445,7 +445,7 @@ public static class MenuUIBaker
         Place(pic.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(220, 220));
 
         // Short English description.
-        Label(card.transform, "Desc", "Watch an ad and earn 10 gold!", Num, new Vector2(0, -30), new Vector2(540, 80), 34, Dark);
+        Label(card.transform, "Desc", "Watch ad and earn 10 gold!", Num, new Vector2(0, -30), new Vector2(540, 80), 34, Dark); // matches the Loc key exactly so it translates
 
         // atlas1_36 "watch" button, centred (aligned under the image).
         var watch = Btn(card.transform, "Watch", UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0, -180), new Vector2(360, 120));

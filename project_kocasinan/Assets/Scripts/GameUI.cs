@@ -36,6 +36,7 @@ namespace BusJam
         readonly GameObject[] jokerBuyPanels = new GameObject[3]; // baked per-joker buy panels (0/1/2)
         readonly Sprite[] jokerIcons = new Sprite[3];
         readonly int[] jokerCosts = new int[3];
+        GameObject gearGo, levelBadgeGo, adFreeBtnGo; // (#6) HUD chrome hidden while the shop is open; the coin bar stays
 
         // Bottom space reserved for the AdMob adaptive banner so the joker row never sits under it (T3). Tunable.
         const float BannerReservePx = 190f;
@@ -131,11 +132,14 @@ namespace BusJam
             if (h.peopleIcon) { h.peopleIcon.sprite = UISprites.Person(); h.peopleIcon.color = White; }
             if (h.coinButton) h.coinButton.onClick.AddListener(ShowShop);
             if (h.gearButton) h.gearButton.onClick.AddListener(ShowSettings);
+            gearGo = h.gearButton ? h.gearButton.gameObject : null;                                       // (#6)
+            var lb = FindDeep(hudPanel.transform, "Level_Badge"); levelBadgeGo = lb ? lb.gameObject : null; // (#6)
 
             jRecolor = AdoptJoker(h.recolor, recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
             jSwap    = AdoptJoker(h.swap,    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
-            ReserveBannerSpace(h.recolor); ReserveBannerSpace(h.swap); ReserveBannerSpace(h.heli); // lift baked jokers above the banner (T3)
+            // (#4) Baked joker positions are now used EXACTLY as placed in the Hierarchy. The old auto-lift
+            // (ReserveBannerSpace: +190px to clear the banner) overrode your manual placement, so it's gone.
             BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
             RefreshJokers();
             BuildBonusCountdown();
@@ -182,6 +186,7 @@ namespace BusJam
             badge.raycastTarget = false;
             Label(badge.transform, "LEVEL", num, new Vector2(0, 42), new Vector2(160, 36), 24, White);
             hudLevel = Label(badge.transform, "1", title, new Vector2(0, -16), new Vector2(160, 90), 64, White);
+            levelBadgeGo = badge.gameObject; // (#6) hidden while the shop is open
             hudTheme = Label(hudPanel.transform, "", num, new Vector2(110, -210), new Vector2(260, 36), 22, new Color(0.85f, 0.9f, 1f));
             hudTheme.rectTransform.anchorMin = hudTheme.rectTransform.anchorMax = new Vector2(0, 1);
             hudTheme.rectTransform.anchoredPosition = new Vector2(110, -210);
@@ -193,7 +198,7 @@ namespace BusJam
             hudCoins = Label(coinBtn.transform, "0", num, new Vector2(35, 0), new Vector2(180, 60), 44, White);
 
             // SETTINGS gear: TOP-RIGHT.
-            Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings);
+            gearGo = Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings).gameObject; // (#6)
 
             BuildFreeCoinsButton(hudPanel.transform); // +coins (watch-ad) button (T5)
 
@@ -250,6 +255,7 @@ namespace BusJam
             Place(ic.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(32, 8), new Vector2(48, 48));
             Label(btn.transform, "+", title, new Vector2(36, 10), new Vector2(80, 56), 44, White);
             Label(btn.transform, "AD", num, new Vector2(0, -28), new Vector2(120, 28), 20, White);
+            adFreeBtnGo = btn.gameObject; // (#6) hidden while the shop is open
         }
 
         void RefreshJokers() { SetJoker(jRecolor); SetJoker(jSwap); SetJoker(jHeli); }
@@ -403,20 +409,44 @@ namespace BusJam
             {
                 settingsPanel = InGamePanels.Instance.settings;
                 WireSettings(settingsPanel.transform);
-                // The empty settings button opens the in-game language pop-up.
-                var emptyT = settingsPanel.transform.Find("Card/Btn_Empty");
-                if (emptyT)
-                {
-                    var eb = emptyT.GetComponent<Button>();
-                    var lang = InGamePanels.Instance.language;
-                    if (eb && lang) eb.onClick.AddListener(() => lang.SetActive(true));
-                    if (emptyT.GetComponentInChildren<Text>() == null)
-                        Label(emptyT, "LANGUAGE", title, Vector2.zero, new Vector2(420, 80), 40, White);
-                }
+                WireLanguageButton(settingsPanel.transform); // (#1/#2) open the language popup + fix its label font
                 AddLevelsDebugButton(settingsPanel.transform); // TEMP debug — remove later
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback already includes the LEVELS button
+        }
+
+        // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
+        // looked for "Card/Btn_Empty", which doesn't exist, so it was never wired). We also fix its label: the baked
+        // label is a TMP using a different font than the other (legacy-Text) buttons, so we hide it and add a legacy
+        // Text that matches the siblings.
+        void WireLanguageButton(Transform settingsRoot)
+        {
+            var t = FindDeep(settingsRoot, "Language") ?? FindDeep(settingsRoot, "Btn_Language") ?? FindDeep(settingsRoot, "Btn_Empty");
+            if (t == null) return;
+            var btn = t.GetComponent<Button>() ?? t.GetComponentInParent<Button>();
+            if (btn == null) return;
+
+            var lang = InGamePanels.Instance != null ? InGamePanels.Instance.language : null;
+            if (lang != null)
+            {
+                btn.onClick.AddListener(() => lang.SetActive(true)); // (#1) open the popup
+                foreach (var b in lang.GetComponentsInChildren<InGamePanelButton>(true)) // let its close button dismiss it
+                {
+                    var cb = b.GetComponent<Button>();
+                    if (cb != null && b.action == InGamePanelButton.Act.Close) cb.onClick.AddListener(() => lang.SetActive(false));
+                }
+            }
+
+            // Swap the odd TMP label for a legacy Text in GROBOLD ("Gro Bold") — the kit's title font, UIKit.Title().
+            var tmp = btn.GetComponentInChildren<TMPro.TMP_Text>(true);
+            if (tmp != null) tmp.gameObject.SetActive(false);
+            if (btn.GetComponentInChildren<Text>(true) == null)
+            {
+                var lbl = Label(btn.transform, "Language", title, Vector2.zero, new Vector2(440, 90), 40, White); // title = GROBOLD / Gro Bold
+                var rt = lbl.rectTransform;
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            }
         }
 
         // TEMP (debug): a LEVELS button injected into the BAKED settings panel so you can jump to any level.
@@ -538,13 +568,29 @@ namespace BusJam
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Shop"; otherwise build the code shop.
         void SetupShop()
         {
-            if (InGameShop.Instance != null && InGameShop.Instance.panel != null)
+            // (#5/#7) Use the BAKED scene shop even if its canvas was left INACTIVE in the Hierarchy. A disabled
+            // InGameShop_Baked never runs Awake, so InGameShop.Instance stays null and the OLD code-built shop
+            // (BuildShop) showed instead — that was the "old shop still showing". Find it inactive-inclusive + enable.
+            var shop = InGameShop.Instance;
+            if (shop == null) shop = Object.FindFirstObjectByType<InGameShop>(FindObjectsInactive.Include);
+            if (shop != null)
             {
-                shopPanel = InGameShop.Instance.panel;
-                WireSceneShop(shopPanel.transform);
-                shopPanel.SetActive(false);
+                if (!shop.gameObject.activeSelf) shop.gameObject.SetActive(true); // runs its Awake -> assigns + hides panel
+                var panel = shop.panel;
+                if (panel == null)
+                {
+                    var t = shop.transform.Find("Panel_GameShop");
+                    if (t) panel = t.gameObject;
+                }
+                if (panel != null)
+                {
+                    shopPanel = panel;
+                    WireSceneShop(shopPanel.transform);
+                    shopPanel.SetActive(false);
+                    return;
+                }
             }
-            else BuildShop();
+            BuildShop(); // genuine fallback only — no baked shop exists in the scene
         }
 
         // Wire the baked shop's tagged buttons to live actions (the visuals stay in the scene).
@@ -803,12 +849,24 @@ namespace BusJam
         }
 
         // ---- API ------------------------------------------------------------
-        public void ShowHud() { Toggle(hudPanel, true); }
+        public void ShowHud() { Toggle(hudPanel, true); SetHudChromeVisible(true); }
         public void HideHud() { Toggle(hudPanel, false); }
         public void ShowSettings() { Toggle(settingsPanel, true); }
         public void HideSettings() { Toggle(settingsPanel, false); }
-        public void ShowShop() { Toggle(shopPanel, true); }
-        public void HideShop() { Toggle(shopPanel, false); }
+        public void ShowShop() { SetHudChromeVisible(false); Toggle(shopPanel, true); } // (#6) hide gear/level/ad/jokers
+        public void HideShop() { Toggle(shopPanel, false); SetHudChromeVisible(true); } // restore them when it closes
+
+        // (#6) While the shop is open, hide the gear, level badge, +coins(ad) button and the 3 jokers — leaving ONLY
+        // the gold/coin bar visible. Restored when the shop closes (or whenever the HUD is (re)shown).
+        void SetHudChromeVisible(bool on)
+        {
+            if (jRecolor.btn) jRecolor.btn.gameObject.SetActive(on);
+            if (jSwap.btn)    jSwap.btn.gameObject.SetActive(on);
+            if (jHeli.btn)    jHeli.btn.gameObject.SetActive(on);
+            if (gearGo)       gearGo.SetActive(on);
+            if (levelBadgeGo) levelBadgeGo.SetActive(on);
+            if (adFreeBtnGo)  adFreeBtnGo.SetActive(on);
+        }
         public void ShowContinue() { Toggle(continuePanel, true); }
         public void SetContinuePrice(int cost) { if (continuePrice) continuePrice.text = cost.ToString(); }
         public void HideContinue() { Toggle(continuePanel, false); }

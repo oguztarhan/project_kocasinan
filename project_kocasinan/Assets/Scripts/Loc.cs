@@ -85,7 +85,8 @@ public static class Loc
         { "Day 7", new[]{ "Gün 7","Day 7","Tag 7","Giorno 7","Día 7","第7天","Jour 7","Dia 7","Hari 7" } },
 
         // ---- Ad-reward popup ----
-        { "Watch an ad and earn 10 gold!", new[]{
+        // Key MATCHES the baked Panel_AdReward "Desc" text exactly (no "an") so Localizer auto-tags + translates it.
+        { "Watch ad and earn 10 gold!", new[]{
             "Reklam izle, 10 altın kazan!","Watch an ad and earn 10 gold!","Schau eine Werbung und erhalte 10 Gold!",
             "Guarda un annuncio e guadagna 10 oro!","¡Mira un anuncio y gana 10 de oro!","观看广告赚取10金币！",
             "Regarde une pub et gagne 10 pièces !","Assista a um anúncio e ganhe 10 de ouro!","Tonton iklan dan dapatkan 10 emas!" } },
