@@ -59,6 +59,7 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
+        EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
         if (Object.FindAnyObjectByType<BootSplash>() == null)
@@ -72,6 +73,56 @@ public class MenuController : MonoBehaviour
     void Update() { Refresh(); }
 
     public void Refresh() { if (coinText) coinText.text = SaveSystem.Coins.ToString(); }
+
+    // Makes the Settings pop-up's close button work. The baked panel has a red "Close" ✕ that is only an
+    // Image (NO Button component), so tapping it did nothing. Find it and wire it to ShowHome — adding a
+    // Button if missing. Also removes the redundant runtime square an earlier build added underneath it.
+    // Falls back to building a ✕ on the card if no baked "Close" exists. Idempotent; safe every Start.
+    void EnsureSettingsClose()
+    {
+        if (settingsPanel == null) return;
+
+        // Drop the redundant red square a previous version created at runtime, if it's there.
+        var stale = FindInPanel(settingsPanel.transform, "CloseBtn_Runtime");
+        if (stale != null) Destroy(stale.gameObject);
+
+        // Wire the baked red "Close" ✕ (the button the player actually sees and taps).
+        var closeT = FindInPanel(settingsPanel.transform, "Close");
+        if (closeT != null)
+        {
+            var cimg = closeT.GetComponent<Image>();
+            if (cimg != null) cimg.raycastTarget = true;
+            var cbtn = closeT.GetComponent<Button>();
+            if (cbtn == null) cbtn = closeT.gameObject.AddComponent<Button>();
+            if (cimg != null) cbtn.targetGraphic = cimg;
+            cbtn.interactable = true;
+            cbtn.onClick.RemoveListener(ShowHome); // avoid stacking duplicates across Starts
+            cbtn.onClick.AddListener(ShowHome);
+            return;
+        }
+
+        // Fallback: no baked close button -> build a red ✕ on the card (old behaviour).
+        Transform card = settingsPanel.transform.Find("Panel");
+        if (card == null && settingsPanel.transform.childCount > 0) card = settingsPanel.transform.GetChild(0);
+        if (card == null) card = settingsPanel.transform;
+        if (card.Find("CloseBtn_Runtime") != null) return;
+        var go = new GameObject("CloseBtn_Runtime", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(card, false);
+        go.transform.SetAsLastSibling(); // render on top of the card content
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-30f, -30f);
+        rt.sizeDelta = new Vector2(110f, 110f);
+        go.GetComponent<Image>().color = new Color(0.86f, 0.27f, 0.27f, 1f); // red
+        var xGo = new GameObject("X", typeof(RectTransform), typeof(Text));
+        xGo.transform.SetParent(go.transform, false);
+        var xrt = (RectTransform)xGo.transform;
+        xrt.anchorMin = Vector2.zero; xrt.anchorMax = Vector2.one; xrt.offsetMin = Vector2.zero; xrt.offsetMax = Vector2.zero;
+        var t = xGo.GetComponent<Text>();
+        t.font = GameFont.UGUI;
+        t.text = "X"; t.fontSize = 60; t.alignment = TextAnchor.MiddleCenter; t.color = Color.white; t.raycastTarget = false;
+        go.GetComponent<Button>().onClick.AddListener(ShowHome);
+    }
 
     void Set(GameObject g, bool on) { if (g) g.SetActive(on); }
 
@@ -98,6 +149,14 @@ public class MenuController : MonoBehaviour
     {
         foreach (var t in GetComponentsInChildren<Transform>(true))
             if (t.name == n) return t.gameObject;
+        return null;
+    }
+
+    // Depth-first search (including inactive) for a descendant by name, scoped to one panel.
+    static Transform FindInPanel(Transform root, string n)
+    {
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+            if (t != root && t.name == n) return t;
         return null;
     }
 

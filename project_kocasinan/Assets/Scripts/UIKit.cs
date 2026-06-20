@@ -45,8 +45,10 @@ namespace BusJam
         }
 
         // ---- Fonts ----
-        public static Font Title() { if (_title == null) _title = LoadFont("GROBOLD"); return _title; }   // chunky cartoon titles
-        public static Font Num()   { if (_num == null)   _num   = LoadFont("Oswald-Bold"); return _num; } // numbers / body
+        // Whole game uses one font now (Matcha Cih, via GameFont). Title()/Num() both return it so baked AND
+        // procedural UI render in Matcha from the first frame — GlobalFontApplier also enforces this at runtime.
+        public static Font Title() { if (_title == null) _title = GameFont.UGUI; return _title; }
+        public static Font Num()   { if (_num == null)   _num   = GameFont.UGUI; return _num; }
 
         static Font LoadFont(string n)
         {

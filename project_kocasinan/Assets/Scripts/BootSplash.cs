@@ -50,7 +50,7 @@ namespace BusJam
 
         void Start()
         {
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = GameFont.UGUI;
 
             var cgo = new GameObject("BootCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             cgo.transform.SetParent(transform, false);

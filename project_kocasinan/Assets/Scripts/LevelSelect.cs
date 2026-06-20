@@ -26,7 +26,7 @@ namespace BusJam
         public void Build(BusJamGame g)
         {
             game = g;
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = GameFont.UGUI;
 
             var canvasGo = new GameObject("LevelSelectCanvas");
             canvasGo.transform.SetParent(transform, false);
