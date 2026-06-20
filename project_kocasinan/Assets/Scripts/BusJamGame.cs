@@ -158,7 +158,7 @@ namespace BusJam
             cityProps     = Resources.LoadAll<GameObject>("Fx/Props");
             gameSettings = Resources.Load<GameSettings>("GameSettings");       // tuning knobs (Inspector-editable)
             if (gameSettings == null) gameSettings = ScriptableObject.CreateInstance<GameSettings>(); // fall back to defaults
-            seatFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // roof seat-count number
+            seatFont = GameFont.UGUI; // roof seat-count number — now the global Matcha font
             PlaceCamera();
             SetupPostFX();
 

@@ -24,7 +24,7 @@ namespace BusJam
         public void Build()
         {
             if (root != null) return;
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = GameFont.UGUI;
 
             var canvasGo = new GameObject("TutorialCanvas");
             canvasGo.transform.SetParent(transform, false);
@@ -39,21 +39,46 @@ namespace BusJam
             root = canvasGo;
 
             // ---- bottom instruction banner ----
-            bannerGo = new GameObject("Banner", typeof(RectTransform), typeof(Image));
-            bannerGo.transform.SetParent(canvasGo.transform, false);
-            var brt = bannerGo.GetComponent<RectTransform>();
-            brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
-            brt.pivot = new Vector2(0.5f, 0f);
-            brt.anchoredPosition = new Vector2(0, 380);   // lower third, ABOVE the joker row, BELOW the jam
-            brt.sizeDelta = new Vector2(1000, 170);
-            var bimg = bannerGo.GetComponent<Image>();
-            bimg.color = new Color(0.06f, 0.08f, 0.13f, 0.86f);
-            bimg.raycastTarget = false;
+            // If the user authored a panel in the scene (tagged with TutorialPanelMarker, e.g. via
+            // Tools ▸ 300Mind UI ▸ Bake Tutorial Panel), ADOPT it as the banner background so they fully
+            // control its look in the Inspector — we only drive the text on top. Otherwise fall back
+            // to the built-in dark box (original behaviour, so nothing breaks if no panel exists).
+            var marker = FindScenePanel();
+            if (marker != null)
+            {
+                marker.adopted = true;                                    // stand down the panel's play-start self-hide
+                bannerGo = marker.gameObject;
+                bannerGo.transform.SetParent(canvasGo.transform, false); // adopt into this overlay so Show/Hide drives it
+                bannerGo.transform.SetAsFirstSibling();                   // keep it BEHIND the pointer ring
+                var mimg = bannerGo.GetComponent<Image>();
+                if (mimg != null) mimg.raycastTarget = false;            // never block the board's tap raycast
+                bannerText = bannerGo.GetComponentInChildren<Text>(true); // reuse a text the user added, if any
+                if (bannerText == null)
+                {
+                    bannerText = MakeText(bannerGo.transform, "", 46, Color.white, TextAnchor.MiddleCenter);
+                    var atrt = bannerText.rectTransform;
+                    atrt.anchorMin = Vector2.zero; atrt.anchorMax = Vector2.one;
+                    atrt.offsetMin = new Vector2(34, 18); atrt.offsetMax = new Vector2(-34, -18);
+                }
+            }
+            else
+            {
+                bannerGo = new GameObject("Banner", typeof(RectTransform), typeof(Image));
+                bannerGo.transform.SetParent(canvasGo.transform, false);
+                var brt = bannerGo.GetComponent<RectTransform>();
+                brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
+                brt.pivot = new Vector2(0.5f, 0f);
+                brt.anchoredPosition = new Vector2(0, 380);   // lower third, ABOVE the joker row, BELOW the jam
+                brt.sizeDelta = new Vector2(1000, 170);
+                var bimg = bannerGo.GetComponent<Image>();
+                bimg.color = new Color(0.06f, 0.08f, 0.13f, 0.86f);
+                bimg.raycastTarget = false;
 
-            bannerText = MakeText(bannerGo.transform, "", 46, Color.white, TextAnchor.MiddleCenter);
-            var trt = bannerText.rectTransform;
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-            trt.offsetMin = new Vector2(34, 18); trt.offsetMax = new Vector2(-34, -18);
+                bannerText = MakeText(bannerGo.transform, "", 46, Color.white, TextAnchor.MiddleCenter);
+                var trt = bannerText.rectTransform;
+                trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+                trt.offsetMin = new Vector2(34, 18); trt.offsetMax = new Vector2(-34, -18);
+            }
 
             // ---- pulsing "tap here" ring ----
             var pgo = new GameObject("Pointer", typeof(RectTransform), typeof(Image));
@@ -107,6 +132,16 @@ namespace BusJam
         }
 
         // ---- helpers --------------------------------------------------------
+        // Find the user's tutorial-background panel in the loaded scene (active OR inactive), skipping
+        // prefab/asset instances. Returns null if none exists -> the coach builds its own dark box.
+        static TutorialPanelMarker FindScenePanel()
+        {
+            var all = Resources.FindObjectsOfTypeAll<TutorialPanelMarker>();
+            foreach (var m in all)
+                if (m != null && m.gameObject.scene.IsValid()) return m;
+            return null;
+        }
+
         Text MakeText(Transform parent, string text, int size, Color color, TextAnchor align)
         {
             var go = new GameObject("Text", typeof(RectTransform));
