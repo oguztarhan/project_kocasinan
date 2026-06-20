@@ -436,35 +436,35 @@ namespace BusJam
                 float slideDur = Vector3.Distance(bus.transform.position, clearPt) / Mathf.Max(gameSettings.busDriveSpeed, 1f);
                 yield return MoveTo(bus.transform, clearPt, slideDur);                    // STRAIGHT slide along the clear lane (no bow/rotation in the jam)
 
-                var rest = new List<Vector3>();
                 float slotX = SlotX(slot.index);
+                // ---- Phase 1: drive ONTO the road (no final bay commitment yet) ----
+                var toRoad = new List<Vector3>();
                 if (away)
                 {
-                    // Drive out to the EMPTIER side, then SLOWLY turn and rise hugging the on-screen side LANE up to
-                    // the ROAD (steps follow VisHalfW(z) so the body + spline bow stay in-frame). The ~25% zoom-out
-                    // opened a real lane outside the jam, so this is grounded, on-screen, and clears the cars.
-                    int leftJam = 0, rightJam = 0;
-                    foreach (var kv in occ) { if (kv.Key.x <= 1) leftJam++; else if (kv.Key.x >= gridW - 2) rightJam++; }
-                    float side = (leftJam <= rightJam) ? -1f : 1f;               // up whichever side is less jammed
+                    // Rise hugging the on-screen side LANE up to the ROAD. Both side lanes sit OUTSIDE the jam (the
+                    // ~25% zoom-out opened them), so either is grounded + collision-free — rise on the side TOWARD the
+                    // (provisional) bay so it heads to its closest stop instead of crossing the whole road back.
+                    float side = (slotX >= clearPt.x) ? 1f : -1f;
                     const float M = 1.0f;                                        // body half-width + spline-bow + safety
-                    rest.Add(new Vector3(side * (VisHalfW(clearPt.z) - M), 0, clearPt.z)); // out to the on-screen side lane (below the jam)
+                    toRoad.Add(new Vector3(side * (VisHalfW(clearPt.z) - M), 0, clearPt.z)); // out to the on-screen side lane (below the jam)
                     for (float z = clearPt.z + 1.6f; z < RoadZ; z += 1.6f)
-                        rest.Add(new Vector3(side * (VisHalfW(z) - M), 0, z));    // rise hugging the side lane (gentle, slow turn)
-                    rest.Add(new Vector3(side * (VisHalfW(RoadZ) - M), 0, RoadZ));
+                        toRoad.Add(new Vector3(side * (VisHalfW(z) - M), 0, z));  // rise hugging the side lane (gentle, slow turn)
+                    toRoad.Add(new Vector3(side * (VisHalfW(RoadZ) - M), 0, RoadZ));
                 }
                 else
-                    rest.Add(new Vector3(clearPt.x, 0, RoadZ));     // toward-parking / sideways exit: come onto the road at our current x
-                // Approach the slot via the CLEAR ROAD lane (z=RoadZ is below the parked cars at ParkingZ), then pull
-                // STRAIGHT UP into the slot — so we never drive ALONG the parking row through a vehicle already at a stop.
-                rest.Add(new Vector3(slotX, 0, RoadZ));             // along the open road to the slot's x (no parked cars on the road)
-                rest.Add(new Vector3(slotX, 0, ParkingZ));          // pull up into the slot (perpendicular; ~0.05u gap to neighbours)
-                for (int i = 0; i < rest.Count; i++) rest[i] = OnScreenX(rest[i], 1.0f);  // keep every waypoint on-screen (slot x is already in-frame)
-                // T3 (BONUS only): drive the whole approach with CONTINUOUS mesh-checking. The OLD code took a single
-                // RoadClearAt snapshot before the pull-up, so a car that ARRIVED during the slow perpendicular cross
-                // slipped through (the reported "bus meshes a car without crashing"). DriveBonusApproach crashes the
-                // instant the body actually overlaps a car WHILE crossing a lane. Non-bonus keeps the single drive.
+                    toRoad.Add(new Vector3(clearPt.x, 0, RoadZ));     // toward-parking / sideways exit: come onto the road at our current x
+                for (int i = 0; i < toRoad.Count; i++) toRoad[i] = OnScreenX(toRoad[i], 1.0f);
+
                 if (IsBonus)
                 {
+                    // BONUS keeps ONE continuous mesh-checked approach to the tap-time bay — CrashAndReturn reverses
+                    // the WHOLE route, so it must stay a single committed path. (T3: continuous mesh check, so a car
+                    // arriving mid-cross still crashes it; the old single pre-pull-up snapshot missed those.)
+                    var rest = new List<Vector3>(toRoad)
+                    {
+                        OnScreenX(new Vector3(slotX, 0, RoadZ), 1.0f),     // along the open road to the bay's x
+                        OnScreenX(new Vector3(slotX, 0, ParkingZ), 1.0f),  // pull up into the bay
+                    };
                     yield return DriveBonusApproach(bus, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
                     if (bus.crossMeshed)
                     {
@@ -473,7 +473,22 @@ namespace BusJam
                     }
                 }
                 else
-                    yield return DrivePath(bus.transform, rest, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                {
+                    // ---- Phase 2 (NON-BONUS): now that it's ON the road, pick the bay nearest to where it ACTUALLY
+                    // came onto the road (its real x on the road — NOT its old jam cell), then pull straight in. So a
+                    // vehicle that emerges on the LEFT (e.g. an away exit that rose up the left lane, or a leftward
+                    // sideways slide) stops at the closest LEFT bay instead of crossing the whole road to a right one.
+                    yield return DrivePath(bus.transform, toRoad, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                    float roadX = bus.transform.position.x;              // where it really is on the road
+                    slot = NearestSlotToRoad(bus, slot, roadX);          // keeps its reserved bay only if it's still the closest
+                    slotX = SlotX(slot.index);
+                    var toBay = new List<Vector3>
+                    {
+                        OnScreenX(new Vector3(slotX, 0, RoadZ), 1.0f),     // along the open road to the bay's x
+                        OnScreenX(new Vector3(slotX, 0, ParkingZ), 1.0f),  // pull up into the bay
+                    };
+                    yield return DrivePath(bus.transform, toBay, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                }
             }
             else
             {
@@ -2221,6 +2236,23 @@ namespace BusJam
             ParkingSlot best = null; float bd = float.MaxValue;
             foreach (var s in slots)
                 if (s.IsFree) { float d = Mathf.Abs(SlotX(s.index) - x); if (d < bd) { bd = d; best = s; } }
+            return best;
+        }
+
+        // Re-pick the bay nearest to a bus's ON-ROAD x. Considers every FREE bay PLUS the one it already reserved
+        // (`held`), so it never loses its guaranteed spot, and swaps the reservation only if a free bay is strictly
+        // closer. Atomic (no yield before the swap), so concurrent exits can never double-book a bay.
+        ParkingSlot NearestSlotToRoad(Bus bus, ParkingSlot held, float x)
+        {
+            ParkingSlot best = held;
+            float bd = Mathf.Abs(SlotX(held.index) - x);
+            foreach (var s in slots)
+                if (s.IsFree) { float d = Mathf.Abs(SlotX(s.index) - x); if (d < bd) { bd = d; best = s; } }
+            if (best != held)
+            {
+                held.occupant = null;                            // release the bay we reserved at tap time
+                best.occupant = bus; bus.slotIndex = best.index; // claim the closer one
+            }
             return best;
         }
         bool HasLockedSlot() { foreach (var s in slots) if (s.locked) return true; return false; }
