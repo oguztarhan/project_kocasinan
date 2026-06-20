@@ -360,13 +360,8 @@ namespace BusJam
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
-<<<<<<< HEAD
-                sfx.Deploy();
                 if (tutorialActive) AdvanceTutorialOnFirstMove(); // (#4) first successful park advances the coach
-                StartCoroutine(ExitRoutine(bus, slot));
-=======
                 StartCoroutine(ExitRoutine(bus, slot)); // engine (vroom) starts automatically while it drives — see UpdateEngineSfx
->>>>>>> b624c8b4a2aefcb52367918eb10a0a565cc45212
                 return;
             }
 
