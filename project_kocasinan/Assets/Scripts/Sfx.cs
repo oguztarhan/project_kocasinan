@@ -2,53 +2,105 @@ using UnityEngine;
 
 namespace BusJam
 {
-    /// <summary>Procedurally synthesized sound effects (no audio asset files needed).</summary>
+    /// <summary>
+    /// Procedurally synthesized sound effects, overridable by Resources/SoundCatalog.asset.
+    /// ONE persistent instance for the whole game (DontDestroyOnLoad) with a SINGLE AudioSource that
+    /// is stopped before every play — so SFX can NEVER overlap/mix; only the latest sound is heard.
+    /// </summary>
     public class Sfx : MonoBehaviour
     {
-        AudioSource src;
+        public static Sfx Instance { get; private set; }
+
+        AudioSource src;     // one-shot SFX voice (stop-before-play -> these never overlap each other)
+        AudioSource engine;  // SEPARATE looping voice for the "vehicle moving" vroom (a continuous layer)
         AudioClip board, coin, error, win, lose, click, crash, honk, screech, deploy;
+        float master = 1f;                                   // master multiplier (catalog)
+        // per-clip volumes (catalog), each 0..1
+        float vBoard = 1f, vCoin = 1f, vError = 1f, vWin = 1f, vLose = 1f, vClick = 1f, vCrash = 1f, vHonk = 1f, vScreech = 1f, vDeploy = 1f;
+
+        /// <summary>Get the single Sfx, creating it if no scene has made one yet.</summary>
+        public static Sfx Ensure()
+        {
+            if (Instance == null) new GameObject("Sfx").AddComponent<Sfx>(); // Awake wires Instance + DontDestroyOnLoad
+            return Instance;
+        }
 
         void Awake()
         {
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; } // enforce the singleton
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+
             src = gameObject.AddComponent<AudioSource>();
             src.playOnAwake = false;
             src.spatialBlend = 0f;
 
+            engine = gameObject.AddComponent<AudioSource>();
+            engine.playOnAwake = false;
+            engine.spatialBlend = 0f;
+            engine.loop = true;   // the vroom loops for as long as a vehicle is moving
+
             // Your own clips (Resources/SoundCatalog.asset) OVERRIDE the built-ins; empty slots fall back.
             var cat = Resources.Load<SoundCatalog>("SoundCatalog");
-            if (cat != null) src.volume = Mathf.Clamp01(cat.volume);
+            if (cat != null)
+            {
+                master   = Mathf.Clamp01(cat.volume);
+                vBoard   = Mathf.Clamp01(cat.passengerBoardsBusVolume);
+                vCoin    = Mathf.Clamp01(cat.coinRewardVolume);
+                vError   = Mathf.Clamp01(cat.invalidActionErrorVolume);
+                vWin     = Mathf.Clamp01(cat.levelCompleteVolume);
+                vLose    = Mathf.Clamp01(cat.levelFailedVolume);
+                vClick   = Mathf.Clamp01(cat.uiButtonClickVolume);
+                vCrash   = Mathf.Clamp01(cat.vehicleBlockedCrashVolume);
+                vHonk    = Mathf.Clamp01(cat.vehicleArrivesAtStopVolume);
+                vScreech = Mathf.Clamp01(cat.fullBusDrivesAwayVolume);
+                vDeploy  = Mathf.Clamp01(cat.vehicleSlidesOutVolume);
+            }
 
-            board   = Pick(cat ? cat.board   : null, Blip("board", 0.12f, 520f, 880f, 0.35f));
-            coin    = Pick(cat ? cat.coin    : null, Arp("coin", new[] { 880f, 1175f, 1568f }, 0.05f, 0.28f));
-            error   = Pick(cat ? cat.error   : null, Blip("error", 0.18f, 180f, 120f, 0.4f));
-            win     = Pick(cat ? cat.win     : null, Arp("win", new[] { 523f, 659f, 784f, 1046f }, 0.1f, 0.4f));
-            lose    = Pick(cat ? cat.lose    : null, Arp("lose", new[] { 440f, 392f, 311f }, 0.12f, 0.4f));
-            click   = Pick(cat ? cat.click   : null, Blip("click", 0.06f, 660f, 660f, 0.25f));
-            crash   = Pick(cat ? cat.crash   : null, BuildCrash());
-            honk    = Pick(cat ? cat.honk    : null, BuildHonk());
-            screech = Pick(cat ? cat.screech : null, BuildScreech());
-            deploy  = cat ? cat.deploy : null; // no built-in (the drum was removed) — silent unless you add a clip
+            board   = Pick(cat ? cat.passengerBoardsBus    : null, Blip("board", 0.12f, 520f, 880f, 0.35f));
+            coin    = Pick(cat ? cat.coinReward            : null, Arp("coin", new[] { 880f, 1175f, 1568f }, 0.05f, 0.28f));
+            error   = Pick(cat ? cat.invalidActionError    : null, Blip("error", 0.18f, 180f, 120f, 0.4f));
+            win     = Pick(cat ? cat.levelComplete         : null, Arp("win", new[] { 523f, 659f, 784f, 1046f }, 0.1f, 0.4f));
+            lose    = Pick(cat ? cat.levelFailed           : null, Arp("lose", new[] { 440f, 392f, 311f }, 0.12f, 0.4f));
+            click   = Pick(cat ? cat.uiButtonClick         : null, Blip("click", 0.06f, 660f, 660f, 0.25f));
+            crash   = Pick(cat ? cat.vehicleBlockedCrash   : null, BuildCrash());
+            honk    = Pick(cat ? cat.vehicleArrivesAtStop  : null, BuildHonk());
+            screech = Pick(cat ? cat.fullBusDrivesAway     : null, BuildScreech());
+            deploy  = cat ? cat.vehicleSlidesOutOfJam : null; // no built-in (the drum was removed) — silent unless you add a clip
         }
 
         static AudioClip Pick(AudioClip custom, AudioClip builtin) => custom != null ? custom : builtin;
 
-        public void Board()   => Play(board);
-        public void Coin()    => Play(coin);
-        public void Deploy()  => Play(deploy); // silent unless a clip is assigned in SoundCatalog
-        public void Error()   => Play(error);
-        public void Win()     => Play(win);
-        public void Lose()    => Play(lose);
-        public void Click()   => Play(click);
-        public void Crash()   => Play(crash);
-        public void Honk()    => Play(honk);
-        public void Screech() => Play(screech);
+        public void Board()   => Play(board,   vBoard);
+        public void Coin()    => Play(coin,    vCoin);
+        public void Error()   => Play(error,   vError);
+        public void Win()     => Play(win,     vWin);
+        public void Lose()    => Play(lose,    vLose);
+        public void Click()   => Play(click,   vClick);
+        public void Crash()   => Play(crash,   vCrash);
+        public void Honk()    => Play(honk,    vHonk);
+        public void Screech() => Play(screech, vScreech); // bus drives away — volume via catalog
 
-        void Play(AudioClip c)
+        /// <summary>Turn the looping engine (vroom) on/off. Called every frame from movement detection:
+        /// on while ANY vehicle is moving, off the instant they all stop. Silent if no clip / sound is off.</summary>
+        public void SetEngine(bool on)
+        {
+            if (engine == null) return;
+            if (on && deploy != null && SaveSystem.Sound)
+            {
+                engine.volume = Mathf.Clamp01(master * vDeploy); // low volume via catalog
+                if (!engine.isPlaying) { engine.clip = deploy; engine.Play(); }
+            }
+            else if (engine.isPlaying) engine.Stop();              // stop immediately when movement stops
+        }
+
+        void Play(AudioClip c, float vol = 1f)
         {
             if (c == null || !SaveSystem.Sound) return;
-            src.Stop();        // kill whatever is playing first...
+            src.Stop();                                 // kill whatever is playing first...
             src.clip = c;
-            src.Play();        // ...so it's strictly ONE sound at a time (never mixed/overlapping)
+            src.volume = Mathf.Clamp01(master * vol);   // master × per-clip volume
+            src.Play();                                 // ...so it's strictly ONE sound at a time (never mixed/overlapping)
         }
 
         const int Rate = 44100;

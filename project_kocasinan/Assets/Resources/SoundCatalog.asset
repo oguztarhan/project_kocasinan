@@ -12,14 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7c4f2a9e8d6451c93f0a2b1c4d5e6f7, type: 3}
   m_Name: SoundCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.SoundCatalog
-  board: {fileID: 0}
-  coin: {fileID: 0}
-  error: {fileID: 0}
-  win: {fileID: 0}
-  lose: {fileID: 0}
-  click: {fileID: 0}
-  crash: {fileID: 0}
-  honk: {fileID: 0}
-  screech: {fileID: 0}
-  deploy: {fileID: 0}
+  vehicleSlidesOutOfJam: {fileID: 8300000, guid: d3029964605b6ea4b922db5de4238dc7, type: 3}
+  vehicleArrivesAtStop: {fileID: 0}
+  fullBusDrivesAway: {fileID: 8300000, guid: fc27302523570bb46b60da774222c370, type: 3}
+  vehicleBlockedCrash: {fileID: 8300000, guid: 0e4cd773938b3a04897599e839e51280, type: 3}
+  passengerBoardsBus: {fileID: 8300000, guid: 0d5d08302d7df2249b85edccdd8bd8f8, type: 3}
+  coinReward: {fileID: 0}
+  invalidActionError: {fileID: 0}
+  levelComplete: {fileID: 8300000, guid: 0a0e8b885d9f9dd499855f6df42e9259, type: 3}
+  levelFailed: {fileID: 8300000, guid: a3fb2372885abb34d8b18aa9006ac8c7, type: 3}
+  uiButtonClick: {fileID: 8300000, guid: ec80bd99efb6c8a488d1aac44cd46679, type: 3}
   volume: 1

@@ -115,6 +115,8 @@ namespace BusJam
             load.gameObject.SetActive(true);
             splash.gameObject.SetActive(false);
 
+            MusicManager.PlayMenu(); // start the menu music HERE — on the loading screen, NOT on the Intake splash
+
             // ---- 2) loading bar 0..100 ----
             float ld = 2.7f, prog = 0f;
             while (prog < 100f)
