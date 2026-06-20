@@ -12,7 +12,9 @@ namespace BusJam
     /// </summary>
     public static class GameFont
     {
-        const string ResPath = "Fonts/Matcha Cih";
+        // Oswald-Bold has FULL Turkish coverage (ç Ç ğ Ğ ı İ ö Ö ş Ş ü Ü). Matcha Cih was missing the core Turkish
+        // letters (ğ ı İ ş), so Turkish text rendered with missing-glyph boxes — hence the switch.
+        const string ResPath = "Fonts/Oswald-Bold";
 
         static Font _ugui;
         public static Font UGUI =>

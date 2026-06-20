@@ -29,8 +29,10 @@ namespace BusJam
             Apply();
             yield return null;                              // after Start() builds procedural UI
             Apply();
-            yield return new WaitForSecondsRealtime(0.6f);
-            Apply();                                        // after on-demand UI (panels / coach)
+            // Several spaced passes so text built on a DELAY (pop-up panels, the tutorial coach, ad-callback UI,
+            // a level rebuild) is caught too — Apply() is idempotent + cheap (only touches a Text whose font differs).
+            float[] waits = { 0.3f, 0.6f, 1.2f, 2.5f };
+            foreach (var w in waits) { yield return new WaitForSecondsRealtime(w); Apply(); }
         }
 
         public static void Apply()

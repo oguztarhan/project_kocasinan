@@ -74,7 +74,7 @@ public static class Loc
             "HER GÜN GELİP\nHARİKA ÖDÜLLER KAZAN","COME BACK EVERY DAY TO GET\nGREAT REWARDS","KOMM JEDEN TAG FÜR\nTOLLE BELOHNUNGEN",
             "TORNA OGNI GIORNO PER\nPREMI FANTASTICI","VUELVE CADA DÍA POR\nGRANDES RECOMPENSAS","每天回来领取\n丰厚奖励",
             "REVIENS CHAQUE JOUR POUR\nDE BELLES RÉCOMPENSES","VOLTE TODOS OS DIAS PARA\nGRANDES RECOMPENSAS","KEMBALI SETIAP HARI UNTUK\nHADIAH HEBAT" } },
-        { "Recolor",   new[]{ "Renk Değiştir","Recolor","Umfärben","Ricolora","Recolorear","换色","Recolorier","Recolorir","Warnai Ulang" } },
+        { "Recolor",   new[]{ "Değiştir","Recolor","Umfärben","Ricolora","Recolorear","换色","Recolorier","Recolorir","Warnai Ulang" } }, // single word (was "Renk Değiştir" — overflowed the card); the swirl icon conveys "colour"
         { "SWAP  +75", new[]{ "TAKAS  +75","SWAP  +75","TAUSCH  +75","SCAMBIO  +75","CAMBIO  +75","交换  +75","ÉCHANGE  +75","TROCA  +75","TUKAR  +75" } },
         { "Day 1", new[]{ "Gün 1","Day 1","Tag 1","Giorno 1","Día 1","第1天","Jour 1","Dia 1","Hari 1" } },
         { "Day 2", new[]{ "Gün 2","Day 2","Tag 2","Giorno 2","Día 2","第2天","Jour 2","Dia 2","Hari 2" } },
