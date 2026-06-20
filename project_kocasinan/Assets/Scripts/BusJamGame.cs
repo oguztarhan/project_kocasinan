@@ -2543,7 +2543,7 @@ namespace BusJam
             }
 
             BuildCityDecor(th); // T3: road assets ON the road lane + side bus stops + per-theme street props (cosmetic)
-            if (doorXs != null) BuildDoorPortal(th, accent); // themed door portal at the boarding door — people emerge from it
+            if (doorXs != null) BuildBoardingDoor(th, accent); // a real building DOORWAY the queue steps out of (no glowing portal)
 
             // Grass tufts dressing the back lawn — skipped behind the closed facade (paved terminal plaza,
             // and they would otherwise poke through the wall front).
@@ -2702,30 +2702,30 @@ namespace BusJam
 
         // A little BLACK door PORTAL right at the boarding door (exitDoorX, DoorSpawnZ) the people queue walks out
         // of — a near-black opening in a theme-accent frame, facing the buses (-Z). Built every level that has a door.
-        void BuildDoorPortal(Theme th, Material frameMat)
+        // A solid BUILDING DOORWAY the boarding queue steps out of (replaces the old glowing "portal"): a dark
+        // recessed opening set in a themed building-wall slab, with a door frame, a flat awning above and a doorstep
+        // below. NO glow / pulse — it reads as a real entrance, not a sci-fi gateway. Sits at the front of the back
+        // building cluster, at the one exit door (exitDoorX) where DoorSpawn births the queue.
+        void BuildBoardingDoor(Theme th, Material frameMat)
         {
             float x = exitDoorX, z = DoorSpawnZ;
+            var wallMat  = MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f); // themed building face
+            var interior = MaterialLibrary.MakeRuntime(new Color(0.07f, 0.08f, 0.11f), 0.1f, 0f);    // matte dark doorway (inside)
 
-            // (#7) Brighter, softly-PULSING glow the queue steps out of (stronger emission than before -> a lit gateway).
-            var glow = MaterialLibrary.MakeRuntime(th.accent, 0.05f, 1.1f);
-            var op = MakeCube(boardRoot, glow, new Vector3(1.05f, 1.72f, 0.08f));          // the themed glowing opening people step out of
-            op.transform.position = new Vector3(x, 0.9f, z + 0.06f);
-            var bob = op.AddComponent<IdleBob>(); bob.scalePulse = true; bob.scaleAmp = 0.05f; bob.speed = 2.2f; bob.amp = 0f; // gentle "alive" shimmer
+            // Building-wall slab the door is cut into (so it reads as part of a building, not a free-standing frame).
+            MakeCube(boardRoot, wallMat, new Vector3(2.2f, 2.5f, 0.18f)).transform.position = new Vector3(x, 1.25f, z + 0.14f);
 
-            // Side posts (a touch chunkier).
-            var lp = MakeCube(boardRoot, frameMat, new Vector3(0.18f, 2.05f, 0.24f)); lp.transform.position = new Vector3(x - 0.64f, 1.02f, z);
-            var rp = MakeCube(boardRoot, frameMat, new Vector3(0.18f, 2.05f, 0.24f)); rp.transform.position = new Vector3(x + 0.64f, 1.02f, z);
+            // The dark opening people step out of.
+            MakeCube(boardRoot, interior, new Vector3(1.05f, 1.9f, 0.10f)).transform.position = new Vector3(x, 0.97f, z + 0.02f);
 
-            // (#7) Stepped ARCH top instead of one flat lintel -> a friendlier, gateway-like silhouette.
-            MakeCube(boardRoot, frameMat, new Vector3(1.52f, 0.18f, 0.24f)).transform.position = new Vector3(x, 2.02f, z);
-            MakeCube(boardRoot, frameMat, new Vector3(1.04f, 0.16f, 0.24f)).transform.position = new Vector3(x, 2.17f, z);
-            MakeCube(boardRoot, frameMat, new Vector3(0.56f, 0.14f, 0.24f)).transform.position = new Vector3(x, 2.30f, z);
+            // Door frame: two posts + a lintel, slightly proud of the wall.
+            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.05f, 0.24f)).transform.position = new Vector3(x - 0.62f, 1.02f, z);
+            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.05f, 0.24f)).transform.position = new Vector3(x + 0.62f, 1.02f, z);
+            MakeCube(boardRoot, frameMat, new Vector3(1.52f, 0.20f, 0.26f)).transform.position = new Vector3(x, 2.06f, z);
 
-            // (#7) Glowing finial caps on the posts + a keystone at the arch peak, plus a lit threshold underfoot.
-            MakeCube(boardRoot, glow, new Vector3(0.24f, 0.24f, 0.28f)).transform.position = new Vector3(x - 0.64f, 2.12f, z);
-            MakeCube(boardRoot, glow, new Vector3(0.24f, 0.24f, 0.28f)).transform.position = new Vector3(x + 0.64f, 2.12f, z);
-            MakeCube(boardRoot, glow, new Vector3(0.22f, 0.22f, 0.30f)).transform.position = new Vector3(x, 2.42f, z);
-            MakeCube(boardRoot, glow, new Vector3(1.25f, 0.05f, 0.5f)).transform.position  = new Vector3(x, 0.03f, z + 0.22f);
+            // Flat awning over the entrance + a doorstep underfoot.
+            MakeCube(boardRoot, frameMat, new Vector3(1.9f, 0.10f, 0.55f)).transform.position = new Vector3(x, 2.22f, z - 0.22f);
+            MakeCube(boardRoot, frameMat, new Vector3(1.5f, 0.07f, 0.50f)).transform.position = new Vector3(x, 0.04f, z - 0.20f);
         }
 
         // Little theme props (small, fit-to-size) tucked into the FRONT CORNERS of the jam's foreground — out of the

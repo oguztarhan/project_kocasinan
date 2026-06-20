@@ -148,8 +148,8 @@ namespace BusJam
 
             // speedometer gauge (upper third) — drawn into a Texture2D as it sweeps. The track+ticks are baked ONCE
             // into gaugeBase; per frame DrawGauge only copies that + adds the fill/needle, so the sweep stays cheap.
-            int GS = 256;
-            gaugeTex = new Texture2D(GS, GS, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            int GS = 512; // higher-res speedometer so it stays crisp on HD phones (built once + redrawn ~25fps during the sweep)
+            gaugeTex = new Texture2D(GS, GS, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             gaugeBuf = new Color[GS * GS];
             gaugeBase = new Color[GS * GS];
             BuildGaugeBase(gaugeBase, GS);

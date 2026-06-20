@@ -40,9 +40,10 @@ namespace BusJam
         {
             staticImg = background;
 
-            // ---- HD static backdrop: match the device aspect so the stretch never distorts; cap for memory. ----
-            Ws = Mathf.Clamp(Screen.width, 720, 1080);
-            Hs = Mathf.Clamp(Mathf.RoundToInt(Ws * (float)Screen.height / Mathf.Max(1, Screen.width)), 1000, 2400);
+            // ---- HD static backdrop: render at (near) the device's real pixel width so it isn't upscaled/soft on
+            // high-DPI phones; match the device aspect so the stretch never distorts; cap for memory. ----
+            Ws = Mathf.Clamp(Screen.width, 1080, 1440);
+            Hs = Mathf.Clamp(Mathf.RoundToInt(Ws * (float)Screen.height / Mathf.Max(1, Screen.width)), 1300, 2880);
             horizon = Hs * 0.40f; oceanB = Hs * 0.52f; roadTop = Hs * 0.56f; roadBot = Hs * 0.93f;
             sunX = Ws * 0.62f; sunY = horizon - Ws * 0.04f; sunR = Ws * 0.15f;
 
@@ -55,7 +56,7 @@ namespace BusJam
 
             // ---- dynamic road-band layer (small, redrawn per frame), anchored to the band by screen fraction ----
             bandTopPx = BandTopF * Hs;
-            Wd = Mathf.Clamp(Mathf.RoundToInt(Ws * 0.72f), 540, 820);
+            Wd = Mathf.Clamp(Mathf.RoundToInt(Ws * 0.85f), 720, 1120);
             ds = Wd / (float)Ws;
             Hd = Mathf.Max(1, Mathf.RoundToInt((BandBotF - BandTopF) * Hs * ds));
             dyn = new Color[Wd * Hd];
