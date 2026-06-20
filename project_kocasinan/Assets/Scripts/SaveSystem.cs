@@ -16,6 +16,24 @@ namespace BusJam
         const string K_Avatar   = "bj_avatar";
         const string K_Name     = "bj_name";
 
+        // ============================================================================================
+        // DEBUG / TESTING — unlock levels so you can play ANY level from Settings → LEVELS.
+        // On launch this raises your saved level to DEBUG_UNLOCK_TO_LEVEL (only ever UP, so it never
+        // wipes higher progress), which makes the LevelSelect map show 1..N as tappable.
+        //   • Set to 100 = levels 1–100 unlocked.    • Set to 0 (or delete this whole block) before RELEASE.
+        // ============================================================================================
+        public const int DEBUG_UNLOCK_TO_LEVEL = 100;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void DebugUnlockLevels()
+        {
+            if (DEBUG_UNLOCK_TO_LEVEL > 0 && Level < DEBUG_UNLOCK_TO_LEVEL)
+            {
+                Level = DEBUG_UNLOCK_TO_LEVEL;
+                BestLevel = DEBUG_UNLOCK_TO_LEVEL;
+            }
+        }
+
         public static int Coins
         {
             get => PlayerPrefs.GetInt(K_Coins, 150);

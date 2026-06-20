@@ -973,12 +973,13 @@ namespace BusJam
         }
         void ClearCombo() { if (comboText) comboText.gameObject.SetActive(false); }
 
-        // Bonus-only countdown (top-center mm:ss, red under 10s). Built on BOTH HUD paths; lives on hudPanel,
-        // so HideHud auto-hides it at the bonus end.
+        // Bonus-only countdown (top-center mm:ss). Uses the COIN number font (num = Oswald-Bold) so it matches the
+        // rest of the HUD numbers, sits a bit higher on screen, and shifts green -> orange -> red as it runs down.
+        // Built on BOTH HUD paths; lives on hudPanel, so HideHud auto-hides it at the bonus end.
         void BuildBonusCountdown()
         {
             if (hudPanel == null || bonusCountdown != null) return;
-            bonusCountdown = Label(hudPanel.transform, "", title, new Vector2(0, 560), new Vector2(420, 130), 90, White);
+            bonusCountdown = Label(hudPanel.transform, "", num, new Vector2(0, 700), new Vector2(420, 130), 96, White);
             bonusCountdown.gameObject.SetActive(false);
         }
         public void SetBonusCountdown(float seconds)
@@ -987,9 +988,42 @@ namespace BusJam
             if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
             int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
             bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
-            bonusCountdown.color = s <= 10 ? new Color(1f, 0.35f, 0.30f) : White; // urgent red under 10s
+
+            // Colour ramps down with the clock: green (plenty) -> orange (getting low) -> red (urgent).
+            Color green = new Color(0.36f, 0.92f, 0.45f), orange = new Color(1f, 0.66f, 0.16f), red = new Color(1f, 0.32f, 0.28f);
+            Color c;
+            if      (seconds > 60f) c = green;
+            else if (seconds > 30f) c = Color.Lerp(orange, green, (seconds - 30f) / 30f); // 30..60s: orange -> green
+            else if (seconds > 10f) c = Color.Lerp(red, orange, (seconds - 10f) / 20f);   // 10..30s: red -> orange
+            else                    c = red;
+            bonusCountdown.color = c;
+
+            // Heartbeat pulse in the last 10s for urgency (called every frame from the timer tick, so it animates).
+            float pulse = seconds <= 10f ? 1f + 0.12f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 6f)) : 1f;
+            bonusCountdown.rectTransform.localScale = Vector3.one * pulse;
         }
-        public void HideBonusCountdown() { if (bonusCountdown) bonusCountdown.gameObject.SetActive(false); }
+        public void HideBonusCountdown() { if (bonusCountdown) { bonusCountdown.gameObject.SetActive(false); bonusCountdown.rectTransform.localScale = Vector3.one; } }
+
+        // Combo reward feedback: a green "+Ns" that floats up just under the timer and fades. Called when the player
+        // chains enough crash-free bus sends on a bonus level.
+        public void ShowTimeBonus(int sec)
+        {
+            if (hudPanel == null) return;
+            var t = Label(hudPanel.transform, "+" + sec + "s", num, new Vector2(0, 580), new Vector2(320, 80), 60, new Color(0.40f, 1f, 0.50f));
+            StartCoroutine(FloatAndFade(t, new Vector2(0, 580), new Vector2(0, 660), 0.9f)); // rise UP toward the timer + fade
+        }
+        IEnumerator FloatAndFade(Text t, Vector2 from, Vector2 to, float dur)
+        {
+            float e = 0f; Color c0 = t.color;
+            while (t != null && e < dur)
+            {
+                e += Time.unscaledDeltaTime; float k = Mathf.Clamp01(e / dur);
+                t.rectTransform.anchoredPosition = Vector2.Lerp(from, to, k);
+                t.color = new Color(c0.r, c0.g, c0.b, 1f - k);
+                yield return null;
+            }
+            if (t != null) Destroy(t.gameObject);
+        }
 
         // ---- Builders -------------------------------------------------------
         GameObject Panel(string name, Color bg)

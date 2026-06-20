@@ -106,7 +106,10 @@ namespace BusJam
         const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
         const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
+        const int BonusComboTarget = 3;     // crash-free bus sends IN A ROW that earn the time reward
+        const float BonusComboReward = 3f;  // seconds added each time the combo target is hit
         float bonusTimeLeft;
+        int bonusCombo;                     // consecutive crash-free bonus sends; resets to 0 on any crash
         bool crashedThisBonus;              // set on a T3 crash -> disqualifies the perfect bonus
         bool nightMode;                     // cached in ApplyTheme (Night/Bonus) -> board + traffic headlights
         ColorAdjustments postCA;            // cached post-grade (deepened on dark themes, restored on bright)
@@ -503,9 +506,25 @@ namespace BusJam
             bus.state = BusState.Parked;
             sfx.Honk();                                                                  // ONE honk as it pulls into the stop
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
+            OnBonusBusSent();                                                            // bonus combo: a crash-free send -> may grant +time
             busy--;
             TryStartBoardingPump();
             CheckEnd();
+        }
+
+        // BONUS combo: a vehicle reached its stop WITHOUT crashing. Every BonusComboTarget sends in a row add
+        // BonusComboReward seconds (a crash resets the streak in CrashAndReturn). No-op off bonus levels.
+        void OnBonusBusSent()
+        {
+            if (!IsBonus || state != GameState.Playing) return;
+            bonusCombo++;
+            if (bonusCombo % BonusComboTarget == 0)
+            {
+                bonusTimeLeft += BonusComboReward;
+                ui.SetBonusCountdown(bonusTimeLeft);
+                ui.ShowTimeBonus(Mathf.RoundToInt(BonusComboReward));
+                sfx.Coin();                                                              // a little positive ping for the reward
+            }
         }
 
         // T3 (BONUS): a mistimed crossing — the tapped bus reached the road but cross-traffic is in the way. Crash
@@ -535,6 +554,7 @@ namespace BusJam
             // Penalty: TIME only. A resulting timeout funnels through the SAME single FinishBonus(false) below.
             bonusTimeLeft -= 3f;
             crashedThisBonus = true;                               // a crash this run drops a star on the success panel
+            bonusCombo = 0;                                        // a crash breaks the crash-free combo streak
             ui.SetBonusCountdown(bonusTimeLeft);
             SpawnPenaltyText(bus.transform.position, "-3", new Color(1f, 0.28f, 0.24f)); // red floating "-3" at the crash
 
@@ -1240,6 +1260,7 @@ namespace BusJam
             {
                 // Night traffic-dodge bonus: start the 60s countdown + spawn the pooled cross-traffic (T2).
                 crashedThisBonus = false;
+                bonusCombo = 0;
                 bonusTimeLeft = BonusTime;
                 ui.SetBonusCountdown(bonusTimeLeft);
                 BuildTraffic();
