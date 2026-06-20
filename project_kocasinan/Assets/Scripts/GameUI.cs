@@ -481,8 +481,15 @@ namespace BusJam
             if (InGamePanels.Instance != null && InGamePanels.Instance.continuePanel != null)
             {
                 continuePanel = InGamePanels.Instance.continuePanel;
-                var pp = continuePanel.transform.Find("Card/Pay/Label");
-                if (pp) continuePrice = pp.GetComponent<Text>();
+                // (Continue screen) Repurpose the pay-150 button as REPLAY: relabel its text child + hide its coin
+                // icon child. continuePrice is intentionally left null so SetContinuePrice can't overwrite "REPLAY".
+                var payT = continuePanel.transform.Find("Card/Pay");
+                if (payT) foreach (Transform ch in payT)
+                {
+                    var ct = ch.GetComponent<Text>();
+                    if (ct) ct.text = Loc.T("REPLAY");
+                    else if (ch.GetComponent<Image>()) ch.gameObject.SetActive(false); // hide the coin icon
+                }
                 foreach (var b in continuePanel.GetComponentsInChildren<InGamePanelButton>(true))
                 {
                     var btn = b.GetComponent<Button>();
@@ -490,7 +497,7 @@ namespace BusJam
                     switch (b.action)
                     {
                         case InGamePanelButton.Act.ContinueAd:  btn.onClick.AddListener(() => OnContinueAd?.Invoke()); break;
-                        case InGamePanelButton.Act.ContinuePay: btn.onClick.AddListener(() => OnContinuePay?.Invoke()); break;
+                        case InGamePanelButton.Act.ContinuePay: btn.onClick.AddListener(() => { HideContinue(); OnReplay?.Invoke(); }); break; // was pay-150 -> now REPLAY
                         case InGamePanelButton.Act.Close:       btn.onClick.AddListener(() => { HideContinue(); OnContinueDeclined?.Invoke(); }); break;
                     }
                 }
@@ -829,10 +836,9 @@ namespace BusJam
             Place(adi.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(85, 0), new Vector2(95, 95));
             Label(ad.transform, "WATCH AD", title, new Vector2(45, 0), new Vector2(420, 70), 40, White);
 
-            var pay = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.95f, 0.6f, 0.25f), new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(580, 160), () => OnContinuePay?.Invoke());
-            var payc = Img(pay.transform, UIKit.Coin(), Gold); payc.raycastTarget = false;
-            Place(payc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(70, 70));
-            continuePrice = Label(pay.transform, "150", title, new Vector2(40, 0), new Vector2(440, 70), 44, White);
+            // (Continue screen) REPLAY button in place of the old pay-150-gold continue — restarts the level.
+            var replay = Btn(card.transform, UIKit.ShopIconBgB(), new Color(0.30f, 0.62f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(580, 160), () => { HideContinue(); OnReplay?.Invoke(); });
+            Label(replay.transform, Loc.T("REPLAY"), title, Vector2.zero, new Vector2(520, 80), 52, White);
 
             RedClose(card.transform, () => { HideContinue(); OnContinueDeclined?.Invoke(); });
             continuePanel.SetActive(false);
