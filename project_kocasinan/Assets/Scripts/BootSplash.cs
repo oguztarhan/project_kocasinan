@@ -275,20 +275,33 @@ namespace BusJam
 
         void TitleRow(RectTransform parent, string s, float y, float size, int colOffset)
         {
-            float total = s.Length * size * 0.62f;       // per-letter advance wide enough that bold glyphs don't overlap
-            float x = -total * 0.5f + size * 0.31f;
+            // (#9) Measure the ACTUAL row width (a space advances less than a letter) so the row is TRULY centered,
+            // then shrink it to a SAFE width so it never clips at the sides on tall/narrow phones — there the
+            // match=0.5 canvas scaler upsizes ~1.15x, which pushed the old fixed-width title past the screen edge.
+            float adv = size * 0.62f, spaceAdv = size * 0.50f;   // per-letter / per-space advance
+            float total = 0f;
+            foreach (char ch in s) total += (ch == ' ') ? spaceAdv : adv;
+            const float safeW = 920f;                            // 920 * ~1.15 ≈ 1058 < 1080 ref width -> fits to ~21:9
+            float k = total > safeW ? safeW / total : 1f;
+            adv *= k; spaceAdv *= k; total *= k;
+            float gs = size * k;                                 // scaled glyph size
+
+            float edge = -total * 0.5f;                          // left edge of the centered row
             for (int i = 0; i < s.Length; i++)
             {
                 char c = s[i];
-                if (c == ' ') { x += size * 0.50f; continue; }
-                var t = Txt(parent, c.ToString(), (int)size, LetterCols[(i + colOffset) % LetterCols.Length], FontStyle.Bold, TextAnchor.MiddleCenter);
-                // HTML look: chunky dark-purple border (two outlines for a solid edge) + a soft drop shadow under each letter.
-                var sh = t.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.5f); sh.effectDistance = new Vector2(0, -size * 0.07f);
-                Outline(t, Hex("#241544"), Mathf.Max(3, Mathf.RoundToInt(size * 0.055f)));
-                Outline(t, Hex("#241544"), Mathf.Max(2, Mathf.RoundToInt(size * 0.03f)));
-                Place(t.rectTransform, x, y, size * 1.2f, size * 1.5f);
-                var bob = t.gameObject.AddComponent<BootBob>(); bob.phase = i * 0.5f; bob.amp = size * 0.06f;
-                x += size * 0.62f;
+                float a = (c == ' ') ? spaceAdv : adv;
+                if (c != ' ')
+                {
+                    var t = Txt(parent, c.ToString(), (int)gs, LetterCols[(i + colOffset) % LetterCols.Length], FontStyle.Bold, TextAnchor.MiddleCenter);
+                    // HTML look: chunky dark-purple border (two outlines for a solid edge) + a soft drop shadow under each letter.
+                    var sh = t.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.5f); sh.effectDistance = new Vector2(0, -gs * 0.07f);
+                    Outline(t, Hex("#241544"), Mathf.Max(3, Mathf.RoundToInt(gs * 0.055f)));
+                    Outline(t, Hex("#241544"), Mathf.Max(2, Mathf.RoundToInt(gs * 0.03f)));
+                    Place(t.rectTransform, edge + a * 0.5f, y, gs * 1.2f, gs * 1.5f);   // centered in its cell
+                    var bob = t.gameObject.AddComponent<BootBob>(); bob.phase = i * 0.5f; bob.amp = gs * 0.06f;
+                }
+                edge += a;
             }
         }
 

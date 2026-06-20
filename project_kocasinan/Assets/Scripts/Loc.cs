@@ -90,5 +90,31 @@ public static class Loc
             "Reklam izle, 10 altın kazan!","Watch an ad and earn 10 gold!","Schau eine Werbung und erhalte 10 Gold!",
             "Guarda un annuncio e guadagna 10 oro!","¡Mira un anuncio y gana 10 de oro!","观看广告赚取10金币！",
             "Regarde une pub et gagne 10 pièces !","Assista a um anúncio e ganhe 10 de ouro!","Tonton iklan dan dapatkan 10 emas!" } },
+
+        // ---- Tutorial (#4 level-1 coach) ----
+        { "Tap a bus to send it to a parking spot!", new[]{
+            "Bir otobüse dokun, park yerine gitsin!","Tap a bus to send it to a parking spot!","Tippe auf einen Bus, um ihn zum Parkplatz zu schicken!",
+            "Tocca un autobus per mandarlo al parcheggio!","¡Toca un autobús para enviarlo al aparcamiento!","点击巴士，把它送到停车位！",
+            "Touche un bus pour l'envoyer au parking !","Toque num autocarro para enviá-lo à vaga!","Ketuk bus untuk mengirimnya ke tempat parkir!" } },
+        { "Same-color passengers board automatically. Clear them all to win!", new[]{
+            "Aynı renk yolcular otomatik biner. Hepsini bitir, kazan!","Same-color passengers board automatically. Clear them all to win!","Gleichfarbige Fahrgäste steigen automatisch ein. Schaffe alle, um zu gewinnen!",
+            "I passeggeri dello stesso colore salgono da soli. Eliminali tutti per vincere!","Los pasajeros del mismo color suben solos. ¡Despeja a todos para ganar!","同色乘客会自动上车，清空所有乘客即可获胜！",
+            "Les passagers de même couleur montent tout seuls. Élimine-les tous pour gagner !","Passageiros da mesma cor embarcam sozinhos. Limpe todos para vencer!","Penumpang sewarna naik otomatis. Habiskan semua untuk menang!" } },
+
+        // ---- Tutorial (#5 level-10 bonus coach) ----
+        { "Bonus round! Clear every bus before the timer runs out!", new[]{
+            "Bonus tur! Süre dolmadan tüm otobüsleri temizle!","Bonus round! Clear every bus before the timer runs out!","Bonusrunde! Räume alle Busse, bevor die Zeit abläuft!",
+            "Round bonus! Libera tutti gli autobus prima che scada il tempo!","¡Ronda bonus! ¡Despeja todos los autobuses antes de que acabe el tiempo!","奖励关！在时间结束前清空所有巴士！",
+            "Manche bonus ! Dégage tous les bus avant la fin du temps !","Rodada bónus! Limpa todos os autocarros antes do tempo acabar!","Ronde bonus! Bersihkan semua bus sebelum waktu habis!" } },
+        { "Watch out — crossing cars can crash a moving bus!", new[]{
+            "Dikkat — geçen arabalar hareket eden otobüse çarpabilir!","Watch out — crossing cars can crash a moving bus!","Vorsicht — kreuzende Autos können einen fahrenden Bus rammen!",
+            "Attento — le auto di passaggio possono speronare un autobus in movimento!","¡Cuidado! Los autos que cruzan pueden chocar un autobús en movimiento!","小心——横穿的汽车会撞上行驶中的巴士！",
+            "Attention — les voitures qui traversent peuvent percuter un bus en mouvement !","Cuidado — carros a atravessar podem bater num autocarro em movimento!","Awas — mobil yang melintas bisa menabrak bus yang bergerak!" } },
+
+        // ---- Tutorial (#6 joker-unlock coach) ----
+        { "RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.", new[]{
+            "RECOLOR açıldı — 1 tanesi bedava! Sıkışınca otobüslerin renklerini karıştırmak için dokun.","RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.","RECOLOR freigeschaltet — 1 gratis! Tippe drauf, um die Busfarben zu mischen, wenn du feststeckst.",
+            "RICOLORA sbloccato — 1 gratis! Toccalo per rimescolare i colori degli autobus quando sei bloccato.","¡RECOLOR desbloqueado — 1 gratis! Tócalo para barajar los colores de los autobuses cuando te atasques.","已解锁换色道具——免费赠送1个！卡住时点击它打乱巴士颜色。",
+            "RECOLORIER débloqué — 1 gratuit ! Touche-le pour mélanger les couleurs des bus quand tu es bloqué.","RECOLORIR desbloqueado — 1 grátis! Toca para baralhar as cores dos autocarros quando estiveres preso.","RECOLOR terbuka — 1 gratis! Ketuk untuk mengacak warna bus saat buntu." } },
     };
 }

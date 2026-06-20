@@ -93,10 +93,13 @@ namespace BusJam
         float[] doorXs;       // facade door world-X positions (set in BuildFacade); openings the interior line shows through
         float exitDoorX;      // the ONE door the boarding queue comes out of (set in BuildFacade)
         UnityEngine.UI.Text peopleLeftSign; // world-space "people left" sign by the road (rebuilt each level)
-        int earnedThisLevel, combo, maxCombo;
+        int earnedThisLevel, combo, maxCombo, goldenThisLevel, pendingReward; // pendingReward = the win reward, granted on CLAIM
         float lastBoardTime = -10f;
         int busy;
         bool pumpRunning, pumpDirty;
+
+        // (#4) Level-1 tutorial coach (self-contained overlay; created lazily; reused by #5/#6).
+        TutorialCoach coach; bool tutorialActive; int tutorialStep; string tutStep2;
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
         const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
@@ -220,17 +223,30 @@ namespace BusJam
         // Settings panel: HOME button -> back to the main menu scene.
         public void GoToMainMenu() { sfx.Click(); AdManager.Instance?.HideBanner(); SceneManager.LoadScene("MainMenu"); }
 
-        // Success panel: grant the reward (base 20 / ad 40) then advance a level.
+        // Success panel: grant the win reward (pendingReward, or 2x when claimed via the rewarded ad) then advance.
         void ClaimWinReward(int amount)
         {
             if (state != GameState.Win) return;
-            AddCoins(amount);
+            int grant = (amount >= 40) ? pendingReward * 2 : pendingReward; // GameUI passes 40 for the AD x2 button, 20 otherwise
+            AddCoins(grant);
             sfx.Coin();
             // Win-interstitial fires AFTER the claim, with time FROZEN so the next level can't build under the ad;
             // the ad close (or the immediate no-ad fallback) un-pauses and advances. (SaveSystem.Level already advanced in Win.)
             var ad = AdManager.Instance;
             if (ad != null) { Time.timeScale = 0f; ad.ShowInterstitialIfEligible(() => { Time.timeScale = 1f; NextLevel(); }); }
             else NextLevel();
+        }
+
+        // (Economy rework) The single end-of-level coin reward. Bounded so the balance can't balloon with level size:
+        //   normal:  25 + 5*min(level,20)   |   bonus level: flat 100
+        //   + star bonus (0 / 10 / 25 for 1 / 2 / 3 stars)   + golden bonus (+5 each, capped at +20).
+        // CLAIM grants this; WATCH-AD grants 2x (see ClaimWinReward).
+        int LevelReward(int stars, bool bonus)
+        {
+            int basePart  = bonus ? 100 : (25 + 5 * Mathf.Min(currentLevel, 20));
+            int starBonus = stars >= 3 ? 25 : (stars >= 2 ? 10 : 0);
+            int goldBonus = Mathf.Min(goldenThisLevel * 5, 20);
+            return basePart + starBonus + goldBonus;
         }
 
         public void ContinueLevel()
@@ -318,6 +334,7 @@ namespace BusJam
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
                 sfx.Deploy();
+                if (tutorialActive) AdvanceTutorialOnFirstMove(); // (#4) first successful park advances the coach
                 StartCoroutine(ExitRoutine(bus, slot));
                 return;
             }
@@ -826,17 +843,16 @@ namespace BusJam
             if (combo > maxCombo) maxCombo = combo; // drives the win star rating (no timer)
             lastBoardTime = Time.time;
 
-            int coins = Mathf.Clamp(combo, 1, 5);
+            // (Economy rework) No per-passenger coin trickle anymore — it was tied to passenger count and ballooned
+            // the balance (~15k by L20). Coins are granted ONCE at level end (see LevelReward). Golden still counts
+            // toward a small capped end-of-level bonus and keeps its juicy burst.
             if (golden)
             {
-                coins += 15;
+                goldenThisLevel++;
                 sfx.Coin();
                 Juice.Burst(this, boardRoot, pos + Vector3.up * 0.6f, goldMat, 14, 4.2f);
             }
             else sfx.Board();
-
-            AddCoins(coins);
-            // (combo popup text removed per design; the combo streak still drives the win star rating via maxCombo)
         }
 
         Bus FindParkedBus(PieceColor color)
@@ -976,6 +992,7 @@ namespace BusJam
             if (SaveSystem.Level < J1UnlockLevel) { sfx.Error(); return; }
             if (!SpendJoker(0, RecolorCost)) { sfx.Error(); return; }
             sfx.Coin();
+            if (tutorialActive && tutorialStep == 3) EndTutorial(); // (#6) used the free joker -> drop the coach
 
             var byCap = new Dictionary<int, List<Bus>>();
             foreach (var b in gridBuses)
@@ -1145,7 +1162,7 @@ namespace BusJam
             BuildPeopleLeftSign();
             BuildLine();
 
-            earnedThisLevel = 0; combo = 0; maxCombo = 0; lastBoardTime = -10f;
+            earnedThisLevel = 0; combo = 0; maxCombo = 0; goldenThisLevel = 0; pendingReward = 0; lastBoardTime = -10f;
             continueCount = 0; // reset escalating continue price each level
 
             state = GameState.Playing;
@@ -1168,6 +1185,17 @@ namespace BusJam
             UpdatePeopleLeft(); // initial total (this level's real people count, not the visible window)
             LevelStarted?.Invoke(levelNumber);
             CheckEnd(); // detect an immediately-stuck board (no-op normally: free slots exist at start)
+
+            // (#4/#5) First-time coaches: level 1 teaches the core loop; level 10 introduces the bonus round.
+            if (levelNumber == 1)
+                StartTutorial(Loc.T("Tap a bus to send it to a parking spot!"),
+                              Loc.T("Same-color passengers board automatically. Clear them all to win!"));
+            else if (levelNumber == 5)
+                StartJokerTutorial();   // (#6) RECOLOR unlocks at level 5 -> grant 1 free + coach how to use it
+            else if (levelNumber == 10)
+                StartTutorial(Loc.T("Bonus round! Clear every bus before the timer runs out!"),
+                              Loc.T("Watch out — crossing cars can crash a moving bus!"));
+            else { tutorialActive = false; if (coach != null) coach.Hide(); }
         }
 
         void Teardown()
@@ -1185,6 +1213,7 @@ namespace BusJam
         void Win()
         {
             state = GameState.Win;
+            EndTutorial(); // (#4) drop the level-1 coach before the success panel
             // No timer anymore — stars reward boarding flow (best combo streak this level).
             int stars = maxCombo >= 8 ? 3 : (maxCombo >= 4 ? 2 : 1);
             // Level progression is locked in now; the actual coin reward is granted
@@ -1194,8 +1223,9 @@ namespace BusJam
             sfx.Win();
             ui.HideHud();
             ConfettiFromCorners(); // confetti shoots UP from the bottom-left & bottom-right corners
-            LevelCompleted?.Invoke(earnedThisLevel, stars);
-            ui.ShowSuccess(stars); // white box + blue stripe + animated 1-3 stars + claim/ad
+            pendingReward = LevelReward(stars, false);
+            LevelCompleted?.Invoke(pendingReward, stars);
+            ui.ShowSuccess(stars, pendingReward); // white box + ★s + claim (= reward) / watch-ad (= 2x reward)
         }
 
         // Two upward confetti bursts from the bottom-left and bottom-right screen corners.
@@ -1219,6 +1249,7 @@ namespace BusJam
         {
             if (state != GameState.Playing) return;
             state = GameState.Lose;
+            EndTutorial(); // (#4) drop the level-1 coach before the continue/fail panel
             sfx.Lose();
             ui.HideHud();
             ui.SetContinuePrice(CurrentContinueCost); // 150, then doubles each continue
@@ -1226,6 +1257,97 @@ namespace BusJam
             LevelFailed?.Invoke(reason);
             OnGameOver?.Invoke(reason);
             // The Continue panel (ui.ShowContinue) now owns the loss flow — no auto-retry.
+        }
+
+        // ---- (#4) Level-1 tutorial: coach the tap -> park -> board loop -----------------------------------
+        void StartTutorial(string step1, string step2)
+        {
+            if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
+            tutorialActive = true;
+            tutorialStep = 1;
+            tutStep2 = step2;
+            coach.ShowText(step1);
+            StartCoroutine(TutorialLoop());
+        }
+
+        IEnumerator TutorialLoop()
+        {
+            // Step 1: keep the pulsing ring parked over a bus that CAN actually exit (clear lane + free slot),
+            // re-evaluated each frame as the board changes, so the player's first tap is guaranteed to succeed.
+            while (tutorialActive && tutorialStep == 1 && state == GameState.Playing)
+            {
+                Bus target = FindMovableBus();
+                if (target != null && cam != null)
+                {
+                    Vector3 sp = cam.WorldToScreenPoint(target.transform.position);
+                    if (sp.z > 0f) coach.PointAt(new Vector2(sp.x, sp.y)); else coach.HidePointer();
+                }
+                else coach.HidePointer();
+                yield return null;
+            }
+        }
+
+        void AdvanceTutorialOnFirstMove()
+        {
+            if (!tutorialActive || tutorialStep != 1) return;
+            tutorialStep = 2;
+            coach.HidePointer();
+            coach.ShowText(tutStep2);
+            StartCoroutine(EndTutorialAfter(5f));
+        }
+
+        IEnumerator EndTutorialAfter(float delay)
+        {
+            float t = 0f;
+            while (t < delay && tutorialActive && state == GameState.Playing) { t += Time.unscaledDeltaTime; yield return null; }
+            EndTutorial();
+        }
+
+        void EndTutorial()
+        {
+            tutorialActive = false;
+            if (coach != null) coach.Hide();
+        }
+
+        // First jam bus (if any) whose straight lane is clear AND has a free slot — i.e. a tap that will PARK it.
+        // Mirrors the success branch of TryTapBus so the coached tap can never be a dud.
+        Bus FindMovableBus()
+        {
+            foreach (var bus in gridBuses)
+            {
+                if (bus == null || bus.state != BusState.Queued) continue;
+                System.Func<Vector2Int, bool> blocked = c => Blocked(c, bus);
+                if (LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, blocked, gridW, gridH)
+                    && NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) != null)
+                    return bus;
+            }
+            return null;
+        }
+
+        // ---- (#6) Joker-unlock coach + the one-time mandatory free joker --------------------------------
+        void StartJokerTutorial()
+        {
+            if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
+            // Mandatory free joker: grant ONE Recolor the first time it unlocks, so the player can try it for free.
+            if (!SaveSystem.FreeJokerGranted) { SaveSystem.AddFreeJoker(0, 1); SaveSystem.FreeJokerGranted = true; ui.RefreshJokerLocks(); }
+            tutorialActive = true;
+            tutorialStep = 3; // distinct from the bus steps (1/2) so a bus tap can't advance it
+            coach.ShowText(Loc.T("RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck."));
+            StartCoroutine(JokerTutorialLoop());
+        }
+
+        IEnumerator JokerTutorialLoop()
+        {
+            // The joker button is fixed on the HUD: keep the pulsing ring on it until the player has had time to try it.
+            float t = 0f;
+            while (tutorialActive && tutorialStep == 3 && state == GameState.Playing && t < 12f)
+            {
+                Vector2 jp = ui.JokerScreenPos(0);
+                coach.PointAt(new Vector2(jp.x, jp.y + 130f)); // hover the ring just ABOVE the joker so it doesn't blend with the icon
+                t += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (tutorialStep == 3) EndTutorial();
         }
 
         // ---- Bonus night-mode timer + soft end (every 10th level) -----------------------------------------
@@ -1242,6 +1364,7 @@ namespace BusJam
         {
             if (state != GameState.Playing) return;
             ui.HideBonusCountdown();
+            EndTutorial(); // (#5) drop the bonus coach before the success/fail panel
             if (inTime)
             {
                 // SUCCESS — lock progression + the win panel (CLAIM/AD grants the reward, then NextLevel).
@@ -1252,8 +1375,9 @@ namespace BusJam
                 ui.HideHud();
                 ConfettiFromCorners();
                 int stars = crashedThisBonus ? 2 : 3;             // a clean (no-crash) run earns the full 3 stars
-                LevelCompleted?.Invoke(earnedThisLevel, stars);
-                ui.ShowSuccess(stars);
+                pendingReward = LevelReward(stars, true);
+                LevelCompleted?.Invoke(pendingReward, stars);
+                ui.ShowSuccess(stars, pendingReward);
             }
             else
             {
@@ -1385,6 +1509,7 @@ namespace BusJam
             go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.62f / 120f); // match the icon's billboard scale
             go.AddComponent<BillboardUp>();
             AddSignText(go.transform, text, 72, Vector2.zero, Vector2.one, new Color(1f, 0.85f, 0.25f));
+            var bob = go.AddComponent<IdleBob>(); bob.amp = 0.08f; bob.speed = 3f; bob.phase = 1.5f; // (#10) the gold price bobs on its own rhythm so it reads as "tap to unlock"
         }
 
         void BuildGrid()
@@ -1784,7 +1909,7 @@ namespace BusJam
         // canvas + flip-cancel, like the crawler badge). Wired to the LOGICAL pool via UpdatePeopleLeft.
         void BuildPeopleLeftSign()
         {
-            float signW = 0.54f, signH = 0.84f;
+            float signW = 0.82f, signH = 1.22f;   // (#8) ~1.5x bigger people-count sign (board, neon frame + text all derive from these)
             float frameHalf = (signW + 0.14f) * 0.5f;
             // Just LEFT of the first (leftmost) bus stop, but CLAMPED so the whole sign stays on-screen
             // even when a level has many parking slots (SlotX(0) can run off the left edge otherwise).
@@ -2234,9 +2359,13 @@ namespace BusJam
 
             // Editable per-theme env material assets (Resources/Materials/<Theme>_<Type>), else runtime fallback.
             // smoothness/emission here MATCH MaterialLibrary.ThemeTypes so the fallback looks like the asset.
-            Color.RGBToHSV(th.ground, out float gh, out float gs, out _);                                     // PEOPLE area — keep the theme HUE...
-            Material ground      = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(gh, gs, 0.40f), 0.35f, 0f);  // ...but force a DARK value, ~as dark as the vehicle area
-            Material vehicleZone = MaterialLibrary.MakeRuntimeMuted(new Color(0.34f, 0.35f, 0.38f), 0.32f, 0f); // VEHICLE area (below the road) — gray, same every theme
+            // (#3) BOTH ground bands now carry the theme so levels look distinct (was: dark-forced ground + a GRAY
+            // jam every theme → "minor variations"). Dark themes (Night/Bonus) stay moody; bright themes show their
+            // hue. Kept muted + mid-value so the colourful, ink-outlined buses still pop against the jam.
+            Color.RGBToHSV(th.ground, out float gh, out float gs, out _);                                     // PEOPLE area (backdrop)
+            Material ground      = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(gh, gs, darkTheme ? 0.34f : 0.60f), 0.35f, 0f);
+            Color.RGBToHSV(th.field, out float vh, out float vs, out _);                                      // VEHICLE area (the jam)
+            Material vehicleZone = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(vh, vs * (darkTheme ? 0.8f : 0.55f), darkTheme ? 0.30f : 0.52f), 0.32f, 0f);
             Material accent = MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.45f, 0.06f);
             Material main   = MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.45f, 0.05f);
             Material alt    = MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.45f, 0.05f);
@@ -2479,13 +2608,28 @@ namespace BusJam
         // of — a near-black opening in a theme-accent frame, facing the buses (-Z). Built every level that has a door.
         void BuildDoorPortal(Theme th, Material frameMat)
         {
-            var pm = MaterialLibrary.MakeRuntime(th.accent, 0.1f, 0.7f); // GLOWING portal in the theme's accent color (per level)
             float x = exitDoorX, z = DoorSpawnZ;
-            var op = MakeCube(boardRoot, pm, new Vector3(1.05f, 1.7f, 0.1f));              // the themed glowing opening people step out of
-            op.transform.position = new Vector3(x, 0.85f, z + 0.06f);
-            var lp = MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.0f, 0.22f)); lp.transform.position = new Vector3(x - 0.62f, 1.0f, z);  // left post
-            var rp = MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.0f, 0.22f)); rp.transform.position = new Vector3(x + 0.62f, 1.0f, z);  // right post
-            var lt = MakeCube(boardRoot, frameMat, new Vector3(1.40f, 0.18f, 0.22f)); lt.transform.position = new Vector3(x, 1.95f, z);        // lintel
+
+            // (#7) Brighter, softly-PULSING glow the queue steps out of (stronger emission than before -> a lit gateway).
+            var glow = MaterialLibrary.MakeRuntime(th.accent, 0.05f, 1.1f);
+            var op = MakeCube(boardRoot, glow, new Vector3(1.05f, 1.72f, 0.08f));          // the themed glowing opening people step out of
+            op.transform.position = new Vector3(x, 0.9f, z + 0.06f);
+            var bob = op.AddComponent<IdleBob>(); bob.scalePulse = true; bob.scaleAmp = 0.05f; bob.speed = 2.2f; bob.amp = 0f; // gentle "alive" shimmer
+
+            // Side posts (a touch chunkier).
+            var lp = MakeCube(boardRoot, frameMat, new Vector3(0.18f, 2.05f, 0.24f)); lp.transform.position = new Vector3(x - 0.64f, 1.02f, z);
+            var rp = MakeCube(boardRoot, frameMat, new Vector3(0.18f, 2.05f, 0.24f)); rp.transform.position = new Vector3(x + 0.64f, 1.02f, z);
+
+            // (#7) Stepped ARCH top instead of one flat lintel -> a friendlier, gateway-like silhouette.
+            MakeCube(boardRoot, frameMat, new Vector3(1.52f, 0.18f, 0.24f)).transform.position = new Vector3(x, 2.02f, z);
+            MakeCube(boardRoot, frameMat, new Vector3(1.04f, 0.16f, 0.24f)).transform.position = new Vector3(x, 2.17f, z);
+            MakeCube(boardRoot, frameMat, new Vector3(0.56f, 0.14f, 0.24f)).transform.position = new Vector3(x, 2.30f, z);
+
+            // (#7) Glowing finial caps on the posts + a keystone at the arch peak, plus a lit threshold underfoot.
+            MakeCube(boardRoot, glow, new Vector3(0.24f, 0.24f, 0.28f)).transform.position = new Vector3(x - 0.64f, 2.12f, z);
+            MakeCube(boardRoot, glow, new Vector3(0.24f, 0.24f, 0.28f)).transform.position = new Vector3(x + 0.64f, 2.12f, z);
+            MakeCube(boardRoot, glow, new Vector3(0.22f, 0.22f, 0.30f)).transform.position = new Vector3(x, 2.42f, z);
+            MakeCube(boardRoot, glow, new Vector3(1.25f, 0.05f, 0.5f)).transform.position  = new Vector3(x, 0.03f, z + 0.22f);
         }
 
         // Little theme props (small, fit-to-size) tucked into the FRONT CORNERS of the jam's foreground — out of the

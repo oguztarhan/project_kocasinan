@@ -927,8 +927,11 @@ namespace BusJam
         public void HideContinue() { Toggle(continuePanel, false); }
         public void ShowFailed() { Toggle(failedPanel, true); }
         public void HideFailed() { Toggle(failedPanel, false); }
-        public void ShowSuccess() { ShowSuccess(3); }
-        public void ShowSuccess(int stars) { Toggle(successPanel, true); }
+        public void ShowSuccess(int stars, int reward)
+        {
+            if (successReward) successReward.text = "+" + reward;   // show the actual coin reward (economy rework)
+            Toggle(successPanel, true);
+        }
         public void HideSuccess() { Toggle(successPanel, false); }
 
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
@@ -941,6 +944,16 @@ namespace BusJam
         {
             level = SaveSystem.Level;
             RefreshJokers();
+        }
+
+        // (#6) Screen position of a joker button, for the unlock-coach pointer. kind: 0=Recolor,1=Swap,2=Heli.
+        public Vector2 JokerScreenPos(int kind)
+        {
+            Joker j = kind == 1 ? jSwap : kind == 2 ? jHeli : jRecolor;
+            if (j.btn == null) return new Vector2(Screen.width * 0.5f, Screen.height * 0.12f);
+            var canvas = j.btn.GetComponentInParent<Canvas>();
+            Camera uiCam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay) ? canvas.worldCamera : null;
+            return RectTransformUtility.WorldToScreenPoint(uiCam, j.btn.transform.position);
         }
         public void SetTheme(string t) { if (hudTheme) hudTheme.text = t; }
 

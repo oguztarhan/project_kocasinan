@@ -109,5 +109,12 @@ namespace BusJam
             PlayerPrefs.Save();
             return true;
         }
+
+        // (#6) One-time "mandatory" free joker: granted the first time RECOLOR unlocks (level 5).
+        public static bool FreeJokerGranted
+        {
+            get => PlayerPrefs.GetInt("bj_freejoker_granted", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_freejoker_granted", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
     }
 }

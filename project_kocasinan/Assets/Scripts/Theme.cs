@@ -28,7 +28,7 @@ namespace BusJam
 
     public static class Themes
     {
-        public const int LevelsPerTheme = 4;
+        public const int LevelsPerTheme = 10; // a distinct theme per 10-level block (aligns with the every-10th bonus)
 
         // Candy-pastel set. Park is FIRST so Themes.For(1) = the polished hero level.
         static readonly Theme[] All =
