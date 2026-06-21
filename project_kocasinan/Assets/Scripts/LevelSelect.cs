@@ -18,6 +18,7 @@ namespace BusJam
         GameObject panel;
         RectTransform content;
         bool isOpen;
+        public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
 
         const int Columns = 4;
         const int LockedPreview = 4;   // how many locked levels to show past your progress

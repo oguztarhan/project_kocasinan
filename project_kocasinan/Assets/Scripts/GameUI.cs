@@ -461,7 +461,7 @@ namespace BusJam
         // call above (and the LEVELS button in BuildSettings) to remove the debug level-jump UI later.
         void AddLevelsDebugButton(Transform panel)
         {
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 1f), new Vector2(0, -110), new Vector2(440, 110),
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 1f), new Vector2(0, -230), new Vector2(440, 110),
                 () => { HideSettings(); OnLevels?.Invoke(); });
             Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(440, 80), 42, White);
         }
@@ -946,6 +946,12 @@ namespace BusJam
             Toggle(successPanel, true);
         }
         public void HideSuccess() { Toggle(successPanel, false); }
+
+        // True while any modal pop-up (settings / shop / continue / failed / success) is open. BusJamGame uses
+        // this to hide the tutorial coach so nothing tutorial-related shows on top of a panel.
+        public bool AnyPanelOpen() =>
+            IsShown(settingsPanel) || IsShown(shopPanel) || IsShown(continuePanel) || IsShown(failedPanel) || IsShown(successPanel);
+        static bool IsShown(GameObject g) => g != null && g.activeInHierarchy;
 
         public void SetCoins(int c) { if (hudCoins) hudCoins.text = c.ToString(); }
         public void SetLevel(int l) { if (hudLevel) hudLevel.text = l.ToString(); }

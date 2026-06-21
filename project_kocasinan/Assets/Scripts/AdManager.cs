@@ -167,6 +167,7 @@ public class AdManager : MonoBehaviour
         if (_banner != null) { _banner.Destroy(); _banner = null; }
         AdSize size = AdSize.GetCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(AdSize.FullWidth);
         _banner = new BannerView(BANNER_ID, size, AdPosition.Bottom);
+        if (!_bannerShown) _banner.Hide();   // start HIDDEN so a boot-time preload can't flash on the loading screen (the SDK auto-shows on load); ShowBanner() reveals it
         _banner.OnBannerAdLoaded += () => { Debug.Log("[AdManager] banner loaded"); if (!_bannerShown) _banner.Hide(); };
         _banner.OnBannerAdLoadFailed += (LoadAdError e) => Debug.LogWarning("[AdManager] banner load failed: " + e);
         _banner.LoadAd(new AdRequest());

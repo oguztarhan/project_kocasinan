@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7c4f2a9e8d6451c93f0a2b1c4d5e6f7, type: 3}
   m_Name: SoundCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.SoundCatalog
-  vehicleSlidesOutOfJam: {fileID: 8300000, guid: d3029964605b6ea4b922db5de4238dc7, type: 3}
+  vehicleSlidesOutOfJam: {fileID: 0}
   vehicleSlidesOutVolume: 0.177
   vehicleArrivesAtStop: {fileID: 0}
   vehicleArrivesAtStopVolume: 1

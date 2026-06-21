@@ -20,6 +20,8 @@ namespace BusJam
         Text bannerText;
         RectTransform pointer;
         bool pointerOn;
+        bool shown;       // a tutorial step currently wants the overlay visible
+        bool suppressed;  // a panel/menu is open -> force the whole overlay hidden (restored when it closes)
 
         public void Build()
         {
@@ -96,18 +98,20 @@ namespace BusJam
         public void ShowText(string msg)
         {
             if (root == null) Build();
-            root.SetActive(true);
+            shown = true;
             if (bannerGo) bannerGo.SetActive(true);
             if (bannerText) bannerText.text = msg;
+            ApplyVisible();
         }
 
         public void PointAt(Vector2 screenPos)
         {
             if (pointer == null) return;
-            if (root != null && !root.activeSelf) root.SetActive(true);
+            shown = true;
             pointerOn = true;
             if (!pointer.gameObject.activeSelf) pointer.gameObject.SetActive(true);
             pointer.position = new Vector3(screenPos.x, screenPos.y, 0f); // overlay canvas -> position is in screen pixels
+            ApplyVisible();
         }
 
         public void HidePointer()
@@ -118,8 +122,25 @@ namespace BusJam
 
         public void Hide()
         {
+            shown = false;
             HidePointer();
-            if (root) root.SetActive(false);
+            ApplyVisible();
+        }
+
+        // Temporarily hide the WHOLE tutorial overlay (banner + text + pointer) while a panel/menu is open
+        // (settings, level select, shop, success/fail, …), WITHOUT losing the current step: when the panel
+        // closes (on=false) the banner + pointer restore exactly as they were. Driven each frame by BusJamGame.
+        public void Suppress(bool on)
+        {
+            if (suppressed == on) return;
+            suppressed = on;
+            ApplyVisible();
+        }
+
+        // The overlay shows only when a step wants it (shown) AND no panel is suppressing it.
+        void ApplyVisible()
+        {
+            if (root) root.SetActive(shown && !suppressed);
         }
 
         void Update()

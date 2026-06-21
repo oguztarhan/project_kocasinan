@@ -100,6 +100,15 @@ namespace BusJam
             statik = new Color[Ws * Hs];
             BuildLanes();
             BuildStatic();
+
+            // Palms live on a SEPARATE foreground layer (their own transparent buffer) so they sit IN FRONT of
+            // the ship — the boat sails BEHIND them instead of clipping over them. The *S draw helpers target the
+            // `statik` field, so we briefly point it at this buffer, draw the palms, then restore the backdrop.
+            var fg = new Color[Ws * Hs];
+            var keepBuf = statik; statik = fg; Palms(); statik = keepBuf;
+            var fgTex = new Texture2D(Ws, Hs, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            fgTex.SetPixels(fg); fgTex.Apply(false);
+
             staticTex = new Texture2D(Ws, Hs, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             staticTex.SetPixels(statik); staticTex.Apply(false);
             var sgo = new GameObject("StaticBg", typeof(RectTransform), typeof(RawImage));
@@ -121,6 +130,13 @@ namespace BusJam
             dynImg = dgo.GetComponent<RawImage>(); dynImg.raycastTarget = false; dynImg.texture = dynTex;
 
             BuildShip(rootRT);      // the boat drifting across the sea (above the static backdrop, below the panel)
+
+            // Foreground palms: ABOVE the ship (so the boat passes behind them), BELOW the dark fade (so it tints
+            // them with the rest of the lower scene). Full-stretch, matching the backdrop's placement exactly.
+            var pgo = new GameObject("PalmsFg", typeof(RectTransform), typeof(RawImage));
+            pgo.transform.SetParent(rootRT, false); Stretch(pgo.GetComponent<RectTransform>());
+            var pim = pgo.GetComponent<RawImage>(); pim.raycastTarget = false; pim.texture = fgTex;
+
             BuildPanel(rootRT);     // soft dark fade over the lower scene (sits ON TOP of the traffic, like the HTML)
             BuildBokeh(rootRT);     // warm motes drifting up over the dark
 
@@ -175,7 +191,7 @@ namespace BusJam
         void BuildStatic()
         {
             for (int i = 0; i < statik.Length; i++) statik[i] = new Color(0, 0, 0, 1);
-            Sky(); Sun(); Clouds(); Sea(); Beach(); Fence(); Palms(); Road(); LaneDash(); WarmOverlay();
+            Sky(); Sun(); Clouds(); Sea(); Beach(); Fence(); Road(); LaneDash(); WarmOverlay(); // palms are now a SEPARATE foreground layer (drawn over the ship in Start)
             // (the dark bottom fade + bokeh are UGUI layers built in Start, so they sit OVER the moving traffic)
         }
 
@@ -388,7 +404,7 @@ namespace BusJam
             var sim = sgo.GetComponent<Image>(); sim.sprite = shipSprite; sim.raycastTarget = false;
             var srt = sim.rectTransform;
             srt.pivot = new Vector2(pivX, pivY);                       // pivot at the waterline -> rocks naturally
-            srt.anchorMin = srt.anchorMax = new Vector2(0.32f, 0.507f); // sea line (HTML _shY); on-screen at launch, x animated
+            srt.anchorMin = srt.anchorMax = new Vector2(0.32f, 0.507f); // sea line (HTML _shY); palms now render IN FRONT (foreground layer) so the boat sails behind them; x animated
             srt.sizeDelta = new Vector2((bw / q) * kScale, (bh / q) * kScale);
             srt.anchoredPosition = Vector2.zero;
 
