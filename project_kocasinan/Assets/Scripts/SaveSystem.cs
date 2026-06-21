@@ -20,13 +20,24 @@ namespace BusJam
         // DEBUG / TESTING — unlock levels so you can play ANY level from Settings → LEVELS.
         // On launch this raises your saved level to DEBUG_UNLOCK_TO_LEVEL (only ever UP, so it never
         // wipes higher progress), which makes the LevelSelect map show 1..N as tappable.
-        //   • Set to 100 = levels 1–100 unlocked.    • Set to 0 (or delete this whole block) before RELEASE.
+        //   • Set to 100 = levels 1–100 unlocked.    • Set to 0 (the normal/release setting) = no unlock.
         // ============================================================================================
-        public const int DEBUG_UNLOCK_TO_LEVEL = 100;
+        public const int DEBUG_UNLOCK_TO_LEVEL = 0;   // OFF: normal progression (was 100, which forced every "Next" to jump to 100)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void DebugUnlockLevels()
         {
+            // ONE-TIME cleanup: earlier debug builds force-unlocked progress to 100 and PERSISTED it (PlayerPrefs),
+            // so even with the unlock off the saved level stays 100. Reset progress back to level 1 exactly once,
+            // gated by a flag, so normal progression resumes and this never re-wipes real progress afterwards.
+            if (PlayerPrefs.GetInt("bj_progress_reset_v1", 0) == 0)
+            {
+                PlayerPrefs.SetInt("bj_progress_reset_v1", 1);
+                PlayerPrefs.SetInt(K_Level, 1);
+                PlayerPrefs.SetInt(K_Best, 1);
+                PlayerPrefs.Save();
+            }
+
             if (DEBUG_UNLOCK_TO_LEVEL > 0 && Level < DEBUG_UNLOCK_TO_LEVEL)
             {
                 Level = DEBUG_UNLOCK_TO_LEVEL;
