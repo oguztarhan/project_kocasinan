@@ -34,7 +34,7 @@ namespace BusJam
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = 0f;   // match WIDTH (portrait): fits the screen width on any aspect
             // NO GraphicRaycaster on purpose -> this overlay can never block the game's tap raycast.
             root = canvasGo;
 

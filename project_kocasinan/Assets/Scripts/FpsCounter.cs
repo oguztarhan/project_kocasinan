@@ -39,15 +39,15 @@ namespace BusJam
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = 0f;   // match WIDTH (portrait): fits the screen width on any aspect
 
             // Dark chip in the top-right corner.
             var bgGo = new GameObject("BG", typeof(RectTransform), typeof(Image));
             bgGo.transform.SetParent(canvasGo.transform, false);
             var bgRt = bgGo.GetComponent<RectTransform>();
             bgRt.anchorMin = bgRt.anchorMax = bgRt.pivot = new Vector2(1f, 1f);
-            bgRt.anchoredPosition = new Vector2(-16f, -16f);
-            bgRt.sizeDelta = new Vector2(250f, 78f);
+            bgRt.anchoredPosition = new Vector2(-12f, -12f);
+            bgRt.sizeDelta = new Vector2(132f, 46f);   // compact pill (was 250x78)
             var bg = bgGo.GetComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.55f);
             bg.raycastTarget = false; // never block gameplay taps
@@ -59,7 +59,7 @@ namespace BusJam
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             label = txtGo.GetComponent<Text>();
             label.font = GameFont.UGUI;
-            label.fontSize = 40;
+            label.fontSize = 22;   // smaller (the global font scaler still multiplies this); pill sized to fit
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
             label.raycastTarget = false;
@@ -79,7 +79,7 @@ namespace BusJam
             refresh = 0f;
 
             float fps = smoothDt > 1e-5f ? 1f / smoothDt : 0f;
-            label.text = $"{fps:0} fps   {smoothDt * 1000f:0.0} ms";
+            label.text = $"{fps:0} fps";   // fps only -> keeps the pill small (drop the ms readout)
             label.color = fps >= 50f ? new Color(0.5f, 1f, 0.55f)
                         : fps >= 30f ? new Color(1f, 0.88f, 0.4f)
                         :              new Color(1f, 0.45f, 0.45f);

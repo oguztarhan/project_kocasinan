@@ -60,7 +60,7 @@ namespace BusJam
             var sc = cgo.GetComponent<CanvasScaler>();
             sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             sc.referenceResolution = new Vector2(1080, 1920);
-            sc.matchWidthOrHeight = 0.5f;
+            sc.matchWidthOrHeight = 0f;   // match WIDTH: a 1080-wide portrait layout fits the screen width on ANY aspect (taller phones just get more vertical room) — fixes content sliding off the sides on tall phones
             root = cgo.GetComponent<RectTransform>();
 
             StartCoroutine(Run());
@@ -266,10 +266,13 @@ namespace BusJam
             var fr = progFill.rectTransform;
             fr.anchorMin = fr.anchorMax = new Vector2(0, 0.5f); fr.pivot = new Vector2(0, 0.5f);
             fr.anchoredPosition = Vector2.zero; fr.sizeDelta = new Vector2(0, 24);
+            // LOADING flush to the bar's LEFT edge, % flush to the bar's RIGHT edge — symmetric about centre so the
+            // whole bar+labels block reads as centred (the old 400-wide left box pushed "LOADING" out past the % and
+            // made the group lean left). bar spans x ∈ [-barW/2, +barW/2] = [-360, +360].
             loadLabel = Txt(go, "LOADING", 30, Amber, FontStyle.Bold, TextAnchor.MiddleLeft);
-            Place(loadLabel.rectTransform, -330, -846, 400, 44);
+            Place(loadLabel.rectTransform, -barW / 2 + 100, -846, 200, 44);   // rect-left = -360 (bar left)
             pctLabel = Txt(go, "0%", 30, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
-            Place(pctLabel.rectTransform, 330, -846, 200, 44);
+            Place(pctLabel.rectTransform, barW / 2 - 100, -846, 200, 44);     // rect-right = +360 (bar right)
             go.gameObject.AddComponent<BootDots>().label = loadLabel;
 
             return g;

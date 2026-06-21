@@ -38,7 +38,8 @@ namespace BusJam
         public int Coins => SaveSystem.Coins;
         public bool IsBonus => currentLevel % 10 == 0; // every 10th level = the night traffic-dodge bonus round
 
-        const int RecolorCost = 80, SwapCost = 40, HeliCost = 100, SlotUnlockCost = 80;
+        // Joker prices tuned to the flat 25-gold/level economy (Swap = ~2 levels, Recolor = ~3, Heli = ~4).
+        const int RecolorCost = 75, SwapCost = 50, HeliCost = 100, SlotUnlockCost = 75;
         const int ContinueBaseCost = 150;   // 1st continue costs this; doubles each further continue in the level
         int continueCount;                  // gold continues used this level (resets on StartLevel)
         int CurrentContinueCost => ContinueBaseCost << continueCount; // 150, 300, 600, 1200, ...
@@ -108,6 +109,12 @@ namespace BusJam
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
         const int BonusComboTarget = 3;     // crash-free bus sends IN A ROW that earn the time reward
         const float BonusComboReward = 3f;  // seconds added each time the combo target is hit
+        // Bonus TRAFFIC LIGHT: cars STOP on red (road clear, safe to send freely) then GO on green (must time the
+        // crossings or crash). Cycles RED -> GREEN -> RED for the whole bonus. Makes the round actually beatable.
+        const float BonusRedTime = 6f;      // red phase: cross-traffic frozen, crossings are SAFE
+        const float BonusGreenTime = 8f;    // green phase: cross-traffic moving, crossings can CRASH
+        bool trafficGo;                     // true = green (cars move, crash risk); false = red (frozen, safe)
+        float trafficPhaseLeft;             // seconds left in the current red/green phase
         float bonusTimeLeft;
         int bonusCombo;                     // consecutive crash-free bonus sends; resets to 0 on any crash
         bool crashedThisBonus;              // set on a T3 crash -> disqualifies the perfect bonus
@@ -115,11 +122,17 @@ namespace BusJam
         ColorAdjustments postCA;            // cached post-grade (deepened on dark themes, restored on bright)
         Vignette postVig;
         // Pooled cross-traffic (bonus only): plain position model, NO colliders, NO per-car Update.
-        class TrafficCar { public Transform tf; public float x; public int dir; public int lane; }
+        class TrafficCar { public Transform tf; public float x; public int dir; public int lane; public Transform headlights; }
         readonly List<TrafficCar> traffic = new List<TrafficCar>();
         float trafficHalfLoop, trafficLoop; // wrap bounds (even spacing) shared by both lanes
         int trafficSpawnIdx;                // deterministic variety counter (no Random in the hot path)
         float trafficCarSpeed;              // progressive car speed (eased by bonus index in BuildTraffic): slow at L10, faster later
+        float trafficVis;                   // 0 = cars CLEARED off the road (red: road is genuinely clear, nothing to hit), 1 = present & flowing (green). Ramped for a smooth clear/return.
+        // Real in-world traffic-light poles on the LEFT and RIGHT of the road (bonus only). The lit lamp tracks the
+        // red/green phase; lamp renderers are swapped between on/off emissive materials (no per-frame work).
+        readonly List<Renderer> trafficRedLamps = new List<Renderer>();
+        readonly List<Renderer> trafficGreenLamps = new List<Renderer>();
+        Material lampRedOn, lampRedOff, lampGreenOn, lampGreenOff;
 
         ParkingSlot[] slots;
         readonly Dictionary<Vector2Int, Bus> occ = new Dictionary<Vector2Int, Bus>();
@@ -242,17 +255,11 @@ namespace BusJam
             else NextLevel();
         }
 
-        // (Economy rework) The single end-of-level coin reward. Bounded so the balance can't balloon with level size:
-        //   normal:  25 + 5*min(level,20)   |   bonus level: flat 100
-        //   + star bonus (0 / 10 / 25 for 1 / 2 / 3 stars)   + golden bonus (+5 each, capped at +20).
-        // CLAIM grants this; WATCH-AD grants 2x (see ClaimWinReward).
-        int LevelReward(int stars, bool bonus)
-        {
-            int basePart  = bonus ? 100 : (25 + 5 * Mathf.Min(currentLevel, 20));
-            int starBonus = stars >= 3 ? 25 : (stars >= 2 ? 10 : 0);
-            int goldBonus = Mathf.Min(goldenThisLevel * 5, 20);
-            return basePart + starBonus + goldBonus;
-        }
+        // (Economy rework) FLAT end-of-level reward — the ONLY gold source in gameplay. No level scaling, no star
+        // bonus, no golden/passenger bonus (keeps the player from getting rich):
+        //   normal level: 25 gold   |   bonus level: 50 gold.
+        // CLAIM grants this; WATCH-AD grants 2x (see ClaimWinReward) -> 50 normal / 100 bonus.
+        int LevelReward(int stars, bool bonus) => bonus ? 50 : 25;
 
         public void ContinueLevel()
         {
@@ -624,7 +631,11 @@ namespace BusJam
                 // test using the car's ACTUAL lane z, so it never false-fires below the lanes or while merging
                 // ALONG the road's median (where the bus moves in x and its z-extent is just its narrow width).
                 Vector3 vel = bus.transform.position - prev;
-                if (Mathf.Abs(vel.z) > Mathf.Abs(vel.x))
+                // Crash only while the cars are ACTUALLY on the road (trafficVis past the halfway of its clear/return
+                // ramp) — NOT off the instant light flip. So: steady RED (trafficVis~0) = road clear, crossing SAFE;
+                // it stays live through the green->red scale-OUT until cars vanish (no driving through still-visible
+                // frozen cars), and off through the red->green scale-IN until they're really there.
+                if (trafficVis > 0.5f && Mathf.Abs(vel.z) > Mathf.Abs(vel.x))
                 {
                     Vector3 bp = bus.transform.position;
                     for (int ti = 0; ti < traffic.Count; ti++)
@@ -1263,7 +1274,10 @@ namespace BusJam
                 bonusCombo = 0;
                 bonusTimeLeft = BonusTime;
                 ui.SetBonusCountdown(bonusTimeLeft);
+                trafficGo = false; trafficPhaseLeft = BonusRedTime;          // start on RED -> a free safe window to begin
+                trafficVis = 0f;                                             // RED at start -> cars cleared off, the road is empty for the opening window
                 BuildTraffic();
+                BuildTrafficLights();                                        // real poles on both road sides; lit to match the phase
                 StartCoroutine(TrafficLoop());
             }
             else ui.HideBonusCountdown();
@@ -1295,6 +1309,7 @@ namespace BusJam
             occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); liveBuses.Clear(); visible.Clear(); slots = null;
             if (sfx != null) sfx.SetEngine(false); // kill the engine loop across a level rebuild
             traffic.Clear(); // T2: drop pooled traffic refs (the cars themselves die with boardRoot below)
+            trafficRedLamps.Clear(); trafficGreenLamps.Clear(); // drop traffic-light lamp refs (poles die with boardRoot)
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
@@ -1445,6 +1460,16 @@ namespace BusJam
         {
             bonusTimeLeft -= Time.deltaTime;
             ui.SetBonusCountdown(bonusTimeLeft);
+
+            // Traffic light cycle: RED (cars frozen, safe) <-> GREEN (cars moving, risky).
+            trafficPhaseLeft -= Time.deltaTime;
+            if (trafficPhaseLeft <= 0f)
+            {
+                trafficGo = !trafficGo;
+                trafficPhaseLeft = trafficGo ? BonusGreenTime : BonusRedTime;
+                SetTrafficLightsVisual(trafficGo); // swap the lit lamp on the in-world poles (only on phase change)
+            }
+
             if (bonusTimeLeft <= 0f) FinishBonus(false); // ran out of time -> the FAILED panel
         }
 
@@ -2808,8 +2833,8 @@ namespace BusJam
             // fix for "too confusing / too much traffic": L10 has ~4 slow cars with huge gaps -> tap during an obvious opening.)
             int bonusIdx = Mathf.Max(1, currentLevel / 10);            // 1 at L10, 2 at L20, ...
             float diff = Mathf.Clamp01((bonusIdx - 1) / 5f);          // 0 at L10 -> 1 at L60+
-            trafficCarSpeed = Mathf.Lerp(1.8f, 3.0f, diff);          // slow & readable at L10, faster later
-            float period = Mathf.Lerp(18.0f, 4.5f, diff);          // L10: 1 car/lane (2 total, HUGE gaps) -> L60+: 4/lane (8 cars)
+            trafficCarSpeed = Mathf.Lerp(1.6f, 2.4f, diff);          // gentler top speed (was up to 3.0 — too fast to read)
+            float period = Mathf.Lerp(22.0f, 8.0f, diff);          // FEWER cars + bigger gaps: L10 = 2 cars, L60+ = ~6 (was up to 8, too dense to win)
             if (lowEnd) period += 1.5f;                              // even fewer cars on budget phones
             const float SPAN = 18f;                                       // off-screen -9..+9 across the road
             int perLane = Mathf.Max(1, Mathf.CeilToInt(SPAN / period));
@@ -2826,9 +2851,64 @@ namespace BusJam
                     float x = -trafficHalfLoop + Mathf.Repeat(i * period + phase, trafficLoop);
                     var pivot = BuildTrafficCar(prefabs, width, dir);
                     pivot.transform.position = new Vector3(x, 0f, laneZ);
-                    traffic.Add(new TrafficCar { tf = pivot.transform, x = x, dir = dir, lane = lane });
+                    // cache the night headlights group so TrafficLoop can switch its real Spot Light OFF when the car is
+                    // cleared on red (transform scale hides meshes but NOT a Light -> would otherwise leave light pools).
+                    traffic.Add(new TrafficCar { tf = pivot.transform, x = x, dir = dir, lane = lane, headlights = pivot.transform.Find("Headlights") });
                 }
             }
+        }
+
+        // ====================================================================
+        // Real in-world traffic lights — one pole on the LEFT and one on the RIGHT of the road (bonus only).
+        // The lit lamp tracks the red/green phase so the player reads the rules straight off the road, no HUD blob.
+        // ====================================================================
+        void BuildTrafficLights()
+        {
+            trafficRedLamps.Clear(); trafficGreenLamps.Clear();
+            lampRedOn    = MaterialLibrary.MakeRuntime(new Color(1f, 0.16f, 0.13f), 0.35f, 2.4f);   // bright red glow (STOP)
+            lampRedOff   = MaterialLibrary.MakeRuntime(new Color(0.22f, 0.04f, 0.04f), 0.25f, 0f);  // dark red lens
+            lampGreenOn  = MaterialLibrary.MakeRuntime(new Color(0.28f, 1f, 0.40f), 0.35f, 2.4f);   // bright green glow (GO)
+            lampGreenOff = MaterialLibrary.MakeRuntime(new Color(0.05f, 0.20f, 0.09f), 0.25f, 0f);  // dark green lens
+            var amber    = MaterialLibrary.MakeRuntime(new Color(0.34f, 0.25f, 0.05f), 0.25f, 0f);  // dark amber (decorative middle lens)
+            var bodyMat  = MaterialLibrary.MakeRuntime(new Color(0.10f, 0.11f, 0.13f), 0.30f, 0f);  // matte dark pole + housing
+
+            var group = new GameObject("TrafficLights");
+            group.transform.SetParent(boardRoot, false);
+
+            float poleZ = RoadZ - 0.9f;                  // near curb: between the jam and the traffic lane (won't clip cars)
+            float edgeX = VisHalfW(poleZ) - 0.9f;        // just inside the visible road edges -> clearly LEFT & RIGHT
+            BuildTrafficLightPole(group.transform, -edgeX, poleZ, bodyMat, amber);
+            BuildTrafficLightPole(group.transform,  edgeX, poleZ, bodyMat, amber);
+
+            StripPhysics(group);                         // belt-and-braces: no collider near the road ever eats a tap
+            SetTrafficLightsVisual(trafficGo);           // light the correct lamp for the starting phase (RED)
+        }
+
+        // One traffic-light pole: post + housing + three stacked lamps (red/amber/green) on the camera-facing (-Z) face.
+        void BuildTrafficLightPole(Transform parent, float x, float z, Material bodyMat, Material amberMat)
+        {
+            float fz = z - 0.17f;                         // lamps sit on the housing's front (-Z) face -> visible top-down
+            var pole = MakeCube(parent, bodyMat, new Vector3(0.16f, 2.4f, 0.16f));
+            pole.transform.position = new Vector3(x, 1.20f, z);
+            var housing = MakeCube(parent, bodyMat, new Vector3(0.42f, 1.10f, 0.30f));
+            housing.transform.position = new Vector3(x, 2.55f, z);
+            var red = MakeCube(parent, lampRedOff, new Vector3(0.26f, 0.26f, 0.10f));
+            red.transform.position = new Vector3(x, 2.85f, fz);
+            var amb = MakeCube(parent, amberMat, new Vector3(0.26f, 0.26f, 0.10f));
+            amb.transform.position = new Vector3(x, 2.55f, fz);
+            var green = MakeCube(parent, lampGreenOff, new Vector3(0.26f, 0.26f, 0.10f));
+            green.transform.position = new Vector3(x, 2.25f, fz);
+            trafficRedLamps.Add(red.GetComponent<Renderer>());
+            trafficGreenLamps.Add(green.GetComponent<Renderer>());
+        }
+
+        // Swap the lit lamp on every pole: green glows on GO, red glows on STOP. Called only when the phase flips.
+        void SetTrafficLightsVisual(bool go)
+        {
+            for (int i = 0; i < trafficRedLamps.Count; i++)
+                if (trafficRedLamps[i]) trafficRedLamps[i].sharedMaterial = go ? lampRedOff : lampRedOn;
+            for (int i = 0; i < trafficGreenLamps.Count; i++)
+                if (trafficGreenLamps[i]) trafficGreenLamps[i].sharedMaterial = go ? lampGreenOn : lampGreenOff;
         }
 
         // ONE car: a pivot at the lane spot holding a fit/recentered model whose NOSE (local -Z) faces travel.
@@ -2860,6 +2940,7 @@ namespace BusJam
             }
             // Pivot faces travel: nose (local -Z) points the drive dir (+X -> yaw -90, -X -> yaw +90).
             pivot.transform.localRotation = Quaternion.Euler(0, dir > 0 ? -90f : 90f, 0);
+            pivot.transform.localScale = Vector3.one * trafficVis; // start matching the light (0 on the opening RED -> hidden until green)
             StripPhysics(pivot); // CRITICAL: the code-built body keeps a collider -> strip so traffic never eats a tap
             if (nightMode) AttachHeadlights(pivot.transform, halfLen, true); // T4: moving cars get the real spot
             trafficSpawnIdx++;
@@ -2892,15 +2973,29 @@ namespace BusJam
         {
             while (state == GameState.Playing)
             {
+                // RED -> the cars CLEAR OFF the road (scale out) so it reads as genuinely empty and a crossing vehicle
+                // can never drive into a stopped car; GREEN -> they return (scale in) and flow. Smoothly ramped.
+                trafficVis = Mathf.MoveTowards(trafficVis, trafficGo ? 1f : 0f, Time.deltaTime / 0.28f);
                 float step = trafficCarSpeed * Time.deltaTime;
+                // Keep DRIVING while still visible (so cars roll off as they shrink instead of freezing full-size in
+                // place for the ramp); only fully frozen once cleared (invisible) on a steady red.
+                bool flow = trafficGo || trafficVis > 0.01f;
+                bool lightsOn = trafficVis > 0.02f;
                 for (int i = 0; i < traffic.Count; i++)
                 {
                     var c = traffic[i];
                     if (c.tf == null) continue;
-                    c.x += c.dir * step;
-                    if (c.x >= trafficHalfLoop) c.x -= trafficLoop;
-                    else if (c.x < -trafficHalfLoop) c.x += trafficLoop;
+                    if (flow)
+                    {
+                        c.x += c.dir * step;
+                        if (c.x >= trafficHalfLoop) c.x -= trafficLoop;
+                        else if (c.x < -trafficHalfLoop) c.x += trafficLoop;
+                    }
                     var p = c.tf.position; p.x = c.x; c.tf.position = p;
+                    c.tf.localScale = Vector3.one * trafficVis;   // shrink out on red, grow back in on green
+                    // also kill the real headlight Spot when cleared (scale-0 hides meshes but not a Light component)
+                    if (c.headlights != null && c.headlights.gameObject.activeSelf != lightsOn)
+                        c.headlights.gameObject.SetActive(lightsOn);
                 }
                 yield return null;
             }
@@ -2911,6 +3006,7 @@ namespace BusJam
         bool RoadClearAt(float crossX, float clearance)
         {
             if (!IsBonus || traffic.Count == 0) return true;
+            if (!trafficGo && trafficVis <= 0.5f) return true;   // red AND cars have actually cleared off -> road clear
             for (int i = 0; i < traffic.Count; i++)
                 if (Mathf.Abs(traffic[i].x - crossX) < clearance) return false;
             return true;

@@ -4,22 +4,40 @@ using TMPro;
 namespace BusJam
 {
     /// <summary>
-    /// Central access to the game-wide font (Matcha Cih). uGUI Text uses the TrueType <see cref="UGUI"/>;
-    /// TMP text uses <see cref="TMP"/> — a DYNAMIC SDF font asset created from the same TTF at runtime
-    /// (glyphs rasterise on demand, exactly like a normal dynamic TMP font). Both are loaded once from
-    /// Resources/Fonts/Matcha Cih. If the asset is ever missing it falls back to the built-in font, so this
-    /// can never null-crash any text.
+    /// Central access to the game-wide font. The font is chosen in ONE editable asset — Resources/FontConfig.asset:
+    /// drag any font into its "Ui Font" slot and the whole project switches (uGUI Text via <see cref="UGUI"/>, TMP
+    /// text via <see cref="TMP"/>), applied everywhere by GlobalFontApplier. No code edits needed to change the font.
+    ///
+    /// TMP: if FontConfig.tmpFont is empty, a DYNAMIC SDF asset is created from the uiFont at runtime. Everything
+    /// falls back safely (config missing -> a Resources font -> the built-in font), so text can never null-crash.
     /// </summary>
     public static class GameFont
     {
-        // Oswald-Bold has FULL Turkish coverage (ç Ç ğ Ğ ı İ ö Ö ş Ş ü Ü). Matcha Cih was missing the core Turkish
-        // letters (ğ ı İ ş), so Turkish text rendered with missing-glyph boxes — hence the switch.
-        const string ResPath = "Fonts/Oswald-Bold";
+        const string FallbackResPath = "Fonts/atomicage-regular"; // used only if FontConfig.asset / its uiFont is missing
+
+        static FontConfig _cfg;
+        static bool _cfgTried;
+        static FontConfig Cfg
+        {
+            get { if (!_cfgTried) { _cfgTried = true; _cfg = Resources.Load<FontConfig>("FontConfig"); } return _cfg; }
+        }
+
+        /// <summary>Global text-size multiplier from FontConfig (1 = original). GlobalFontApplier scales every text by this.</summary>
+        public static float UiScale { get { var c = Cfg; return c != null && c.fontScale > 0f ? c.fontScale : 1f; } }
 
         static Font _ugui;
-        public static Font UGUI =>
-            _ugui != null ? _ugui
-                          : (_ugui = Resources.Load<Font>(ResPath) ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        public static Font UGUI
+        {
+            get
+            {
+                if (_ugui != null) return _ugui;
+                var c = Cfg;
+                _ugui = (c != null && c.uiFont != null) ? c.uiFont
+                      : Resources.Load<Font>(FallbackResPath)
+                      ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                return _ugui;
+            }
+        }
 
         static TMP_FontAsset _tmp;
         static bool _tmpTried;
@@ -27,16 +45,19 @@ namespace BusJam
         {
             get
             {
-                if (_tmp == null && !_tmpTried)
+                if (_tmp != null) return _tmp;
+                if (_tmpTried) return _tmp;
+                _tmpTried = true;
+
+                var c = Cfg;
+                if (c != null && c.tmpFont != null) { _tmp = c.tmpFont; return _tmp; } // hand-made TMP asset, if provided
+
+                var src = UGUI;                                                         // else generate a dynamic SDF from the UI font
+                if (src != null)
                 {
-                    _tmpTried = true;
-                    var src = Resources.Load<Font>(ResPath);
-                    if (src != null)
-                    {
-                        try { _tmp = TMP_FontAsset.CreateFontAsset(src); }
-                        catch (System.Exception e) { Debug.LogWarning("[GameFont] dynamic TMP font create failed: " + e.Message); _tmp = null; }
-                        if (_tmp != null) _tmp.name = "Matcha Cih SDF (runtime)";
-                    }
+                    try { _tmp = TMP_FontAsset.CreateFontAsset(src); }
+                    catch (System.Exception e) { Debug.LogWarning("[GameFont] dynamic TMP font create failed: " + e.Message); _tmp = null; }
+                    if (_tmp != null) _tmp.name = src.name + " SDF (runtime)";
                 }
                 return _tmp;
             }

@@ -313,7 +313,8 @@ namespace BusJam
 
             for (int i = 0; i < groups.Count; i++)
             {
-                if (rng.NextDouble() < goldenP) groups[i].golden = true;
+                // Golden passengers removed (economy rework): gold comes ONLY from the flat per-level reward, never from
+                // people/vehicles. goldenP is intentionally ignored so no "golden" person ever spawns.
                 if (i >= 2 && rng.NextDouble() < mysteryP) groups[i].mystery = true;
             }
             return groups;

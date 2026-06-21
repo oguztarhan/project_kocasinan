@@ -33,7 +33,7 @@ public static class TutorialPanelBaker
         var scaler = rootGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 0f;   // match WIDTH (portrait): fits the screen width on any aspect
         // No GraphicRaycaster on purpose — the coach's overlay has none, so taps pass through to the board.
 
         // The panel you style. Tagged so the coach finds + adopts it.

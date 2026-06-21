@@ -57,6 +57,7 @@ namespace BusJam
         const float BandTopF = 0.52f, BandBotF = 0.71f;   // the road/traffic band (canvas-down) the dynamic layer covers
         RawImage staticImg, dynImg;
         Texture2D staticTex, dynTex;
+        Sprite shipSprite;                // the boat (HTML ship()) — rasterised once, slid + bobbed by MenuShip
         Color[] statik, dyn;
         int Ws, Hs, Wd, Hd;
         float ds, bandTopPx, DPR, M;
@@ -86,7 +87,7 @@ namespace BusJam
             var sc = cgo.GetComponent<CanvasScaler>();
             sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             sc.referenceResolution = new Vector2(1080, 1920);
-            sc.matchWidthOrHeight = 0.5f;
+            sc.matchWidthOrHeight = 0f;   // match WIDTH (portrait): fits the screen width on any aspect
             var rootRT = cgo.GetComponent<RectTransform>();
 
             Ws = Mathf.Clamp(Screen.width, 720, 1080);
@@ -119,6 +120,7 @@ namespace BusJam
             drt.offsetMin = Vector2.zero; drt.offsetMax = Vector2.zero;
             dynImg = dgo.GetComponent<RawImage>(); dynImg.raycastTarget = false; dynImg.texture = dynTex;
 
+            BuildShip(rootRT);      // the boat drifting across the sea (above the static backdrop, below the panel)
             BuildPanel(rootRT);     // soft dark fade over the lower scene (sits ON TOP of the traffic, like the HTML)
             BuildBokeh(rootRT);     // warm motes drifting up over the dark
 
@@ -242,25 +244,35 @@ namespace BusJam
             for (float x = 0; x < Ws; x += Ws * 0.07f) FillRectS((int)x, (int)(seaBot + 6 * DPR), Mathf.Max(1, (int)(3 * DPR)), postH, FencePost);
         }
 
+        // Faithful port of the HTML palm(): 4 palms on the beach, full 8-frond crown, trunk rings, 3 coconuts.
         void Palms()
         {
-            float[] pp = { 0.12f, 0.5f, 0.82f };
-            for (int i = 0; i < pp.Length; i++) Palm(Ws * pp[i], roadTop, M * 0.016f);
+            float[] pp = { 0.10f, 0.34f, 0.62f, 0.88f };               // HTML pp
+            float baseY = seaBot + (roadTop - seaBot) * 0.25f;         // on the beach, not at the road edge
+            for (int i = 0; i < pp.Length; i++) Palm(Ws * pp[i], baseY, M * 0.020f);
         }
         void Palm(float x, float baseY, float s)
         {
-            // trunk
-            PolyS(new[] { new Vector2(x - 0.5f * s, baseY), new Vector2(x + 0.5f * s, baseY), new Vector2(x + 0.28f * s, baseY - 5 * s), new Vector2(x - 0.28f * s, baseY - 5 * s) }, PalmTrunk);
-            PolyS(new[] { new Vector2(x + 0.05f * s, baseY), new Vector2(x + 0.5f * s, baseY), new Vector2(x + 0.28f * s, baseY - 5 * s), new Vector2(x + 0.06f * s, baseY - 5 * s) }, Shade(PalmTrunk, 0.82f));
-            // crown (5 fronds), rotated about the trunk top (no sway baked in)
-            float ox = x, oy = baseY - 5 * s;
-            for (int i = 0; i < 5; i++)
+            // trunk (front + shaded side), full HTML height 5.6*s
+            PolyS(new[] { new Vector2(x - 0.5f * s, baseY), new Vector2(x + 0.5f * s, baseY), new Vector2(x + 0.30f * s, baseY - 5.6f * s), new Vector2(x - 0.30f * s, baseY - 5.6f * s) }, PalmTrunk);
+            PolyS(new[] { new Vector2(x + 0.06f * s, baseY), new Vector2(x + 0.5f * s, baseY), new Vector2(x + 0.30f * s, baseY - 5.6f * s), new Vector2(x + 0.06f * s, baseY - 5.6f * s) }, Shade(PalmTrunk, 0.80f));
+            // 4 trunk rings
+            Color ring = Shade(PalmTrunk, 0.7f);
+            for (int i = 1; i <= 4; i++)
+                FillRectS(Mathf.RoundToInt(x - 0.42f * s), Mathf.RoundToInt(baseY - 1.15f * i * s), Mathf.Max(1, Mathf.RoundToInt(0.84f * s)), Mathf.Max(1, Mathf.RoundToInt(0.12f * s)), ring);
+            // crown: 8 fronds rotated about the trunk top (full spread; no sway baked in)
+            float tx = x, ty = baseY - 5.6f * s;
+            Color[] fr = { Hex("#2f8f3e"), Hex("#3FA45B"), Hex("#46B86A"), Hex("#3FA45B"), Hex("#2f8f3e"), Hex("#46B86A"), Hex("#3FA45B"), Hex("#2f8f3e") };
+            for (int i = 0; i < 8; i++)
             {
-                float a = -1.15f + i * 0.57f, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
-                Vector2 Rot(float lx, float ly) => new Vector2(ox + lx * ca - ly * sa, oy + lx * sa + ly * ca);
-                PolyS(new[] { Rot(0, 0), Rot(3.6f * s, -0.5f * s), Rot(3.0f * s, 0.6f * s) }, Fronds[i]);
+                float a = -2.40f + i * 0.685f, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
+                Vector2 Rf(float px, float py) => new Vector2(tx + px * ca - py * sa, ty + px * sa + py * ca);
+                PolyS(new[] { Rf(0, 0), Rf(3.8f * s, -0.6f * s), Rf(4.0f * s, 0.2f * s), Rf(3.4f * s, 0.7f * s) }, fr[i]);
             }
-            DiscS(ox, oy, 0.5f * s, PalmBase);
+            // 3 coconuts at the crown base
+            DiscS(tx, ty, 0.6f * s, Hex("#6f4a2a"));
+            DiscS(tx - 0.55f * s, ty + 0.45f * s, 0.42f * s, Hex("#7a5230"));
+            DiscS(tx + 0.55f * s, ty + 0.45f * s, 0.42f * s, Hex("#7a5230"));
         }
 
         void Road()
@@ -333,6 +345,66 @@ namespace BusJam
             for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) { float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c; float a = Mathf.Clamp01(1f - d); a *= a; buf[y * S + x] = new Color(1, 1, 1, a); }
             tex.SetPixels(buf); tex.Apply(false);
             return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect);
+        }
+
+        // =====================================================================================
+        //  SHIP (HTML ship()) — a red boat with the INTAKE ENTERTAINMENT banner, drifting across the sea.
+        //  Rasterised ONCE into a sprite (cheap); MenuShip slides + bobs it. The brand text rides on top as a
+        //  real Text child so it stays crisp at any size. Sits on the sea, above the backdrop, below the panel.
+        // =====================================================================================
+        void BuildShip(RectTransform root)
+        {
+            const float hw = 210f, hh = 44f, q = 2f;   // hull width/height (local units), q = px per local unit
+            const int margin = 6;
+            int bw = (int)(270f * q) + margin * 2;     // local x span [-135, 135] (symmetric -> pivot.x = 0.5)
+            int bh = (int)(168f * q) + margin * 2;     // local y span [-138, 30]
+            var buf = new Color[bw * bh];              // all (0,0,0,0) -> transparent
+            float ox = margin + 135f * q, oy = margin + 138f * q;  // local (0,0) = waterline centre
+            Vector2 P(float lx, float ly) => new Vector2(ox + lx * q, oy + ly * q);
+            void Pl(Vector2[] p, Color c) => Poly(buf, bw, bh, p, p.Length, c);
+            Color hull = Hex("#D63A2E"), white = Hex("#F5F1E8"), cabTop = Hex("#E6ECF1"), win = Hex("#7FD0EE"), mast = Hex("#5a4530"), flag = Hex("#FFC14D");
+
+            Pl(new[] { P(-hw / 2 + 14, 3), P(hw / 2 - 14, 3), P(hw / 2 - 24, 30), P(-hw / 2 + 24, 30) }, RGBA(0.839f, 0.227f, 0.180f, 0.16f)); // hull shadow
+            Pl(new[] { P(-hw / 2, -hh), P(hw / 2 - 14, -hh), P(hw / 2 + 30, -hh / 2), P(hw / 2 - 14, 0), P(-hw / 2, 0) }, hull);              // hull
+            Pl(new[] { P(-hw / 2, -hh), P(hw / 2 - 12, -hh), P(hw / 2 - 8, -hh * 0.5f), P(-hw / 2, -hh * 0.5f) }, white);                     // white stripe
+            Pl(new[] { P(-hw / 2, -hh * 0.30f), P(hw / 2 - 10, -hh * 0.30f), P(hw / 2 + 22, -hh / 2), P(hw / 2 - 10, 0), P(-hw / 2, 0) }, Shade(hull, 0.82f)); // hull shade
+            Pl(new[] { P(-hw * 0.34f, -hh - 46), P(hw * 0.16f, -hh - 46), P(hw * 0.20f, -hh), P(-hw * 0.40f, -hh) }, Color.white);           // cabin
+            Pl(new[] { P(-hw * 0.34f, -hh - 46), P(hw * 0.16f, -hh - 46), P(hw * 0.16f, -hh - 40), P(-hw * 0.34f, -hh - 40) }, cabTop);      // cabin top
+            for (int k = 0; k < 5; k++) { float wx = -hw * 0.30f + k * hw * 0.094f; Pl(new[] { P(wx, -hh - 36), P(wx + hw * 0.052f, -hh - 36), P(wx + hw * 0.052f, -hh - 18), P(wx, -hh - 18) }, win); } // windows
+            Pl(new[] { P(0, -hh - 72), P(hw * 0.12f, -hh - 72), P(hw * 0.10f, -hh - 46), P(hw * 0.02f, -hh - 46) }, hull);                   // smokestack
+            Pl(new[] { P(hw * 0.01f, -hh - 66), P(hw * 0.11f, -hh - 66), P(hw * 0.11f, -hh - 60), P(hw * 0.01f, -hh - 60) }, white);         // stack band
+            float mx = -hw * 0.30f;
+            Pl(new[] { P(mx - 1.5f, -hh - 46), P(mx + 1.5f, -hh - 46), P(mx + 1.5f, -hh - 94), P(mx - 1.5f, -hh - 94) }, mast);             // mast
+            Pl(new[] { P(mx, -hh - 94), P(mx + 36, -hh - 86), P(mx, -hh - 78) }, flag);                                                     // flag
+
+            var tex = new Texture2D(bw, bh, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            tex.SetPixels(buf); tex.Apply(false);
+            float pivX = ox / bw, pivY = 1f - oy / bh;   // waterline centre, in texture (y-up) fractions
+            shipSprite = Sprite.Create(tex, new Rect(0, 0, bw, bh), new Vector2(pivX, pivY), 100f, 0, SpriteMeshType.FullRect);
+
+            const float kScale = 1.6f;   // ref units per local unit -> hull ≈ 31% of the 1080-wide canvas (matches the HTML)
+            var sgo = new GameObject("Ship", typeof(RectTransform), typeof(Image));
+            sgo.transform.SetParent(root, false);
+            var sim = sgo.GetComponent<Image>(); sim.sprite = shipSprite; sim.raycastTarget = false;
+            var srt = sim.rectTransform;
+            srt.pivot = new Vector2(pivX, pivY);                       // pivot at the waterline -> rocks naturally
+            srt.anchorMin = srt.anchorMax = new Vector2(0.32f, 0.507f); // sea line (HTML _shY); on-screen at launch, x animated
+            srt.sizeDelta = new Vector2((bw / q) * kScale, (bh / q) * kScale);
+            srt.anchoredPosition = Vector2.zero;
+
+            // INTAKE ENTERTAINMENT on the hull's white stripe (a child, so it rides + rocks with the ship)
+            var tgo = new GameObject("Brand", typeof(RectTransform), typeof(Text));
+            tgo.transform.SetParent(srt, false);
+            var tt = tgo.GetComponent<Text>();
+            tt.font = GameFont.UGUI; tt.text = "INTAKE ENTERTAINMENT"; tt.fontSize = 18; tt.fontStyle = FontStyle.Bold;
+            tt.color = Hex("#243046"); tt.alignment = TextAnchor.MiddleCenter; tt.raycastTarget = false;
+            tt.horizontalOverflow = HorizontalWrapMode.Overflow; tt.verticalOverflow = VerticalWrapMode.Overflow;
+            var trt = tt.rectTransform;
+            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0.376f); trt.pivot = new Vector2(0.5f, 0.5f);   // centred on the white hull stripe
+            trt.sizeDelta = new Vector2(srt.sizeDelta.x * 0.95f, 44f); trt.anchoredPosition = Vector2.zero;
+
+            var sh = sgo.AddComponent<MenuShip>();
+            sh.speedF = 0.022f; sh.baseY = 0.507f; sh.bobPx = 6f * DPR;
         }
 
         // =====================================================================================
@@ -468,6 +540,23 @@ namespace BusJam
         }
 
         static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
+    }
+
+    /// <summary>The boat: drifts right across the sea (anchor fraction, wraps), gently bobs + rocks. Rotates about
+    /// its waterline pivot so it reads like a ship on swell. Unscaled time so it animates on the paused menu.</summary>
+    public class MenuShip : MonoBehaviour
+    {
+        public float speedF, baseY, bobPx;
+        RectTransform rt;
+        void Awake() { rt = (RectTransform)transform; }
+        void Update()
+        {
+            float fx = rt.anchorMin.x + speedF * Time.unscaledDeltaTime;
+            if (fx > 1.25f) fx = -0.25f;                                  // sailed off the right -> wrap to the left
+            rt.anchorMin = rt.anchorMax = new Vector2(fx, baseY);
+            rt.anchoredPosition = new Vector2(0f, Mathf.Sin(Time.unscaledTime * 1.1f) * bobPx);   // bob
+            rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.unscaledTime * 0.9f) * 1.2f); // rock
+        }
     }
 
     /// <summary>A single warm bokeh mote: drifts up (anchor fraction), wraps at the top, twinkles its alpha.</summary>

@@ -67,7 +67,7 @@ namespace BusJam
             var sc = canvasGo.AddComponent<CanvasScaler>();
             sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             sc.referenceResolution = new Vector2(1080, 1920);
-            sc.matchWidthOrHeight = 0.5f;
+            sc.matchWidthOrHeight = 0f;   // match WIDTH: 1080-wide portrait HUD always fits the screen width on any phone aspect
             canvasGo.AddComponent<GraphicRaycaster>();
             root = canvasGo.transform;
 
@@ -292,10 +292,17 @@ namespace BusJam
             if (panel == null) return;
             jokerBuyPanels[kind] = panel;
             int cost = jokerCosts[kind];
-            if (buyBtn) buyBtn.onClick.AddListener(() =>
+            if (buyBtn)
             {
-                if (SaveSystem.TrySpend(cost)) { SaveSystem.AddFreeJoker(kind, 1); SetCoins(SaveSystem.Coins); RefreshJokers(); }
-            });
+                // the price label was baked as a static "100"; show the real per-joker cost
+                var priceT = buyBtn.transform.Find("Price")?.GetComponent<Text>();
+                if (priceT == null) { var ts = buyBtn.GetComponentsInChildren<Text>(true); if (ts.Length > 0) priceT = ts[0]; }
+                if (priceT != null) priceT.text = cost.ToString();
+                buyBtn.onClick.AddListener(() =>
+                {
+                    if (SaveSystem.TrySpend(cost)) { SaveSystem.AddFreeJoker(kind, 1); SetCoins(SaveSystem.Coins); RefreshJokers(); }
+                });
+            }
             foreach (var b in panel.GetComponentsInChildren<InGamePanelButton>(true))
             {
                 var btn = b.GetComponent<Button>();
@@ -981,6 +988,8 @@ namespace BusJam
             if (hudPanel == null || bonusCountdown != null) return;
             bonusCountdown = Label(hudPanel.transform, "", num, new Vector2(0, 700), new Vector2(420, 130), 96, White);
             bonusCountdown.gameObject.SetActive(false);
+            // NOTE: the red/green traffic light is now a real in-world prop on both road sides (BusJamGame.BuildTrafficLights),
+            // not a HUD widget — so the player reads stop/go straight off the road.
         }
         public void SetBonusCountdown(float seconds)
         {
@@ -1002,7 +1011,10 @@ namespace BusJam
             float pulse = seconds <= 10f ? 1f + 0.12f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 6f)) : 1f;
             bonusCountdown.rectTransform.localScale = Vector3.one * pulse;
         }
-        public void HideBonusCountdown() { if (bonusCountdown) { bonusCountdown.gameObject.SetActive(false); bonusCountdown.rectTransform.localScale = Vector3.one; } }
+        public void HideBonusCountdown()
+        {
+            if (bonusCountdown) { bonusCountdown.gameObject.SetActive(false); bonusCountdown.rectTransform.localScale = Vector3.one; }
+        }
 
         // Combo reward feedback: a green "+Ns" that floats up just under the timer and fades. Called when the player
         // chains enough crash-free bus sends on a bonus level.

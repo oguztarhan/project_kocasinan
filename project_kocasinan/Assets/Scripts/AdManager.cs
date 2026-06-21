@@ -35,7 +35,7 @@ public class AdManager : MonoBehaviour
     const bool  NEVER_STACK_WITH_REWARDED  = true;   // suppress an interstitial right after a rewarded
 
     // ===== TEMP debug panel + hotkey (T6). Set false / delete before release. =====
-    public const bool SHOW_AD_DEBUG = true;
+    public const bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
 
     // ===================== TEST ad unit IDs — DO NOT SHIP =====================
     const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // TODO: REPLACE WITH REAL ID BEFORE RELEASE (also set in Assets ▸ Google Mobile Ads ▸ Settings)

@@ -38,11 +38,17 @@ namespace BusJam
         public static void Apply()
         {
             Font f = GameFont.UGUI;
+            float scale = GameFont.UiScale;   // global size multiplier from FontConfig
+
             if (f != null)
                 foreach (var t in Resources.FindObjectsOfTypeAll<Text>())
                 {
                     if (t == null || !t.gameObject.scene.IsValid()) continue; // live scene objects only (skip assets/prefabs)
                     if (t.font != f) t.font = f;
+                    var tag = t.GetComponent<FontScaleTag>(); if (tag == null) tag = t.gameObject.AddComponent<FontScaleTag>();
+                    if (!tag.captured) { tag.baseSize = t.fontSize; tag.captured = true; } // remember the authored size once
+                    int target = Mathf.Max(1, Mathf.RoundToInt(tag.baseSize * scale));
+                    if (t.fontSize != target) t.fontSize = target;
                 }
 
             TMP_FontAsset tmp = GameFont.TMP;
@@ -51,6 +57,10 @@ namespace BusJam
                 {
                     if (t == null || !t.gameObject.scene.IsValid()) continue;
                     if (t.font != tmp) t.font = tmp;
+                    var tag = t.GetComponent<FontScaleTag>(); if (tag == null) tag = t.gameObject.AddComponent<FontScaleTag>();
+                    if (!tag.captured) { tag.baseSize = t.fontSize; tag.captured = true; }
+                    float target = Mathf.Max(1f, tag.baseSize * scale);
+                    if (!Mathf.Approximately(t.fontSize, target)) t.fontSize = target;
                 }
         }
     }
