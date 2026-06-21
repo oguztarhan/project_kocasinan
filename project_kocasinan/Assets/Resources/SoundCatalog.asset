@@ -13,13 +13,59 @@ MonoBehaviour:
   m_Name: SoundCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.SoundCatalog
   vehicleSlidesOutOfJam: {fileID: 8300000, guid: d3029964605b6ea4b922db5de4238dc7, type: 3}
+  vehicleSlidesOutVolume: 0.177
   vehicleArrivesAtStop: {fileID: 0}
+  vehicleArrivesAtStopVolume: 1
   fullBusDrivesAway: {fileID: 8300000, guid: fc27302523570bb46b60da774222c370, type: 3}
+  fullBusDrivesAwayVolume: 0.55
   vehicleBlockedCrash: {fileID: 8300000, guid: 0e4cd773938b3a04897599e839e51280, type: 3}
+  vehicleBlockedCrashVolume: 1
   passengerBoardsBus: {fileID: 8300000, guid: 0d5d08302d7df2249b85edccdd8bd8f8, type: 3}
+  passengerBoardsBusVolume: 0.9
   coinReward: {fileID: 0}
+  coinRewardVolume: 1
   invalidActionError: {fileID: 0}
+  invalidActionErrorVolume: 0.9
   levelComplete: {fileID: 8300000, guid: 0a0e8b885d9f9dd499855f6df42e9259, type: 3}
+  levelCompleteVolume: 1
   levelFailed: {fileID: 8300000, guid: a3fb2372885abb34d8b18aa9006ac8c7, type: 3}
+  levelFailedVolume: 1
   uiButtonClick: {fileID: 8300000, guid: ec80bd99efb6c8a488d1aac44cd46679, type: 3}
+  uiButtonClickVolume: 0.7
+  menuMusic: {fileID: 8300000, guid: f8b3e92997768b542ac01071dd0c6118, type: 3}
+  menuMusicVolume: 0.5
+  themeMusic:
+  - theme: Park
+    music: {fileID: 8300000, guid: 3b90f9651b44cf144a28edf09df6b183, type: 3}
+    volume: 0.5
+  - theme: City
+    music: {fileID: 8300000, guid: 3859651a54f4611409c8261b3bdb24b7, type: 3}
+    volume: 0.5
+  - theme: Candy
+    music: {fileID: 8300000, guid: 8b38efb18c0bf9d4e9f589924f815583, type: 3}
+    volume: 0.5
+  - theme: Forest
+    music: {fileID: 8300000, guid: dd2ab9c7dbd54014f8e026142815cd32, type: 3}
+    volume: 0.5
+  - theme: Sunset
+    music: {fileID: 8300000, guid: 6fea2099066855e48a89096564c07d68, type: 3}
+    volume: 0.5
+  - theme: Beach
+    music: {fileID: 8300000, guid: 64f40ee5c67300245841055ecdbd866b, type: 3}
+    volume: 0.5
+  - theme: Desert
+    music: {fileID: 8300000, guid: e19b60fe79d954c4fad1580a3e512e63, type: 3}
+    volume: 0.5
+  - theme: Snow
+    music: {fileID: 8300000, guid: 7a71e84fdf816134dba1c0affec18236, type: 3}
+    volume: 0.5
+  - theme: Night
+    music: {fileID: 8300000, guid: 5d0925e49b956304b98565249ca64ee7, type: 3}
+    volume: 0.5
+  - theme: Autumn
+    music: {fileID: 8300000, guid: 6fea2099066855e48a89096564c07d68, type: 3}
+    volume: 0.5
+  - theme: Bonus
+    music: {fileID: 8300000, guid: 5d0925e49b956304b98565249ca64ee7, type: 3}
+    volume: 0.5
   volume: 1
