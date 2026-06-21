@@ -437,6 +437,17 @@ namespace BusJam
             return list;
         }
 
+        // The vehicle's L BODY cells ONLY (the thin line along its axis) — NO swept corner cells. A tilted
+        // (diagonal) vehicle's real body is a thin 45° strip that does NOT fill the staircase corners, so MOVEMENT
+        // clearance uses this (a diagonal car only needs its own lane, not the corner a neighbour merely touches in
+        // the grid). Placement still uses the thick OccCells so nothing ever SPAWNS overlapping. Cardinal: identical.
+        public static List<Vector2Int> OccBodyCells(Vector2Int cell, Vector2Int dir, int L)
+        {
+            var list = new List<Vector2Int>(L);
+            for (int i = 0; i < L; i++) list.Add(cell - dir * i);
+            return list;
+        }
+
         // All occupied cells of the placed vehicle are in-grid and free.
         static bool BodyFree(Vector2Int anchor, Vector2Int dir, int L, HashSet<Vector2Int> occ, int W, int H)
         {
@@ -461,7 +472,7 @@ namespace BusJam
             while (true)
             {
                 var next = p + dir;
-                if (diag) // corner-sweep: the rotated body clips a diagonally-adjacent occupied cell
+                if (diag) // corner-sweep: the rotated body clips a diagonally-adjacent occupied cell, so it can't drive THROUGH it
                 {
                     var ca = new Vector2Int(next.x, p.y);
                     var cb = new Vector2Int(p.x, next.y);
@@ -469,7 +480,7 @@ namespace BusJam
                     if (InG(cb) && !own.Contains(cb) && occupied(cb)) return false;
                 }
                 bool anyInGrid = false;
-                foreach (var c in OccCells(next, dir, L))
+                foreach (var c in OccCells(next, dir, L)) // FULL footprint (incl. swept corners) must be clear -> a diagonal body never meshes into a neighbour while it drives
                 {
                     if (!InG(c)) continue;
                     anyInGrid = true;

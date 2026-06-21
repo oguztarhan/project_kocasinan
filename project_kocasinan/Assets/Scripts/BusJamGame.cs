@@ -141,6 +141,7 @@ namespace BusJam
         // Freed the moment the bus clears the jam (z >= RoadZ). Helicopter is exempt (flies over, never reserves).
         readonly Dictionary<Vector2Int, Bus> reservedByMoving = new Dictionary<Vector2Int, Bus>();
         Bus gridDriver; // the ONE bus currently driving ACROSS the jam — serialized so two exiting vehicles can never mesh
+        int exitSeqCounter; // monotonic -> Bus.exitSeq: earlier exits get a lower number = right-of-way for the anti-overlap yield
         readonly List<Bus> gridBuses = new List<Bus>();
         readonly List<Bus> liveBuses = new List<Bus>(); // EVERY vehicle this level (jam + in-flight + parked) — scanned each frame to drive the engine sound
         // Per (pack material, color) instance with "Main Color 1" (_Color01) driven to the match color.
@@ -359,13 +360,21 @@ namespace BusJam
         {
             if (bus.state != BusState.Queued) return; // already leaving / parked / mid-crawl
 
-            // occ (jammed vehicles) PLUS the live corridors of in-flight exiting buses — so a tap never starts an
-            // exit whose lane crosses a bus that's still driving across the jam.
-            System.Func<Vector2Int, bool> blocked = c => Blocked(c, bus);
-            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, blocked, gridW, gridH);
-            var slot = laneClear ? NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) : null;
+            System.Func<Vector2Int, bool> blocked    = c => Blocked(c, bus);                              // jam + in-flight corridors (used for the crawl below)
+            System.Func<Vector2Int, bool> jamBlocked = c => occ.TryGetValue(c, out var ob) && ob != bus; // jam vehicles ONLY
+            // Leave as soon as the JAM ahead is clear. A moving vehicle ahead is fine — we slide out RIGHT BEHIND it,
+            // grounded, and the per-vehicle yield keeps us from ever touching it. No waiting for it to park; the exit
+            // routine slides (never lifts/flies) because it tests the SAME jam-only clearance.
+            bool jamClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, jamBlocked, gridW, gridH);
+            // Real-body physics only helps SHORT vehicles (cars): a long diagonal BUS's capsule already reaches into its
+            // neighbours' cells at rest, so the body check can't tell "sliding away" from "sliding past a vehicle it
+            // already overlaps" and it meshes. So diagonal BUSES fall back to the exact grid and exit the SAME way every
+            // other vehicle does (the thick footprint never meshes). Diagonal CARS keep the body check.
+            bool isDiag = bus.dir.x != 0 && bus.dir.y != 0;
+            bool canExit = jamClear || (isDiag && bus.length == 1 && BodySlideClear(bus));
+            var slot = canExit ? NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) : null;
 
-            if (laneClear && slot != null)
+            if (canExit && slot != null)
             {
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
@@ -390,6 +399,8 @@ namespace BusJam
         IEnumerator ExitRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
+            bus.exitSeq = exitSeqCounter++; // right-of-way order: this vehicle yields to everyone who started before it
+
             // Hold our own footprint immediately: occ was freed at the tap (237) but we still physically sit here
             // while planning/waiting below — keep us visible to other buses' paths until we actually move off.
             ReserveCorridor(bus, new List<Vector2Int> { bus.cell });
@@ -411,7 +422,10 @@ namespace BusJam
             // STILL clear (re-checked — a crawl may have moved during our serialize wait) we SLIDE STRAIGHT out
             // along it (linear move — NO spline bow, NO rotation inside the jam, so the body can't enter/sweep an
             // occupied cell), then drive to the slot through OPEN space only (above the jam, or around its side).
-            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, c => Blocked(c, bus), gridW, gridH);
+            // JAM-only clearance (a moving vehicle ahead is NOT a blocker — we slide out behind it, grounded, and yield).
+            // So a follow-out vehicle SLIDES instead of taking the lift-over branch below, which is the "flies not drives" bug.
+            bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, c => occ.TryGetValue(c, out var ob) && ob != bus, gridW, gridH)
+                             || ((bus.dir.x != 0 && bus.dir.y != 0) && bus.length == 1 && BodySlideClear(bus)); // diagonal CAR whose REAL body has a clear slide -> glide out grounded; buses use the grid like everyone else
             if (laneClear)
             {
                 int maxSteps = ExitDistance(bus.cell, bus.dir) + bus.length;              // full slide that clears the board (upper bound)
@@ -425,7 +439,7 @@ namespace BusJam
                     float halfLen = bus.length * 0.55f;                          // body half-length (world)
                     float deepestZ = ParkingZ;
                     foreach (var kv in occ) { float z = CellWorld(kv.Key).z; if (z < deepestZ) deepestZ = z; }
-                    float underZ = deepestZ - (halfLen + 0.45f);                 // just below the deepest jammed vehicle
+                    float underZ = deepestZ - (halfLen + 0.9f);                  // FULLY below the deepest jammed vehicle (its cell bottom is ~half a cell under its centre) so the sideways move never clips the jam — esp. for long buses
                     underZ = Mathf.Max(underZ, ScreenFloorZ + halfLen + 0.25f);  // ...but the near edge stays on-screen
                     int need = Mathf.CeilToInt((bus.transform.position.z - underZ) / CellSize);
                     clearSteps = Mathf.Clamp(need, 1, maxSteps);
@@ -441,22 +455,39 @@ namespace BusJam
                 var lane = new List<Vector2Int>();
                 for (int s = 0; s <= clearSteps; s++) lane.Add(bus.cell + bus.dir * s);
                 ReserveCorridor(bus, lane);                                               // hold the straight lane (a crawling vehicle can't enter it)
+                bool diagBus = bus.dir.x != 0 && bus.dir.y != 0 && bus.length >= 2;       // long diagonal body: keep the 45° angle and leave via the side lane (never bend through the jam)
                 Vector3 clearPt = bus.transform.position + new Vector3(bus.dir.x, 0, -bus.dir.y) * (clearSteps * CellSize);
-                clearPt = OnScreenX(clearPt, 1.0f);                                       // never slide the body off the SIDE of the screen (fixes deep sideways exits too)
-                float slideDur = Vector3.Distance(bus.transform.position, clearPt) / Mathf.Max(gameSettings.busDriveSpeed, 1f);
-                yield return MoveTo(bus.transform, clearPt, slideDur);                    // STRAIGHT slide along the clear lane (no bow/rotation in the jam)
+                if (diagBus)
+                {
+                    // Clamping clearPt.x would BEND the 45° slide steeper than the body faces, so the long body sweeps
+                    // sideways into a neighbour (the "drives into the jam" bug). Instead SHORTEN the slide along the true
+                    // 45° lane until it's on-screen — the body stays on its grid-clear diagonal lane and simply stops at
+                    // the on-screen side edge, then rises out the side lane below.
+                    Vector3 dn = new Vector3(bus.dir.x, 0, -bus.dir.y).normalized;
+                    Vector3 sp0 = bus.transform.position;
+                    float dist = Vector3.Distance(sp0, clearPt);
+                    while (dist > CellSize && Mathf.Abs((sp0 + dn * dist).x) > VisHalfW((sp0 + dn * dist).z) - 1.0f) dist -= CellSize * 0.5f;
+                    clearPt = sp0 + dn * dist;
+                }
+                else
+                    clearPt = OnScreenX(clearPt, 1.0f);                                   // never slide the body off the SIDE of the screen (fixes deep sideways exits too)
+                yield return MoveToYield(bus, clearPt, gameSettings.busDriveSpeed);       // STRAIGHT slide; HOLDS for a leader it's following out (no bow/rotation in the jam)
 
                 float slotX = SlotX(slot.index);
                 // ---- Phase 1: drive ONTO the road (no final bay commitment yet) ----
                 var toRoad = new List<Vector3>();
-                if (away)
+                // A diagonal BUS that didn't fully clear the jam top (it stopped at the on-screen side edge) rises out
+                // the SIDE lane on the side it's ALREADY on, so it drives to the stops FROM THE SIDE and never crosses
+                // back over the jam. (If it did clear the top, it just comes onto the road like a normal toward exit.)
+                bool sideRoute = away || (diagBus && clearPt.z < GridExitZ + 0.3f);
+                if (sideRoute)
                 {
                     // Rise hugging the on-screen side LANE up to the ROAD. Both side lanes sit OUTSIDE the jam (the
-                    // ~25% zoom-out opened them), so either is grounded + collision-free — rise on the side TOWARD the
-                    // (provisional) bay so it heads to its closest stop instead of crossing the whole road back.
-                    float side = (slotX >= clearPt.x) ? 1f : -1f;
+                    // ~25% zoom-out opened them), so either is grounded + collision-free. Away exits pick the side
+                    // toward the bay; a diagonal bus rises on the side it slid out to (its own x) so it stays clear.
+                    float side = diagBus ? (clearPt.x >= 0f ? 1f : -1f) : (slotX >= clearPt.x ? 1f : -1f);
                     const float M = 1.0f;                                        // body half-width + spline-bow + safety
-                    toRoad.Add(new Vector3(side * (VisHalfW(clearPt.z) - M), 0, clearPt.z)); // out to the on-screen side lane (below the jam)
+                    toRoad.Add(new Vector3(side * (VisHalfW(clearPt.z) - M), 0, clearPt.z)); // out to the on-screen side lane
                     for (float z = clearPt.z + 1.6f; z < RoadZ; z += 1.6f)
                         toRoad.Add(new Vector3(side * (VisHalfW(z) - M), 0, z));  // rise hugging the side lane (gentle, slow turn)
                     toRoad.Add(new Vector3(side * (VisHalfW(RoadZ) - M), 0, RoadZ));
@@ -488,7 +519,7 @@ namespace BusJam
                     // came onto the road (its real x on the road — NOT its old jam cell), then pull straight in. So a
                     // vehicle that emerges on the LEFT (e.g. an away exit that rose up the left lane, or a leftward
                     // sideways slide) stops at the closest LEFT bay instead of crossing the whole road to a right one.
-                    yield return DrivePath(bus.transform, toRoad, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                    yield return DrivePathYield(bus, toRoad, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
                     float roadX = bus.transform.position.x;              // where it really is on the road
                     slot = NearestSlotToRoad(bus, slot, roadX);          // keeps its reserved bay only if it's still the closest
                     slotX = SlotX(slot.index);
@@ -497,7 +528,7 @@ namespace BusJam
                         OnScreenX(new Vector3(slotX, 0, RoadZ), 1.0f),     // along the open road to the bay's x
                         OnScreenX(new Vector3(slotX, 0, ParkingZ), 1.0f),  // pull up into the bay
                     };
-                    yield return DrivePath(bus.transform, toBay, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
+                    yield return DrivePathYield(bus, toBay, gameSettings.busDriveSpeed, gameSettings.turnSmoothness);
                 }
             }
             else
@@ -619,9 +650,12 @@ namespace BusJam
                 float move = Mathf.Max(speed, 0.01f) * Time.deltaTime;
                 while (idx < s.Count - 1 && move > 0f)
                 {
-                    float d = Vector3.Distance(bus.transform.position, s[idx + 1]);
-                    if (d <= move) { move -= d; bus.transform.position = s[idx + 1]; idx++; }
-                    else { bus.transform.position = Vector3.MoveTowards(bus.transform.position, s[idx + 1], move); break; }
+                    Vector3 target = s[idx + 1];
+                    float d = Vector3.Distance(bus.transform.position, target);
+                    Vector3 cand = (d <= move) ? target : Vector3.MoveTowards(bus.transform.position, target, move);
+                    if (WouldOverlapPeer(bus, cand)) break;   // hold for a right-of-way peer (concurrent exits never overlap)
+                    if (d <= move) { move -= d; bus.transform.position = target; idx++; }
+                    else { bus.transform.position = cand; break; }
                 }
                 Vector3 look = s[Mathf.Min(idx + 1, s.Count - 1)] - bus.transform.position;
                 if (look.sqrMagnitude > 1e-5f)
@@ -660,13 +694,10 @@ namespace BusJam
         void ReserveCorridor(Bus bus, List<Vector2Int> cells)
         {
             foreach (var c in cells)
-                foreach (var fc in LevelGenerator.OccCells(c, bus.dir, bus.length))
+                foreach (var fc in LevelGenerator.OccCells(c, bus.dir, bus.length)) // FULL footprint — matches the (thick) movement clearance, so a moving vehicle's reservation never disagrees with what it drives through
                 {
                     if (CellWorld(fc).z >= RoadZ) continue; // only the contested jam corridor
-#if UNITY_EDITOR
-                    if (reservedByMoving.TryGetValue(fc, out var ex) && ex != bus)
-                        Debug.LogError($"[OccOverlap] reserving {fc} for {bus.name} but already held by {(ex ? ex.name : "?")}");
-#endif
+                    if (reservedByMoving.TryGetValue(fc, out var ex) && ex != null && ex != bus) continue; // FOLLOW-OUT: leave a cell the leader still holds; the per-vehicle yield keeps us apart (this is why the old [OccOverlap] LogError is gone)
                     reservedByMoving[fc] = bus;
                 }
         }
@@ -2346,6 +2377,180 @@ namespace BusJam
         // the nose toward the travel tangent (`turnLerp` = how lazily it steers; lower is more gradual). ONE
         // continuous motion: corners are ROUNDED, so there is no per-waypoint stop and turns are car-like sweeps,
         // not 90° snaps. Model nose = local -Z, so the yaw points -Z along the tangent.
+        // ---- Anti-overlap for concurrent on-road exits ("move together, never touch") -------------------------
+        // True if moving THIS exiting vehicle to `pos` would bring its body within touching distance of another
+        // IN-FLIGHT vehicle that has the right-of-way (a LOWER exitSeq = started earlier). Each vehicle is a
+        // CAPSULE — its true body SEGMENT (centre +/- forward*(halfLen-halfW)) plus a halfW radius — and we test
+        // the real segment-to-segment distance. (The old centre-lozenge over-covered a long bus's DIAGONAL corners,
+        // which falsely pinned a car sitting BESIDE a perpendicular bus's END until the bus moved — the "parallel
+        // cross" bug.) Yielding ONLY to lower-seq peers means the earliest mover is never blocked -> never deadlocks.
+        bool WouldOverlapPeer(Bus bus, Vector3 pos)
+        {
+            const float halfW = 0.42f, buffer = 0.18f;
+            Vector3 mf = bus.transform.forward; mf.y = 0f;
+            mf = mf.sqrMagnitude < 1e-6f ? Vector3.forward : mf.normalized;
+            float myHalf = Mathf.Max(0f, LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f - halfW); // capsule core half-length
+            Vector2 myC = new Vector2(pos.x, pos.z), myD = new Vector2(mf.x, mf.z) * myHalf;
+            Vector2 myA = myC - myD, myB = myC + myD;
+            float rad = halfW + halfW + buffer;
+            for (int i = 0; i < liveBuses.Count; i++)
+            {
+                var o = liveBuses[i];
+                if (o == null || o == bus || o.state != BusState.MovingToSlot) continue; // only OTHER in-flight exiters
+                if (o.exitSeq >= bus.exitSeq) continue;                                   // yield only to earlier (right-of-way) peers
+                Vector3 of = o.transform.forward; of.y = 0f;
+                of = of.sqrMagnitude < 1e-6f ? Vector3.forward : of.normalized;
+                float oHalf = Mathf.Max(0f, LowPolyBuilder.VehicleLength(o.type, CellSize) * 0.5f - halfW);
+                Vector3 op = o.transform.position;
+                Vector2 oC = new Vector2(op.x, op.z), oD = new Vector2(of.x, of.z) * oHalf;
+                if (Seg2SegSqXZ(myA, myB, oC - oD, oC + oD) < rad * rad) return true;
+            }
+            return false;
+        }
+
+        // Squared closest distance between 2D segments [p1,q1] and [p2,q2] (Ericson, Real-Time Collision Detection).
+        static float Seg2SegSqXZ(Vector2 p1, Vector2 q1, Vector2 p2, Vector2 q2)
+        {
+            Vector2 d1 = q1 - p1, d2 = q2 - p2, r = p1 - p2;
+            float a = Vector2.Dot(d1, d1), e = Vector2.Dot(d2, d2), f = Vector2.Dot(d2, r);
+            float s, t;
+            if (a <= 1e-7f && e <= 1e-7f) return Vector2.Dot(r, r);   // both degenerate to points
+            if (a <= 1e-7f) { s = 0f; t = Mathf.Clamp01(f / e); }     // first is a point
+            else
+            {
+                float c = Vector2.Dot(d1, r);
+                if (e <= 1e-7f) { t = 0f; s = Mathf.Clamp01(-c / a); } // second is a point
+                else
+                {
+                    float b = Vector2.Dot(d1, d2);
+                    float denom = a * e - b * b;
+                    s = denom > 1e-7f ? Mathf.Clamp01((b * f - c * e) / denom) : 0f;
+                    t = (b * s + f) / e;
+                    if (t < 0f) { t = 0f; s = Mathf.Clamp01(-c / a); }
+                    else if (t > 1f) { t = 1f; s = Mathf.Clamp01((b - c) / a); }
+                }
+            }
+            Vector2 c1 = p1 + d1 * s, c2 = p2 + d2 * t;
+            return (c1 - c2).sqrMagnitude;
+        }
+
+        // REAL tilted-body clearance for DIAGONAL vehicles. The square grid can't represent a 45° body: its corner
+        // cells either over-cover (false "won't move") or under-cover (drives THROUGH a neighbour = meshing). So for a
+        // diagonal vehicle we ignore the grid and ask the actual question: can its capsule body slide along its arrow,
+        // all the way off-board, WITHOUT ever overlapping a STATIC jam vehicle's capsule? True => a genuine gap exists
+        // (let it out); false => something is really in the way (don't). In-flight peers are handled separately by
+        // WouldOverlapPeer while driving. halfW/buffer are the same body size used there, and are the tuning knobs.
+        bool BodySlideClear(Bus bus)
+        {
+            // Follow the EXACT exit slide line (same geometry ExitRoutine uses, incl. the on-screen x-clamp that can BEND
+            // the path through the jam) so we test what the body actually sweeps, not an idealized 45° line.
+            int maxSteps = ExitDistance(bus.cell, bus.dir) + bus.length;
+            int clearSteps = maxSteps;
+            float halfLen = bus.length * 0.55f;
+            if (bus.dir.y > 0) // away from the stops
+            {
+                float deepestZ = ParkingZ;
+                foreach (var kv in occ) { float z = CellWorld(kv.Key).z; if (z < deepestZ) deepestZ = z; }
+                float underZ = Mathf.Max(deepestZ - (halfLen + 0.9f), ScreenFloorZ + halfLen + 0.25f);
+                clearSteps = Mathf.Clamp(Mathf.CeilToInt((bus.transform.position.z - underZ) / CellSize), 1, maxSteps);
+            }
+            else if (bus.dir.y < 0) // toward the stops
+                clearSteps = Mathf.Clamp(Mathf.CeilToInt((GridExitZ + halfLen + 0.5f - bus.transform.position.z) / CellSize), 1, maxSteps);
+            Vector3 sp = bus.transform.position;
+            Vector3 endPt = OnScreenX(sp + new Vector3(bus.dir.x, 0f, -bus.dir.y) * (clearSteps * CellSize), 1.0f);
+            Vector2 seg = new Vector2(endPt.x - sp.x, endPt.z - sp.z);
+            float slideDist = seg.magnitude;
+            if (slideDist < 1e-3f) return true;
+            Vector2 wd = seg / slideDist; // ACTUAL slide direction (after the clamp)
+            const float halfW = 0.42f, buffer = 0.18f;
+            float rad2 = (halfW + halfW + buffer) * (halfW + halfW + buffer);
+            Vector3 mf = bus.transform.forward; mf.y = 0f;
+            mf = mf.sqrMagnitude < 1e-6f ? new Vector3(wd.x, 0f, wd.y) : mf.normalized;
+            float myHalf = Mathf.Max(0f, LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f - halfW);
+            Vector2 mfd = new Vector2(mf.x, mf.z) * myHalf;
+            Vector2 start = new Vector2(sp.x, sp.z);
+            float maxDist = slideDist + bus.length * CellSize; // a little past the endpoint so the whole body clears
+            float stepLen = CellSize * 0.2f; // fine enough that a glancing pass can't slip between samples
+            for (int i = 0; i < liveBuses.Count; i++)
+            {
+                var o = liveBuses[i];
+                if (o == null || o == bus) continue;
+                if (o.state != BusState.Queued && o.state != BusState.Staging) continue; // only STATIC jam vehicles
+                Vector3 op = o.transform.position; Vector2 oC = new Vector2(op.x, op.z);
+                Vector3 of = o.transform.forward; of.y = 0f;
+                of = of.sqrMagnitude < 1e-6f ? Vector3.forward : of.normalized;
+                float oHalf = Mathf.Max(0f, LowPolyBuilder.VehicleLength(o.type, CellSize) * 0.5f - halfW);
+                Vector2 oD = new Vector2(of.x, of.z) * oHalf;
+                Vector2 oA = oC - oD, oB = oC + oD;
+                // DRIVING INTO o == the body overlaps o AND is CLOSER to o than it was at the start. A beside/behind
+                // neighbour (even a packed one we're touching) only gets FARTHER as we slide away, so it never trips
+                // this -> ignored correctly, with NO first-step shortcut that could skip a vehicle we pass close to.
+                float dist0sq = Seg2SegSqXZ(start - mfd, start + mfd, oA, oB);
+                for (float d = stepLen; d <= maxDist; d += stepLen)
+                {
+                    Vector2 myC = start + wd * d;
+                    float dsq = Seg2SegSqXZ(myC - mfd, myC + mfd, oA, oB);
+                    if (dsq < rad2 && dsq < dist0sq - 1e-4f) return false;  // overlapping AND closer than at the start = meshing into it
+                    if (Vector2.Dot(oC - myC, wd) < -CellSize * 2f) break;  // slid well past it; stop checking this one
+                }
+            }
+            return true;
+        }
+
+        // Same spline follower as DrivePath, but it HOLDS position any frame its next step would touch a
+        // right-of-way peer. Used for the on-road drive, where there's no grid corridor to reserve.
+        IEnumerator DrivePathYield(Bus bus, List<Vector3> pts, float speed, float turnLerp)
+        {
+            if (bus == null || pts == null || pts.Count == 0) yield break;
+            var t = bus.transform;
+            var c = new List<Vector3>(pts.Count + 1) { t.position };
+            c.AddRange(pts);
+            if (c.Count < 2) yield break;
+            Vector3 C(int i) => c[Mathf.Clamp(i, 0, c.Count - 1)];
+            var s = new List<Vector3> { c[0] };
+            for (int i = 0; i < c.Count - 1; i++)
+            {
+                int n = Mathf.Max(2, Mathf.CeilToInt(Vector3.Distance(C(i), C(i + 1)) / 0.1f));
+                for (int k = 1; k <= n; k++) s.Add(CatmullRom(C(i - 1), C(i), C(i + 1), C(i + 2), k / (float)n));
+            }
+            int idx = 0;
+            while (idx < s.Count - 1)
+            {
+                if (bus == null) yield break;
+                float move = Mathf.Max(speed, 0.01f) * Time.deltaTime;
+                while (idx < s.Count - 1 && move > 0f)
+                {
+                    Vector3 target = s[idx + 1];
+                    float d = Vector3.Distance(t.position, target);
+                    Vector3 cand = (d <= move) ? target : Vector3.MoveTowards(t.position, target, move);
+                    if (WouldOverlapPeer(bus, cand)) break;          // a right-of-way peer is in the way -> hold this frame
+                    if (d <= move) { move -= d; t.position = target; idx++; }
+                    else { t.position = cand; break; }
+                }
+                Vector3 look = s[Mathf.Min(idx + 1, s.Count - 1)] - t.position;
+                if (look.sqrMagnitude > 1e-5f)
+                    t.rotation = Quaternion.Slerp(t.rotation, Quaternion.Euler(0, Mathf.Atan2(-look.x, -look.z) * Mathf.Rad2Deg, 0),
+                                                  1f - Mathf.Exp(-turnLerp * Time.deltaTime));
+                yield return null;
+            }
+            if (bus != null) t.position = s[s.Count - 1];
+        }
+
+        // Straight slide (no rotation, no spline) that HOLDS when its next step would touch a right-of-way peer — so a
+        // follower can trail the vehicle ahead out of the jam without rear-ending it.
+        IEnumerator MoveToYield(Bus bus, Vector3 target, float speed)
+        {
+            if (bus == null) yield break;
+            var t = bus.transform;
+            while (bus != null && (t.position - target).sqrMagnitude > 1e-4f)
+            {
+                Vector3 cand = Vector3.MoveTowards(t.position, target, Mathf.Max(speed, 0.01f) * Time.deltaTime);
+                if (!WouldOverlapPeer(bus, cand)) t.position = cand;   // else hold this frame
+                yield return null;
+            }
+            if (bus != null) t.position = target;
+        }
+
         static IEnumerator DrivePath(Transform t, List<Vector3> pts, float speed, float turnLerp = 6f)
         {
             if (t == null || pts == null || pts.Count == 0) yield break;
