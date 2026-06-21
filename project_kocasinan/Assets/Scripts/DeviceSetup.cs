@@ -23,15 +23,23 @@ namespace BusJam
             QualitySettings.vSyncCount = 0;      // don't gate on the display refresh; let targetFrameRate drive the cap
             Application.targetFrameRate = 60;     // steady 60 on every capable device
 
-            // Low-end phones (< 3 GB RAM — the same heuristic gameplay uses for `lowEnd`) are usually GPU/fill-rate
-            // bound at native resolution (e.g. 1080x2400 ≈ 2.6M px). Rendering at ~85% keeps the framebuffer light
-            // enough to hold 60 while the screen still fills edge-to-edge. No effect on capable devices or the editor.
-            if (Application.isMobilePlatform && SystemInfo.systemMemorySize < 3072)
+            // FILL-RATE is the #1 reason a modern phone misses 60: a 1440p panel is ~4.3M px, and with MSAA + post
+            // a mid GPU can't finish a frame in 16 ms, so Android Frame Pacing halves it to a locked 30. A low-poly
+            // cartoon game looks crisp at ~1080p, so cap the SHORT side to 1080 on EVERY phone (aspect kept — the UI
+            // still fills the screen edge-to-edge, only the pixel count drops). Low-RAM phones trim a touch more.
+            // This is the single biggest 60-fps win on high-DPI devices; no effect on 1080p-or-lower phones or editor.
+            if (Application.isMobilePlatform)
             {
-                const float scale = 0.85f;
-                int w = Mathf.RoundToInt(Screen.width * scale);
-                int h = Mathf.RoundToInt(Screen.height * scale);
-                if (w > 0 && h > 0) Screen.SetResolution(w, h, true);
+                float scale = 1f;
+                int shortSide = Mathf.Min(Screen.width, Screen.height);
+                if (shortSide > 1080) scale = 1080f / shortSide;          // downscale only high-DPI panels
+                if (SystemInfo.systemMemorySize < 3072) scale *= 0.85f;   // weak/low-RAM phones go a bit lighter still
+                if (scale < 0.999f)
+                {
+                    int w = Mathf.RoundToInt(Screen.width * scale);
+                    int h = Mathf.RoundToInt(Screen.height * scale);
+                    if (w > 0 && h > 0) Screen.SetResolution(w, h, true);
+                }
             }
         }
     }
