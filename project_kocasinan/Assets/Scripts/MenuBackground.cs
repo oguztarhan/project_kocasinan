@@ -54,7 +54,7 @@ namespace BusJam
         static readonly Color WinDay = Hex("#CFF0FF"), WinDay2 = Hex("#A9DCF2"), Wheel = Hex("#23262e"), Hub = Hex("#cfd2da"), Headlight = Hex("#FFE9B0"), Taillight = Hex("#FF5B5B");
 
         // ---------- render targets ----------
-        const float BandTopF = 0.52f, BandBotF = 0.71f;   // the road/traffic band (canvas-down) the dynamic layer covers
+        const float BandTopF = 0.59f, BandBotF = 0.97f;   // v1: road/traffic band fills the lower screen (lanes at 0.70 & 0.88)
         RawImage staticImg, dynImg;
         Texture2D staticTex, dynTex;
         Sprite shipSprite;                // the boat (HTML ship()) — rasterised once, slid + bobbed by MenuShip
@@ -65,11 +65,25 @@ namespace BusJam
         GameObject oldBackground;
 
         // ---------- scene geometry (HTML geo()) ----------
-        float horizonY, seaBot, roadTop, roadBot, sunX, sunY;
+        float horizonY, seaBot, roadTop, roadBot, sunX, sunY, swFeet, panelTop, busXf;
 
         class Veh { public float x, len; public bool bus; public Color col; }
         class Lane { public float y, S, baseSpd, gap, ph; public List<Veh> V; }
         List<Lane> lanes;
+
+        // ---- HTML v3_family: animated sidewalk crowd (a 2nd dynamic band over the boardwalk) ----
+        const float PplTopF = 0.49f, PplBotF = 0.63f;
+        RawImage peopleImg; Texture2D peopleTex; Color[] ppl;
+        int Wp, Hp; float dsP, bandTopPxP, SPDK;
+        class Ped { public float x, y, S, dir, ph, pace, spd; public Color col, skin, hair; }
+        class Waiter { public Color col, skin, hair; public float ph, dir; }
+        List<Ped> peds; List<Waiter> waiters;
+        float dogX, dogDir, dogPh, dogSpd; Color dogCol; bool hasDog;
+        float _fx, _fy, _fs, _fdir, _frot, _frotCy; bool _frotOn;   // figure-local -> world transform (mirrors the canvas matrix)
+        static readonly Color[] SKN = { Hex("#F2C49B"), Hex("#E7B488"), Hex("#C98D60"), Hex("#9B6A45"), Hex("#F0CBA8") };
+        static readonly Color[] HRC = { Hex("#34261B"), Hex("#1C1A19"), Hex("#5A3B22"), Hex("#C9A24B"), Hex("#6E6E6E"), Hex("#2A2A2A") };
+        static readonly Color[] CLOTH = { Hex("#FF8FB8"), Hex("#5BA4E8"), Hex("#FFD23F"), Hex("#46AE4A"), Hex("#E8742B"), Hex("#FF6B8A"), Hex("#7AA0F0"), Hex("#C0392B") };
+        static readonly Color[] DGC = { Hex("#8B5E3C"), Hex("#C9A24B"), Hex("#3A3A3A"), Hex("#E8E2D6"), Hex("#A0522D") };
 
         uint rng = 0x1A2B3C4D;
         float Rnd() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (rng & 0xFFFFFF) / 16777215f; }
@@ -94,8 +108,9 @@ namespace BusJam
             Hs = Mathf.Clamp(Mathf.RoundToInt(Ws * (float)Screen.height / Mathf.Max(1, Screen.width)), 1000, 2400);
             DPR = Ws / 390f;
             M = Mathf.Min(Ws, Hs);
-            horizonY = Hs * 0.40f; seaBot = Hs * 0.55f; roadTop = Hs * 0.575f; roadBot = Hs;   // soft variant: road fills to the bottom
-            sunX = Ws * 0.30f; sunY = Hs * 0.385f;
+            horizonY = Hs * 0.38f; seaBot = Hs * 0.52f; roadTop = Hs * 0.62f; roadBot = Hs;   // v1: road + traffic fill the bottom again
+            panelTop = Hs * 0.70f; swFeet = Hs * 0.61f; busXf = Ws * 0.70f;                    // the family walks a seafront PROMENADE between sea and road
+            sunX = Ws * 0.30f; sunY = Hs * 0.34f;
 
             statik = new Color[Ws * Hs];
             BuildLanes();
@@ -137,11 +152,15 @@ namespace BusJam
             pgo.transform.SetParent(rootRT, false); Stretch(pgo.GetComponent<RectTransform>());
             var pim = pgo.GetComponent<RawImage>(); pim.raycastTarget = false; pim.texture = fgTex;
 
-            BuildPanel(rootRT);     // soft dark fade over the lower scene (sits ON TOP of the traffic, like the HTML)
-            BuildBokeh(rootRT);     // warm motes drifting up over the dark
+            BuildSidewalk(rootRT);  // v1: promenade props (bus stop + planter + bench + bush), over the palms
+            SetupPeople();          // the walking family + waiting passengers + dog
+            BuildPanel(rootRT);     // soft scrim dimming the road BEHIND the menu buttons (declutters the button area)
+            BuildPeopleBand(rootRT);// their own animated band, on the promenade
+            BuildVignette(rootRT);  // v1: soft dark vignette in the corners (replaces the old dark panel + bokeh)
 
             lastT = Time.unscaledTime;
             DrawDynamic(0f); ApplyDyn();
+            DrawPeople(0f, 0f); ApplyPpl();
         }
 
         void OnDestroy()
@@ -156,6 +175,7 @@ namespace BusJam
             if (acc < 0.033f) return;
             float t = Time.unscaledTime, dt = t - lastT; lastT = t; acc = 0f;
             DrawDynamic(dt); ApplyDyn();
+            DrawPeople(t, dt); ApplyPpl();
         }
 
         void ApplyDyn() { dynTex.SetPixels(dyn); dynTex.Apply(false); }
@@ -167,8 +187,8 @@ namespace BusJam
         {
             lanes = new List<Lane>
             {
-                MkLane(Hs * 0.615f, M * 0.0012f, 18f * DPR),
-                MkLane(Hs * 0.672f, M * 0.0018f, 26f * DPR),
+                MkLane(Hs * 0.70f, M * 0.0020f, 18f * DPR),
+                MkLane(Hs * 0.88f, M * 0.0034f, 32f * DPR),   // ~1.4x bigger so cars/buses read proportional to the people
             };
         }
         Lane MkLane(float y, float S, float baseSpd)
@@ -191,7 +211,7 @@ namespace BusJam
         void BuildStatic()
         {
             for (int i = 0; i < statik.Length; i++) statik[i] = new Color(0, 0, 0, 1);
-            Sky(); Sun(); Clouds(); Sea(); Beach(); Fence(); Road(); LaneDash(); WarmOverlay(); // palms are now a SEPARATE foreground layer (drawn over the ship in Start)
+            Sky(); Sun(); SunBloom(); Clouds(); Sea(); Headland(); Haze(); Beach(); Fence(); Road(); RoadSheen(); LaneDash(); WarmOverlay(); // v1 ambiance; palms are a separate fg layer
             // (the dark bottom fade + bokeh are UGUI layers built in Start, so they sit OVER the moving traffic)
         }
 
@@ -251,13 +271,19 @@ namespace BusJam
         {
             FillRectS(0, (int)seaBot, Ws, (int)(roadTop - seaBot) + 1, BeachCol);
             FillRectS(0, (int)seaBot, Ws, Mathf.Max(1, (int)(4 * DPR)), BeachTop);
+            FillRectS(0, (int)(seaBot + 8 * DPR), Ws, (int)(roadTop - (seaBot + 8 * DPR)), RGBA(0.816f, 0.659f, 0.424f, 0.22f)); // v1 promenade tint
+            Color ps = RGBA(0.588f, 0.439f, 0.290f, 0.22f);
+            for (float x = -Ws * 0.1f; x <= Ws * 1.1f; x += Ws * 0.06f)
+                LineS(x, seaBot + 8 * DPR, x + (x - Ws / 2f) * 0.05f, roadTop, 1.6f * DPR, ps);     // perspective seams toward the road
         }
 
-        void Fence()
+        void Fence()   // v1: a seafront railing along the promenade edge (replaces the old fence)
         {
-            FillRectS(0, (int)(seaBot + 5 * DPR), Ws, Mathf.Max(1, (int)(3 * DPR)), FenceRail);
-            int postH = (int)(roadTop - (seaBot + 6 * DPR) - 2 * DPR);
-            for (float x = 0; x < Ws; x += Ws * 0.07f) FillRectS((int)x, (int)(seaBot + 6 * DPR), Mathf.Max(1, (int)(3 * DPR)), postH, FencePost);
+            float ry = seaBot + 4f * DPR;
+            FillRectS(0, (int)ry, Ws, Mathf.Max(1, (int)(2.4f * DPR)), RGBA(0.965f, 0.925f, 0.871f, 0.85f));            // top rail
+            FillRectS(0, (int)(ry + 5 * DPR), Ws, Mathf.Max(1, (int)(1.5f * DPR)), RGBA(0.886f, 0.824f, 0.745f, 0.7f)); // lower rail
+            int ph = Mathf.Max(1, (int)(10 * DPR)); Color pc = RGBA(0.925f, 0.878f, 0.808f, 0.8f);
+            for (float x = Ws * 0.02f; x < Ws; x += Ws * 0.05f) FillRectS((int)x, (int)ry, Mathf.Max(1, (int)(2 * DPR)), ph, pc); // posts
         }
 
         // Faithful port of the HTML palm(): 4 palms on the beach, full 8-frond crown, trunk rings, 3 coconuts.
@@ -309,6 +335,123 @@ namespace BusJam
             FillRectS(0, 0, Ws, (int)roadBot, RGBA(1f, 0.588f, 0.314f, 0.06f));   // faint warm wash (approx of additive)
         }
 
+        // ---- v1 ambiance (HTML headland/haze/sun-bloom/road-sheen + a corner vignette) ----
+        void SunBloom() { RadialS(sunX, sunY, Hs * 0.17f, RGBA(1f, 0.949f, 0.804f, 0.33f)); }   // extra warm bloom around the sun
+
+        void Headland()   // two distant promontories at the horizon
+        {
+            PolyS(new[] { new Vector2(-Ws * 0.05f, horizonY + 2 * DPR), new Vector2(Ws * 0.07f, horizonY - Hs * 0.02f), new Vector2(Ws * 0.19f, horizonY - Hs * 0.010f), new Vector2(Ws * 0.30f, horizonY + 2 * DPR) }, RGBA(0.478f, 0.337f, 0.384f, 0.45f));
+            PolyS(new[] { new Vector2(Ws * 0.64f, horizonY + 2 * DPR), new Vector2(Ws * 0.77f, horizonY - Hs * 0.028f), new Vector2(Ws * 0.93f, horizonY - Hs * 0.012f), new Vector2(Ws * 1.06f, horizonY + 2 * DPR) }, RGBA(0.439f, 0.314f, 0.369f, 0.42f));
+        }
+
+        void Haze()   // warm haze band hugging the horizon
+        {
+            int y0 = (int)(horizonY - Hs * 0.05f), y1 = (int)(horizonY + Hs * 0.06f);
+            for (int y = Mathf.Max(0, y0); y < y1 && y < Hs; y++) { float f = (float)(y - y0) / Mathf.Max(1, y1 - y0); float a = (1f - Mathf.Abs(f - 0.5f) * 2f) * 0.26f; if (a > 0f) FillRectS(0, y, Ws, 1, RGBA(1f, 0.808f, 0.588f, a)); }
+        }
+
+        void RoadSheen()   // warm sheen over the road, fading down
+        {
+            int y0 = (int)roadTop, y1 = (int)roadBot;
+            for (int y = Mathf.Max(0, y0); y < y1 && y < Hs; y++) { float f = (float)(y - y0) / Mathf.Max(1, y1 - y0); float a = f < 0.35f ? Mathf.Lerp(0.10f, 0.035f, f / 0.35f) : Mathf.Lerp(0.035f, 0f, (f - 0.35f) / 0.65f); FillRectS(0, y, Ws, 1, RGBA(1f, 0.62f, 0.40f, a)); }
+        }
+
+        // Soft dark vignette in the corners (a radial sprite stretched full-screen) — replaces the old dark panel.
+        void BuildVignette(RectTransform root)
+        {
+            int S = 128; var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var buf = new Color[S * S]; float c = (S - 1) * 0.5f;
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) { float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c; float a = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1.05f, d)) * 0.34f; buf[y * S + x] = new Color(0.122f, 0.047f, 0.094f, a); }
+            tex.SetPixels(buf); tex.Apply(false);
+            var go = new GameObject("Vignette", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(root, false); Stretch(go.GetComponent<RectTransform>());
+            var im = go.GetComponent<Image>(); im.raycastTarget = false; im.type = Image.Type.Simple;
+            im.sprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect);
+        }
+
+        // =====================================================================================
+        //  HTML v3_family — the BOARDWALK + its furniture (bus stop, planter, bench, bush), baked into a layer that
+        //  sits OVER the dark fade (bright foreground, exactly like the HTML draws them after the panel). Static.
+        //  The walking family + dog + waiters are a separate animated band (added later, over this).
+        // =====================================================================================
+        void BuildSidewalk(RectTransform root)
+        {
+            var buf = new Color[Ws * Hs];
+            var keep = statik; statik = buf;     // *S helpers target `statik`; borrow it for this layer, then restore
+            BusStopDraw(busXf, swFeet, M * 0.0016f);                       // v1: props sit on the promenade (no boardwalk)
+            Planter(Ws * 0.13f, swFeet, M * 0.0020f, Hex("#FF8FB8"));
+            Bench(Ws * 0.31f, swFeet, M * 0.0020f);
+            Bush(Ws * 0.50f, swFeet, M * 0.0036f, Hex("#3FA45B"));
+            statik = keep;
+            var tex = new Texture2D(Ws, Hs, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            tex.SetPixels(buf); tex.Apply(false);
+            var go = new GameObject("PromenadeProps", typeof(RectTransform), typeof(RawImage));
+            go.transform.SetParent(root, false); Stretch(go.GetComponent<RectTransform>());
+            var im = go.GetComponent<RawImage>(); im.raycastTarget = false; im.texture = tex;
+        }
+
+        void Boardwalk()
+        {
+            float py0 = roadBot + 13f * DPR, py1 = Hs * 0.93f;
+            FillRectS(0, (int)roadBot, Ws, Mathf.Max(1, (int)(6 * DPR)), Hex("#D8CBBD"));               // curb (light)
+            FillRectS(0, (int)(roadBot + 6f * DPR), Ws, Mathf.Max(1, (int)(7 * DPR)), Hex("#8C7F72"));  // curb (dark)
+            FillRectS(0, (int)py0, Ws, (int)(py1 - py0), Hex("#B9A99B"));                               // boardwalk slab
+            Color seam = RGBA(0.424f, 0.376f, 0.329f, 0.5f);
+            for (float sx = -Ws * 0.1f; sx <= Ws * 1.1f; sx += Ws * 0.07f)
+                LineS(sx, py0, sx + (sx - Ws / 2f) * 0.06f, py1, 2f * DPR, seam);                       // perspective seams
+            FillRectS(0, (int)py0, Ws, (int)(py1 - py0), RGBA(1f, 0.588f, 0.353f, 0.07f));              // warm wash
+        }
+
+        // a thin line in the *S buffer (which has no stroke op), drawn as one quad
+        void LineS(float x0, float y0, float x1, float y1, float w, Color col)
+        {
+            float dx = x1 - x0, dy = y1 - y0, L = Mathf.Sqrt(dx * dx + dy * dy); if (L < 0.001f) return;
+            float px = -dy / L * w * 0.5f, py = dx / L * w * 0.5f;
+            PolyS(new[] { new Vector2(x0 + px, y0 + py), new Vector2(x1 + px, y1 + py), new Vector2(x1 - px, y1 - py), new Vector2(x0 - px, y0 - py) }, col);
+        }
+
+        // HTML busStop(): glass shelter + posts + red roof + bench + a sign post/box, scaled about (cx, feet).
+        void BusStopDraw(float cx, float fy, float S)
+        {
+            void FR(float lx, float ly, float w, float h, Color c) => FillRectS(Mathf.RoundToInt(cx + lx * S), Mathf.RoundToInt(fy + ly * S), Mathf.Max(1, Mathf.RoundToInt(w * S)), Mathf.Max(1, Mathf.RoundToInt(h * S)), c);
+            Vector2 P(float lx, float ly) => new Vector2(cx + lx * S, fy + ly * S);
+            float w = 120f, h = 116f, post = 6f; Color red = Hex("#E1352B");
+            FR(-w / 2 + 8, -h + 8, w - 16, h - 8, RGBA(0.706f, 0.831f, 0.894f, 0.22f));   // glass
+            FR(-w / 2 + 8, -h + 8, (w - 16) * 0.4f, h - 8, RGBA(1, 1, 1, 0.10f));         // glass highlight
+            FR(-w / 2, -h, post, h, Hex("#6B7077")); FR(w / 2 - post, -h, post, h, Hex("#6B7077")); // posts
+            PolyS(new[] { P(-w / 2 - 14, -h), P(w / 2 + 14, -h), P(w / 2 + 20, -h - 15), P(-w / 2 - 8, -h - 15) }, red);                 // roof
+            PolyS(new[] { P(-w / 2 - 14, -h), P(w / 2 + 14, -h), P(w / 2 + 14, -h + 6), P(-w / 2 - 14, -h + 6) }, Shade(red, 0.78f));     // roof edge
+            FR(-w / 2 + 16, -40, w - 40, 8, Hex("#8a5a34"));                              // bench seat
+            FR(-w / 2 + 22, -32, 6, 32, Hex("#5a4326")); FR(w / 2 - 34, -32, 6, 32, Hex("#5a4326")); // bench legs
+            FR(-w / 2 - 40, -h - 4, 5, h + 4, Hex("#9aa0a6"));                            // sign pole
+            FR(-w / 2 - 62, -h - 32, 52, 30, Hex("#2C6FD0"));                             // sign box
+            FR(-w / 2 - 56, -h - 26, 40, 15, Hex("#FFFFFF"));                             // sign panel
+            FR(-w / 2 - 53, -h - 23, 8, 7, Hex("#2C6FD0")); FR(-w / 2 - 43, -h - 23, 8, 7, Hex("#2C6FD0")); FR(-w / 2 - 33, -h - 23, 8, 7, Hex("#2C6FD0")); // route bars
+            DiscS(cx + (-w / 2 - 50) * S, fy + (-h - 10) * S, 2.3f * S, Hex("#2b2b33")); DiscS(cx + (-w / 2 - 30) * S, fy + (-h - 10) * S, 2.3f * S, Hex("#2b2b33")); // dots
+        }
+
+        void Planter(float cx, float fy, float S, Color fl)
+        {
+            void FR(float lx, float ly, float w, float h, Color c) => FillRectS(Mathf.RoundToInt(cx + lx * S), Mathf.RoundToInt(fy + ly * S), Mathf.Max(1, Mathf.RoundToInt(w * S)), Mathf.Max(1, Mathf.RoundToInt(h * S)), c);
+            FR(-16, -12, 32, 12, Hex("#9a8a78"));                                         // box
+            DiscS(cx - 8 * S, fy - 16 * S, 5 * S, Hex("#46B86A")); DiscS(cx, fy - 18 * S, 5 * S, Hex("#3FA45B")); DiscS(cx + 8 * S, fy - 16 * S, 5 * S, Hex("#46B86A")); // greenery
+            if (fl.a > 0f) { DiscS(cx - 8 * S, fy - 20 * S, 2.4f * S, fl); DiscS(cx + 2 * S, fy - 22 * S, 2.4f * S, fl); DiscS(cx + 9 * S, fy - 19 * S, 2.4f * S, fl); } // flowers
+        }
+
+        void Bench(float cx, float fy, float S)
+        {
+            void FR(float lx, float ly, float w, float h, Color c) => FillRectS(Mathf.RoundToInt(cx + lx * S), Mathf.RoundToInt(fy + ly * S), Mathf.Max(1, Mathf.RoundToInt(w * S)), Mathf.Max(1, Mathf.RoundToInt(h * S)), c);
+            FR(-26, -16, 52, 5, Hex("#8a5a34")); FR(-26, -30, 52, 4, Hex("#8a5a34"));     // seat + backrest
+            FR(-22, -16, 5, 16, Hex("#5a4326")); FR(17, -16, 5, 16, Hex("#5a4326"));      // legs
+        }
+
+        void Bush(float cx, float fy, float s, Color col)
+        {
+            DiscS(cx, fy - 0.7f * s, 0.95f * s, col);
+            DiscS(cx - 0.7f * s, fy - 0.4f * s, 0.6f * s, Shade(col, 0.9f));
+            DiscS(cx + 0.7f * s, fy - 0.4f * s, 0.6f * s, Shade(col, 1.06f));
+        }
+
         // HTML's soft dark fade (py0=H*0.55 -> H), as a UGUI gradient Image ON TOP of the traffic so the cars fade
         // into the dark exactly like the HTML (panel drawn after the vehicles).
         void BuildPanel(RectTransform root)
@@ -317,7 +460,7 @@ namespace BusJam
             go.transform.SetParent(root, false);
             var im = go.GetComponent<Image>(); im.sprite = PanelSprite(); im.type = Image.Type.Simple; im.raycastTarget = false;
             var rt = im.rectTransform;
-            rt.anchorMin = new Vector2(0f, 0f); rt.anchorMax = new Vector2(1f, 0.45f);    // canvas-down [0.55, 1.0]
+            rt.anchorMin = new Vector2(0f, 0f); rt.anchorMax = new Vector2(1f, 0.38f);    // canvas-down [0.62, 1.0] — over the road, behind the buttons
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
         }
         Sprite PanelSprite()
@@ -328,12 +471,11 @@ namespace BusJam
             tex.SetPixels(buf); tex.Apply(false);
             return Sprite.Create(tex, new Rect(0, 0, Wt, N), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect);
         }
-        static Color PanelGrad(float f)     // f=0 top (transparent) .. f=1 bottom (dark) — HTML stops 0/.45/.8/1
+        static Color PanelGrad(float f)     // f=0 top (soft) .. f=1 bottom (dark): dims the road so the buttons read clean
         {
-            Color s0 = RGBA(0.133f, 0.071f, 0.102f, 0f), s1 = RGBA(0.125f, 0.063f, 0.094f, 0.26f), s2 = RGBA(0.110f, 0.055f, 0.086f, 0.60f), s3 = RGBA(0.086f, 0.043f, 0.071f, 0.90f);
-            if (f < 0.45f) return Color.Lerp(s0, s1, f / 0.45f);
-            if (f < 0.8f) return Color.Lerp(s1, s2, (f - 0.45f) / 0.35f);
-            return Color.Lerp(s2, s3, (f - 0.8f) / 0.2f);
+            Color s0 = RGBA(0.106f, 0.055f, 0.086f, 0.12f), s1 = RGBA(0.094f, 0.047f, 0.075f, 0.55f), s2 = RGBA(0.078f, 0.039f, 0.063f, 0.86f);
+            if (f < 0.5f) return Color.Lerp(s0, s1, f / 0.5f);
+            return Color.Lerp(s1, s2, (f - 0.5f) / 0.5f);
         }
 
         // warm bokeh motes drifting up over the dark panel (HTML's twinkling additive dots) — UGUI glow sprites
@@ -404,7 +546,7 @@ namespace BusJam
             var sim = sgo.GetComponent<Image>(); sim.sprite = shipSprite; sim.raycastTarget = false;
             var srt = sim.rectTransform;
             srt.pivot = new Vector2(pivX, pivY);                       // pivot at the waterline -> rocks naturally
-            srt.anchorMin = srt.anchorMax = new Vector2(0.32f, 0.507f); // sea line (HTML _shY); palms now render IN FRONT (foreground layer) so the boat sails behind them; x animated
+            srt.anchorMin = srt.anchorMax = new Vector2(0.32f, 0.533f); // v1 sea line (HTML _shY for the higher sea); palms render IN FRONT so the boat sails behind them; x animated
             srt.sizeDelta = new Vector2((bw / q) * kScale, (bh / q) * kScale);
             srt.anchoredPosition = Vector2.zero;
 
@@ -420,7 +562,7 @@ namespace BusJam
             trt.sizeDelta = new Vector2(srt.sizeDelta.x * 0.95f, 44f); trt.anchoredPosition = Vector2.zero;
 
             var sh = sgo.AddComponent<MenuShip>();
-            sh.speedF = 0.022f; sh.baseY = 0.507f; sh.bobPx = 6f * DPR;
+            sh.speedF = 0.022f; sh.baseY = 0.533f; sh.bobPx = 6f * DPR;
         }
 
         // =====================================================================================
@@ -553,6 +695,189 @@ namespace BusJam
             int n = Mathf.Min(p.Length, _scratch.Length);
             for (int i = 0; i < n; i++) _scratch[i] = new Vector2(MX(p[i].x), MY(p[i].y));
             Poly(dyn, Wd, Hd, _scratch, n, c);
+        }
+
+        // =====================================================================================
+        //  HTML v3_family — the animated sidewalk crowd: a walking family, waiting passengers and a dog, redrawn each
+        //  frame into their own band over the boardwalk. Faithful port of lpPerson/lpDog and the IK limb helpers.
+        // =====================================================================================
+        void SetupPeople()
+        {
+            SPDK = 4f * 8f * 6.5f / (2f * Mathf.PI);
+            peds = new List<Ped>();
+            (float y, float S)[] rws = { (swFeet - 6f * DPR, M * 0.0019f), (swFeet, M * 0.0024f) };
+            for (int i = 0; i < 7; i++)                                   // 7 adults, alternating two depth rows
+            {
+                var rw = rws[i % 2];
+                peds.Add(new Ped { x = Rnd() * Ws, y = rw.y, S = rw.S, dir = Rnd() < 0.5f ? 1f : -1f, col = Pick(CLOTH), skin = Pick(SKN), hair = Pick(HRC), ph = Rnd() * 6.28f, pace = 1f, spd = SPDK * rw.S });
+            }
+            for (int i = 0; i < 2; i++)                                   // 2 children (smaller, a touch slower)
+            {
+                float sc = M * 0.0024f * 0.68f;
+                peds.Add(new Ped { x = Rnd() * Ws, y = swFeet, S = sc, dir = Rnd() < 0.5f ? 1f : -1f, col = Pick(CLOTH), skin = Pick(SKN), hair = Pick(HRC), ph = Rnd() * 6.28f, pace = 0.95f, spd = SPDK * sc * 0.95f });
+            }
+            waiters = new List<Waiter>();
+            for (int i = 0; i < 3; i++)                                   // 3 passengers waiting at the stop (idle)
+                waiters.Add(new Waiter { col = Pick(CLOTH), skin = Pick(SKN), hair = Pick(HRC), ph = Rnd() * 6.28f, dir = (i % 2 != 0) ? -1f : 1f });
+            hasDog = true;
+            dogX = Rnd() * Ws; dogDir = Rnd() < 0.5f ? 1f : -1f; dogCol = Pick(DGC); dogPh = Rnd() * 6.28f; dogSpd = 30f * DPR;
+        }
+        Color Pick(Color[] a) => a[(int)(Rnd() * a.Length) % a.Length];
+
+        void BuildPeopleBand(RectTransform root)
+        {
+            bandTopPxP = PplTopF * Hs;
+            Wp = Mathf.Clamp(Mathf.RoundToInt(Ws * 0.9f), 600, 1080);
+            dsP = Wp / (float)Ws;
+            Hp = Mathf.Max(1, Mathf.RoundToInt((PplBotF - PplTopF) * Hs * dsP));
+            ppl = new Color[Wp * Hp];
+            peopleTex = new Texture2D(Wp, Hp, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var go = new GameObject("PeopleDynamic", typeof(RectTransform), typeof(RawImage));
+            go.transform.SetParent(root, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 1f - PplBotF); rt.anchorMax = new Vector2(1f, 1f - PplTopF);
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            peopleImg = go.GetComponent<RawImage>(); peopleImg.raycastTarget = false; peopleImg.texture = peopleTex;
+        }
+        void ApplyPpl() { peopleTex.SetPixels(ppl); peopleTex.Apply(false); }
+
+        void DrawPeople(float t, float dt)
+        {
+            System.Array.Clear(ppl, 0, ppl.Length);
+            foreach (var p in peds)
+            {
+                p.x += p.dir * p.spd * dt;
+                if (p.x > Ws + 60f * DPR) p.x = -60f * DPR; else if (p.x < -60f * DPR) p.x = Ws + 60f * DPR;
+            }
+            if (hasDog) { dogX += dogDir * dogSpd * dt; if (dogX > Ws + 60f * DPR) dogX = -60f * DPR; else if (dogX < -60f * DPR) dogX = Ws + 60f * DPR; }
+
+            Color shW = RGBA(0.196f, 0.133f, 0.102f, 0.25f), shP = RGBA(0.196f, 0.133f, 0.102f, 0.20f);
+            float wsS = M * 0.0024f;
+            for (int i = 0; i < waiters.Count; i++)                       // waiting passengers (idle) at the stop
+            {
+                var wq = waiters[i];
+                float wx = busXf + (i - (waiters.Count - 1) / 2f) * 0.05f * Ws;
+                PShadow(wx, swFeet + 2f * DPR, 13f * wsS, 3.4f * wsS, shW);
+                Person(wx, swFeet, wsS, wq.col, wq.skin, wq.hair, wq.dir, t, wq.ph, false, 1f);
+            }
+            var order = new List<Ped>(peds); order.Sort((a, b) => a.y.CompareTo(b.y));
+            foreach (var p in order)                                      // walking family (depth-sorted, far first)
+            {
+                PShadow(p.x, p.y + 2f * DPR, 12f * p.S, 3.2f * p.S, shP);
+                Person(p.x, p.y, p.S, p.col, p.skin, p.hair, p.dir, t, p.ph, true, p.pace);
+            }
+            if (hasDog) { float dS = M * 0.0016f; PShadow(dogX, swFeet + 2f * DPR, 16f * dS, 3f * dS, shP); Dog(dogX, swFeet, dS, dogCol, dogDir, t, dogPh); }
+        }
+
+        // ---- figure drawing (person-local coords -> people band) ----
+        static Vector2 V(float x, float y) => new Vector2(x, y);
+        float MXp(float cx) => cx * dsP;
+        float MYp(float cy) => (cy - bandTopPxP) * dsP;
+        Vector2 FL(float lx, float ly)   // figure-local -> world; applies optional torso rotation, then scale/flip/translate
+        {
+            if (_frotOn) { float c = Mathf.Cos(_frot), s = Mathf.Sin(_frot), ry = ly - _frotCy, nx = lx * c - ry * s, ny = lx * s + ry * c + _frotCy; lx = nx; ly = ny; }
+            return new Vector2(_fx + lx * _fs * _fdir, _fy + ly * _fs);
+        }
+        readonly Vector2[] _fpoly = new Vector2[12];
+        void PPoly(Vector2[] local, Color col)
+        {
+            int n = Mathf.Min(local.Length, _fpoly.Length);
+            for (int i = 0; i < n; i++) { var w = FL(local[i].x, local[i].y); _fpoly[i] = new Vector2(MXp(w.x), MYp(w.y)); }
+            Poly(ppl, Wp, Hp, _fpoly, n, col);
+        }
+        void PDisc(float lx, float ly, float r, Color col) { var w = FL(lx, ly); Disc(ppl, Wp, Hp, MXp(w.x), MYp(w.y), r * _fs * dsP, col); }
+        void PQuad(float x0, float y0, float x1, float y1, float w0, float w1, Color col)
+        {
+            float dx = x1 - x0, dy = y1 - y0, L = Mathf.Sqrt(dx * dx + dy * dy); if (L < 1e-4f) L = 1f; float px = -dy / L, py = dx / L;
+            PPoly(new[] { V(x0 + px * w0, y0 + py * w0), V(x0 - px * w0, y0 - py * w0), V(x1 - px * w1, y1 - py * w1), V(x1 + px * w1, y1 + py * w1) }, col);
+        }
+        void PFoot(float fx, float fy, float pitch, Color col)
+        {
+            float c = Mathf.Cos(-pitch), s = Mathf.Sin(-pitch);
+            Vector2 R(float lx, float ly) => V(fx + lx * c - ly * s, fy + lx * s + ly * c);
+            PPoly(new[] { R(-3, -2.6f), R(8, -2.9f), R(9, 0.4f), R(-3, 1.8f) }, col);
+        }
+        void PLine(float x0, float y0, float x1, float y1, float w, Color col)
+        {
+            float dx = x1 - x0, dy = y1 - y0, L = Mathf.Sqrt(dx * dx + dy * dy); if (L < 1e-4f) return; float px = -dy / L * w * 0.5f, py = dx / L * w * 0.5f;
+            PPoly(new[] { V(x0 + px, y0 + py), V(x1 + px, y1 + py), V(x1 - px, y1 - py), V(x0 - px, y0 - py) }, col);
+        }
+        void PShadow(float wx, float wy, float rx, float ry, Color col)
+        {
+            float bx = MXp(wx), by = MYp(wy), brx = rx * dsP, bry = ry * dsP;
+            var pts = new Vector2[12]; for (int i = 0; i < 12; i++) { float a = i / 12f * 6.2832f; pts[i] = new Vector2(bx + Mathf.Cos(a) * brx, by + Mathf.Sin(a) * bry); }
+            Poly(ppl, Wp, Hp, pts, 12, col);
+        }
+        Vector2 IK2(float hx, float hy, float fx, float fy, float l1, float l2, bool fwd)
+        {
+            float dx = fx - hx, dy = fy - hy, d = Mathf.Sqrt(dx * dx + dy * dy);
+            d = Mathf.Max(Mathf.Abs(l1 - l2) + 0.01f, Mathf.Min(l1 + l2 - 0.01f, d));
+            float bas = Mathf.Atan2(dy, dx), ca = (l1 * l1 + d * d - l2 * l2) / (2f * l1 * d); ca = Mathf.Clamp(ca, -1f, 1f);
+            float A = Mathf.Acos(ca), a1 = bas - A, a2 = bas + A, x1 = hx + Mathf.Cos(a1) * l1, x2 = hx + Mathf.Cos(a2) * l1;
+            float ang = fwd ? (x1 >= x2 ? a1 : a2) : (x1 < x2 ? a1 : a2);
+            return V(hx + Mathf.Cos(ang) * l1, hy + Mathf.Sin(ang) * l1);
+        }
+        void LegDraw(float fx, float fy, float pitch, float Lt, float Ls, float hipYd, Color col, Color shoe)
+        {
+            var k = IK2(0, hipYd, fx, fy, Lt, Ls, true);
+            PQuad(0, hipYd, k.x, k.y, 3.6f, 2.9f, col); PQuad(k.x, k.y, fx, fy, 2.9f, 2.1f, col);
+            PFoot(fx, fy, pitch, shoe); PDisc(k.x, k.y, 2.1f, Shade(col, 0.86f));
+        }
+        void ArmDraw(float fwd, float sh, Color col, Color skin)
+        {
+            float ang = fwd * 0.62f, Lu = 12f, Lf = 11f, ex = Mathf.Sin(ang) * Lu, ey = sh + Mathf.Cos(ang) * Lu, fa = ang + 0.32f, hx = ex + Mathf.Sin(fa) * Lf, hy = ey + Mathf.Cos(fa) * Lf;
+            PQuad(0, sh, ex, ey, 2.6f, 2.1f, col); PQuad(ex, ey, hx, hy, 2.1f, 1.7f, col); PDisc(hx, hy, 2.2f, skin);
+        }
+        void Person(float x, float fy0, float S, Color col, Color skin, Color hair, float dir, float t, float ph, bool walk, float pace)
+        {
+            if (pace <= 0f) pace = 1f;
+            _fx = x; _fy = fy0; _fs = S; _fdir = dir; _frotOn = false;
+            float Lt = 14f, Ls = 14f, hipY = -26f, STR = 8f, LIFT = 7f, theta = t * 6.5f * pace + ph, bob, sway;
+            if (walk) { bob = -1.5f * (0.5f - 0.5f * Mathf.Cos(2f * theta)); sway = 0.05f * Mathf.Sin(theta); }
+            else { bob = Mathf.Sin(t * 1.6f + ph) * 0.7f; sway = 0.03f * Mathf.Sin(t * 1.1f + ph); }
+            float hipYd = hipY + bob, sh = hipYd - 22f;
+            float thN = theta, thF = theta + Mathf.PI, fxN, fyN, piN, fxF, fyF, piF;
+            if (walk)
+            {
+                float lN = Mathf.Max(0f, -Mathf.Sin(thN)) * LIFT, lF = Mathf.Max(0f, -Mathf.Sin(thF)) * LIFT;
+                fxN = Mathf.Cos(thN) * STR; fyN = -lN; piN = lN > 0.4f ? 0.45f : 0f;
+                fxF = Mathf.Cos(thF) * STR; fyF = -lF; piF = lF > 0.4f ? 0.45f : 0f;
+            }
+            else { fxN = 3.6f; fyN = 0f; piN = 0f; fxF = -3.6f; fyF = 0f; piF = 0f; }
+            float farFwd = walk ? Mathf.Cos(theta) : sway * 0.5f, nearFwd = walk ? -Mathf.Cos(theta) : -sway * 0.5f;
+            ArmDraw(farFwd, sh, Shade(col, 0.55f), Shade(skin, 0.85f));                                      // far arm
+            LegDraw(fxF, fyF, piF, Lt, Ls, hipYd, Shade(col, 0.6f), Hex("#23232b"));                         // far leg
+            _frotOn = true; _frot = sway; _frotCy = hipYd;                                                   // torso sways about the hips
+            PPoly(new[] { V(-5.5f, hipYd), V(5.5f, hipYd), V(8f, hipYd - 24f), V(-8f, hipYd - 24f) }, col);
+            PPoly(new[] { V(-5.5f, hipYd), V(0f, hipYd), V(0f, hipYd - 24f), V(-8f, hipYd - 24f) }, Shade(col, 0.82f));
+            PPoly(new[] { V(-8f, hipYd - 24f), V(8f, hipYd - 24f), V(6f, hipYd - 29f), V(-6f, hipYd - 29f) }, Shade(col, 1.12f));
+            PPoly(new[] { V(-2.6f, hipYd - 24f), V(2.6f, hipYd - 24f), V(2.4f, hipYd - 29f), V(-2.4f, hipYd - 29f) }, Shade(skin, 0.9f));
+            PDisc(0f, hipYd - 35f, 6.3f, skin);                                                              // head
+            PPoly(new[] { V(-6.5f, hipYd - 35f), V(6.5f, hipYd - 35f), V(5f, hipYd - 42f), V(-5.5f, hipYd - 42f) }, hair);
+            PPoly(new[] { V(-6.5f, hipYd - 35f), V(-6.5f, hipYd - 31f), V(-3.5f, hipYd - 32f), V(-4.6f, hipYd - 36f) }, hair);
+            _frotOn = false;
+            LegDraw(fxN, fyN, piN, Lt, Ls, hipYd, Shade(col, 0.82f), Hex("#2b2b33"));                        // near leg
+            ArmDraw(nearFwd, sh, Shade(col, 0.95f), skin);                                                   // near arm
+        }
+        void Dog(float x, float fy, float S, Color col, float dir, float t, float ph)
+        {
+            _fx = x; _fy = fy; _fs = S; _fdir = dir; _frotOn = false;
+            float th = t * 9f + ph, a = Mathf.Sin(th) * 3f, b = Mathf.Sin(th + Mathf.PI) * 3f;
+            DLeg(-10f, b, Shade(col, 0.7f)); DLeg(12f, a, Shade(col, 0.7f));                                 // far legs
+            PPoly(new[] { V(-17f, -15f), V(14f, -16f), V(18f, -23f), V(10f, -27f), V(-12f, -26f), V(-19f, -21f) }, col); // body
+            PPoly(new[] { V(-17f, -15f), V(14f, -16f), V(14f, -13f), V(-17f, -13f) }, Shade(col, 0.85f));
+            PPoly(new[] { V(14f, -23f), V(24f, -25f), V(26f, -17f), V(16f, -15f) }, col);                    // head
+            PPoly(new[] { V(24f, -25f), V(28f, -22f), V(26f, -17f) }, Shade(col, 0.9f));                     // snout
+            PPoly(new[] { V(16f, -27f), V(20f, -31f), V(22f, -25f) }, Shade(col, 0.8f));                     // ear
+            PDisc(23f, -20f, 1.1f, Hex("#1b1b1f"));                                                          // eye
+            PLine(-17f, -23f, -23f, -27f + Mathf.Sin(th * 1.5f) * 3f, 2.4f, Shade(col, 0.85f));              // wagging tail
+            DLeg(-7f, a, Shade(col, 0.95f)); DLeg(10f, b, Shade(col, 0.95f));                                // near legs
+        }
+        void DLeg(float hx, float off, Color col)
+        {
+            float fx = hx + off;
+            PQuad(hx, -13f, fx, -1f, 2.3f, 1.9f, col);
+            PPoly(new[] { V(fx - 2.5f, -2f), V(fx + 4f, -2f), V(fx + 4.6f, 0.6f), V(fx - 2.5f, 1f) }, Shade(col, 0.8f));
         }
 
         static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero; }
