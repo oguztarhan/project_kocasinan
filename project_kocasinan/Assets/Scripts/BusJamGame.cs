@@ -1576,11 +1576,10 @@ namespace BusJam
                     var pulse = marker.AddComponent<IdleBob>();
                     pulse.scalePulse = true; pulse.scaleAmp = 0.12f; pulse.speed = 3f; pulse.amp = 0f;
                     slot.lockMarker = marker;
-                    // Billboard ICON so the player sees HOW to open it: a coin on the gold pads, a video-ad icon on
-                    // the rewarded-ad pads. Coin pads ALSO show the price number ("80") underneath. Parented to the
-                    // marker -> removed on Unlock.
-                    BuildSlotIcon(marker.transform, slot.adUnlock ? UIKit.WatchAd() : UIKit.Coin());
-                    if (!slot.adUnlock) BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // (#2) "80" under the coin
+                    // Billboard indicator so the player sees HOW to open the pad: an animated yellow COST NUMBER on the
+                    // gold (coin) pads, a video-ad icon on the rewarded-ad pads. Parented to the marker -> removed on Unlock.
+                    if (slot.adUnlock) BuildSlotIcon(marker.transform, UIKit.WatchAd());
+                    else BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // animated yellow "75" REPLACES the gold coin
                 }
             }
             BuildParkingStripes(); // paint lane-marking stripes between the parking bays
@@ -1644,18 +1643,20 @@ namespace BusJam
             img.sprite = sprite; img.raycastTarget = false; img.preserveAspect = true;
         }
 
-        // (#2) Small camera-facing cost number under a coin pad's icon (e.g. "80"), so the price is clear/visible.
+        // The coin pad's unlock indicator: a big camera-facing ANIMATED YELLOW cost number (e.g. "75") that REPLACES
+        // the old gold-coin icon. Floats above the pad, billboards to the camera, bobs (its own IdleBob) and pulses
+        // (the marker's IdleBob) so it reads as "tap to unlock for this many coins".
         void BuildSlotCostNumber(Transform parent, string text)
         {
             var go = new GameObject("SlotCost", typeof(RectTransform), typeof(Canvas));
             go.transform.SetParent(parent, false);
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 70);
-            go.transform.localPosition = new Vector3(0, 0.05f, 0); // just below the coin icon (icon sits at y 0.55)
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.62f / 120f); // match the icon's billboard scale
+            ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
+            go.transform.localPosition = new Vector3(0, 0.5f, 0); // centered on the marker, where the coin icon used to sit
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.75f / 120f); // a bit smaller (per request), still the sole indicator
             go.AddComponent<BillboardUp>();
-            AddSignText(go.transform, text, 72, Vector2.zero, Vector2.one, new Color(1f, 0.85f, 0.25f));
-            var bob = go.AddComponent<IdleBob>(); bob.amp = 0.08f; bob.speed = 3f; bob.phase = 1.5f; // (#10) the gold price bobs on its own rhythm so it reads as "tap to unlock"
+            AddSignText(go.transform, text, 80, Vector2.zero, Vector2.one, new Color(1f, 0.88f, 0.2f)); // bright yellow/gold
+            var bob = go.AddComponent<IdleBob>(); bob.amp = 0.08f; bob.speed = 3f; bob.phase = 1.5f;
         }
 
         void BuildGrid()
@@ -2072,18 +2073,20 @@ namespace BusJam
             var board = MakeCube(boardRoot, seatEmptyMat, new Vector3(signW, signH, 0.06f));
             board.transform.position = new Vector3(sx, topY + 0.4f, sz);
 
-            // Camera-facing neon count + caption.
+            // Neon count + caption. Board/frame stay STRAIGHT (axis-aligned, facing -Z) so the sign never looks skewed.
+            // The text is FIXED to that same -Z facing (NOT billboarded) so it stays parallel to the board and just in
+            // FRONT of it -> the count can't tilt behind the board (which clipped its lower half) AND nothing rotates.
             var go = new GameObject("PeopleLeftSign", typeof(RectTransform), typeof(Canvas));
             go.transform.SetParent(boardRoot, false);
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
-            go.transform.position = new Vector3(sx, topY + 0.4f, sz - 0.05f);
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (signW / 120f); // -X cancels the billboard flip; matches the board width
-            go.AddComponent<BillboardUp>();
+            go.transform.position = new Vector3(sx, topY + 0.4f, sz - 0.06f);
+            go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);          // face the camera (-Z) upright — no billboard tilt/roll
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (signW / 120f);  // -X un-mirrors the 180° flip; width matches the board
 
             Color neon = new Color(0.3f, 1f, 0.8f); // bright neon cyan-green (blooms on capable devices)
-            AddSignText(go.transform, "LEFT", 26, new Vector2(0, 0.62f), new Vector2(1, 1f), neon);
-            peopleLeftSign = AddSignText(go.transform, PeopleLeft().ToString(), 64, new Vector2(0, 0f), new Vector2(1, 0.62f), neon);
+            AddSignText(go.transform, "LEFT", 22, new Vector2(0, 0.80f), new Vector2(1, 1f), neon);    // small caption pinned to the very top
+            peopleLeftSign = AddSignText(go.transform, PeopleLeft().ToString(), 64, new Vector2(0, 0f), new Vector2(1, 1f), neon); // number fills the WHOLE board -> centered + clearly visible
         }
 
         // A bold, outlined, camera-facing UI.Text child filling [anchorMin..anchorMax] of a sign canvas.
@@ -2794,7 +2797,7 @@ namespace BusJam
             }
 
             BuildCityDecor(th); // T3: road assets ON the road lane + side bus stops + per-theme street props (cosmetic)
-            if (doorXs != null) BuildBoardingDoor(th, accent); // a real building DOORWAY the queue steps out of (no glowing portal)
+            if (doorXs != null) BuildBoardingDoor(th, accent); // the glowing arched portal the queue steps out of
 
             // Grass tufts dressing the back lawn — skipped behind the closed facade (paved terminal plaza,
             // and they would otherwise poke through the wall front).
@@ -2951,32 +2954,34 @@ namespace BusJam
             BuildJamProps(th); // little theme props framing the FRONT of the jam (small; foreground, out of the slots)
         }
 
-        // A little BLACK door PORTAL right at the boarding door (exitDoorX, DoorSpawnZ) the people queue walks out
-        // of — a near-black opening in a theme-accent frame, facing the buses (-Z). Built every level that has a door.
-        // A solid BUILDING DOORWAY the boarding queue steps out of (replaces the old glowing "portal"): a dark
-        // recessed opening set in a themed building-wall slab, with a door frame, a flat awning above and a doorstep
-        // below. NO glow / pulse — it reads as a real entrance, not a sci-fi gateway. Sits at the front of the back
-        // building cluster, at the one exit door (exitDoorX) where DoorSpawn births the queue.
+        // The GLOWING ARCHED PORTAL the boarding queue steps out of (exitDoorX, DoorSpawnZ), facing the buses (-Z):
+        // a bright warm emissive panel with a rounded (arched) top set into a themed building-wall slab, framed by
+        // side posts, wrapped in a soft warm halo that blooms onto the wall, with a flat awning above and a doorstep
+        // below. Built every level that has a door, at the one exit door where DoorSpawn births the queue.
         void BuildBoardingDoor(Theme th, Material frameMat)
         {
             float x = exitDoorX, z = DoorSpawnZ;
-            var wallMat  = MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f); // themed building face
-            var interior = MaterialLibrary.MakeRuntime(new Color(0.07f, 0.08f, 0.11f), 0.1f, 0f);    // matte dark doorway (inside)
+            var wallMat = MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f); // themed building face
+            var glowMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.94f, 0.80f), 0.5f, 2.6f);     // BRIGHT warm portal light (blooms)
+            var haloMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.86f, 0.62f), 0.6f, 1.3f);     // soft warm halo bleeding onto the wall
 
-            // Building-wall slab the door is cut into (so it reads as part of a building, not a free-standing frame).
-            MakeCube(boardRoot, wallMat, new Vector3(2.2f, 2.5f, 0.18f)).transform.position = new Vector3(x, 1.25f, z + 0.14f);
+            // Building-wall slab the portal is set into.
+            MakeCube(boardRoot, wallMat, new Vector3(2.3f, 2.8f, 0.18f)).transform.position = new Vector3(x, 1.40f, z + 0.16f);
 
-            // The dark opening people step out of.
-            MakeCube(boardRoot, interior, new Vector3(1.05f, 1.9f, 0.10f)).transform.position = new Vector3(x, 0.97f, z + 0.02f);
+            // Soft warm halo AROUND the portal (between the wall and the bright panel) -> a glowy bloom edge on the wall.
+            MakePrim(boardRoot, haloMat, PrimitiveType.Sphere, new Vector3(1.95f, 2.70f, 0.05f)).transform.position = new Vector3(x, 1.18f, z + 0.12f);
 
-            // Door frame: two posts + a lintel, slightly proud of the wall.
-            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.05f, 0.24f)).transform.position = new Vector3(x - 0.62f, 1.02f, z);
-            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 2.05f, 0.24f)).transform.position = new Vector3(x + 0.62f, 1.02f, z);
-            MakeCube(boardRoot, frameMat, new Vector3(1.52f, 0.20f, 0.26f)).transform.position = new Vector3(x, 2.06f, z);
+            // The bright glowing portal: a rectangular emissive body capped by a rounded (arched) top.
+            MakeCube(boardRoot, glowMat, new Vector3(1.10f, 1.78f, 0.06f)).transform.position = new Vector3(x, 0.95f, z + 0.05f);
+            MakePrim(boardRoot, glowMat, PrimitiveType.Sphere, new Vector3(1.10f, 1.10f, 0.06f)).transform.position = new Vector3(x, 1.84f, z + 0.05f);
+
+            // Two side posts framing the opening (proud of the wall).
+            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 1.95f, 0.24f)).transform.position = new Vector3(x - 0.64f, 1.02f, z);
+            MakeCube(boardRoot, frameMat, new Vector3(0.16f, 1.95f, 0.24f)).transform.position = new Vector3(x + 0.64f, 1.02f, z);
 
             // Flat awning over the entrance + a doorstep underfoot.
-            MakeCube(boardRoot, frameMat, new Vector3(1.9f, 0.10f, 0.55f)).transform.position = new Vector3(x, 2.22f, z - 0.22f);
-            MakeCube(boardRoot, frameMat, new Vector3(1.5f, 0.07f, 0.50f)).transform.position = new Vector3(x, 0.04f, z - 0.20f);
+            MakeCube(boardRoot, frameMat, new Vector3(2.0f, 0.10f, 0.55f)).transform.position = new Vector3(x, 2.64f, z - 0.22f);
+            MakeCube(boardRoot, frameMat, new Vector3(1.6f, 0.07f, 0.50f)).transform.position = new Vector3(x, 0.04f, z - 0.20f);
         }
 
         // Little theme props (small, fit-to-size) tucked into the FRONT CORNERS of the jam's foreground — out of the

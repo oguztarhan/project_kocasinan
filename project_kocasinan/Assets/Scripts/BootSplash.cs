@@ -128,9 +128,12 @@ namespace BusJam
             SetProgress(100f);
             yield return Wait(0.4f);
 
-            // ---- 3) fade the loading panel away -> reveal the MainMenu underneath, then self-destruct ----
+            // ---- 3) transition to the MainMenu underneath, then self-destruct ----
             load.blocksRaycasts = false;             // stop intercepting taps immediately so the menu is live
-            yield return Fade(load, 1f, 0f, 0.45f);  // fade the panel itself (no CanvasGroup added to the Canvas root)
+            // Fade the TITLE + BAR out FIRST (backdrop still fully opaque, menu still hidden) so the bright title can
+            // never blend over the menu; THEN crossfade the backdrop away to reveal a clean, title-free menu.
+            yield return Fade(loadContent, 1f, 0f, 0.22f);
+            yield return Fade(load, 1f, 0f, 0.35f);
             Destroy(gameObject);
         }
 
@@ -238,6 +241,7 @@ namespace BusJam
         //  LOADING  (Bus Jam Traffic Rush)
         // =====================================================================================
         Image progFill; Text pctLabel, loadLabel; float barW;
+        CanvasGroup loadContent;   // title + progress bar group — faded out BEFORE the backdrop so the title never blends over the menu
 
         CanvasGroup BuildLoading()
         {
@@ -254,13 +258,21 @@ namespace BusJam
             // road-band layer for the moving cars/lamps — crisp + cheap (see BootCanvasScene).
             go.gameObject.AddComponent<BootCanvasScene>().Setup(rimg);
 
+            // Title + bar live on their OWN group (full-stretch) so the transition can fade THEM out first, before
+            // the backdrop crossfades to reveal the menu — otherwise the bright title visibly blends over the menu.
+            var contentGo = new GameObject("Content", typeof(RectTransform));
+            contentGo.transform.SetParent(go, false);
+            Stretch(contentGo.GetComponent<RectTransform>());
+            loadContent = contentGo.AddComponent<CanvasGroup>();
+            var content = contentGo.GetComponent<RectTransform>();
+
             // ---------- BUS JAM / TRAFFIC RUSH title ----------
-            TitleRow(go, "BUS JAM", 720, 122, 0);
-            TitleRow(go, "TRAFFIC RUSH", 572, 134, 7);
+            TitleRow(content, "BUS JAM", 720, 122, 0);
+            TitleRow(content, "TRAFFIC RUSH", 572, 134, 7);
 
             // ---------- progress bar (bottom) ----------
             barW = 720f;
-            var bar = Img(go, "Bar", RoundRectSprite(330, 24, 12)); bar.color = new Color(0, 0, 0, 0.4f);
+            var bar = Img(content, "Bar", RoundRectSprite(330, 24, 12)); bar.color = new Color(0, 0, 0, 0.4f);
             Place(bar.rectTransform, 0, -890, barW, 28);
             progFill = Img(bar.rectTransform, "Fill", GradH(new[] { Amber, Coral }));
             var fr = progFill.rectTransform;
@@ -269,11 +281,11 @@ namespace BusJam
             // LOADING flush to the bar's LEFT edge, % flush to the bar's RIGHT edge — symmetric about centre so the
             // whole bar+labels block reads as centred (the old 400-wide left box pushed "LOADING" out past the % and
             // made the group lean left). bar spans x ∈ [-barW/2, +barW/2] = [-360, +360].
-            loadLabel = Txt(go, "LOADING", 30, Amber, FontStyle.Bold, TextAnchor.MiddleLeft);
+            loadLabel = Txt(content, "LOADING", 30, Amber, FontStyle.Bold, TextAnchor.MiddleLeft);
             Place(loadLabel.rectTransform, -barW / 2 + 100, -846, 200, 44);   // rect-left = -360 (bar left)
-            pctLabel = Txt(go, "0%", 30, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
+            pctLabel = Txt(content, "0%", 30, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
             Place(pctLabel.rectTransform, barW / 2 - 100, -846, 200, 44);     // rect-right = +360 (bar right)
-            go.gameObject.AddComponent<BootDots>().label = loadLabel;
+            contentGo.AddComponent<BootDots>().label = loadLabel;
 
             return g;
         }
