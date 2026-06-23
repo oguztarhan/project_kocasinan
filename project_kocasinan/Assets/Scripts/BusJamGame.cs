@@ -366,12 +366,11 @@ namespace BusJam
             // grounded, and the per-vehicle yield keeps us from ever touching it. No waiting for it to park; the exit
             // routine slides (never lifts/flies) because it tests the SAME jam-only clearance.
             bool jamClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, jamBlocked, gridW, gridH);
-            // Real-body physics only helps SHORT vehicles (cars): a long diagonal BUS's capsule already reaches into its
-            // neighbours' cells at rest, so the body check can't tell "sliding away" from "sliding past a vehicle it
-            // already overlaps" and it meshes. So diagonal BUSES fall back to the exact grid and exit the SAME way every
-            // other vehicle does (the thick footprint never meshes). Diagonal CARS keep the body check.
+            // For ANY diagonal vehicle, if the grid (which over-blocks tilted bodies) says no, ask the real body whether
+            // its capsule can slide the EXACT 45° lane it will actually drive without touching anyone. The body check
+            // and the real slide now follow the SAME preserve-45° path, so a "clear" verdict can't be driven into a mesh.
             bool isDiag = bus.dir.x != 0 && bus.dir.y != 0;
-            bool canExit = jamClear || (isDiag && bus.length == 1 && BodySlideClear(bus));
+            bool canExit = jamClear || (isDiag && BodySlideClear(bus));
             var slot = canExit ? NearestFreeSlot(GridWorldCenter(bus.cell, bus.dir, bus.length).x) : null;
 
             if (canExit && slot != null)
@@ -425,7 +424,7 @@ namespace BusJam
             // JAM-only clearance (a moving vehicle ahead is NOT a blocker — we slide out behind it, grounded, and yield).
             // So a follow-out vehicle SLIDES instead of taking the lift-over branch below, which is the "flies not drives" bug.
             bool laneClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length, c => occ.TryGetValue(c, out var ob) && ob != bus, gridW, gridH)
-                             || ((bus.dir.x != 0 && bus.dir.y != 0) && bus.length == 1 && BodySlideClear(bus)); // diagonal CAR whose REAL body has a clear slide -> glide out grounded; buses use the grid like everyone else
+                             || ((bus.dir.x != 0 && bus.dir.y != 0) && BodySlideClear(bus)); // ANY diagonal whose REAL body has a clear 45° slide -> glide out grounded (not the lift-over)
             if (laneClear)
             {
                 int maxSteps = ExitDistance(bus.cell, bus.dir) + bus.length;              // full slide that clears the board (upper bound)
@@ -455,7 +454,7 @@ namespace BusJam
                 var lane = new List<Vector2Int>();
                 for (int s = 0; s <= clearSteps; s++) lane.Add(bus.cell + bus.dir * s);
                 ReserveCorridor(bus, lane);                                               // hold the straight lane (a crawling vehicle can't enter it)
-                bool diagBus = bus.dir.x != 0 && bus.dir.y != 0 && bus.length >= 2;       // long diagonal body: keep the 45° angle and leave via the side lane (never bend through the jam)
+                bool diagBus = bus.dir.x != 0 && bus.dir.y != 0;                          // ANY diagonal: keep the 45° angle (never bend) and leave via the side lane, so the tilted body can't sweep into a neighbour
                 Vector3 clearPt = bus.transform.position + new Vector3(bus.dir.x, 0, -bus.dir.y) * (clearSteps * CellSize);
                 if (diagBus)
                 {
@@ -2445,8 +2444,7 @@ namespace BusJam
         // WouldOverlapPeer while driving. halfW/buffer are the same body size used there, and are the tuning knobs.
         bool BodySlideClear(Bus bus)
         {
-            // Follow the EXACT exit slide line (same geometry ExitRoutine uses, incl. the on-screen x-clamp that can BEND
-            // the path through the jam) so we test what the body actually sweeps, not an idealized 45° line.
+            // Rebuild the SAME clearSteps the exit routine uses, so the body check and the real slide agree exactly.
             int maxSteps = ExitDistance(bus.cell, bus.dir) + bus.length;
             int clearSteps = maxSteps;
             float halfLen = bus.length * 0.55f;
@@ -2460,11 +2458,16 @@ namespace BusJam
             else if (bus.dir.y < 0) // toward the stops
                 clearSteps = Mathf.Clamp(Mathf.CeilToInt((GridExitZ + halfLen + 0.5f - bus.transform.position.z) / CellSize), 1, maxSteps);
             Vector3 sp = bus.transform.position;
-            Vector3 endPt = OnScreenX(sp + new Vector3(bus.dir.x, 0f, -bus.dir.y) * (clearSteps * CellSize), 1.0f);
-            Vector2 seg = new Vector2(endPt.x - sp.x, endPt.z - sp.z);
-            float slideDist = seg.magnitude;
+            // Validate the EXACT preserve-45° slide the exit takes: the full 45° lane, SHORTENED to stay on-screen
+            // (NOT clamped — clamping bends the path). Checking the real path is what makes the body verdict trustworthy.
+            Vector3 dn3 = new Vector3(bus.dir.x, 0f, -bus.dir.y);
+            float mag = dn3.magnitude;
+            if (mag < 1e-4f) return true;
+            float slideDist = mag * (clearSteps * CellSize);
+            dn3 /= mag;
+            while (slideDist > CellSize && Mathf.Abs((sp + dn3 * slideDist).x) > VisHalfW((sp + dn3 * slideDist).z) - 1.0f) slideDist -= CellSize * 0.5f;
             if (slideDist < 1e-3f) return true;
-            Vector2 wd = seg / slideDist; // ACTUAL slide direction (after the clamp)
+            Vector2 wd = new Vector2(dn3.x, dn3.z); // the real 45° slide direction
             const float halfW = 0.42f, buffer = 0.18f;
             float rad2 = (halfW + halfW + buffer) * (halfW + halfW + buffer);
             Vector3 mf = bus.transform.forward; mf.y = 0f;
