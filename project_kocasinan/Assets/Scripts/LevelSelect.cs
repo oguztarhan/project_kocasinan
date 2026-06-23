@@ -138,12 +138,15 @@ namespace BusJam
             for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
-            int total = Mathf.Max(unlocked + LockedPreview, MinShown);
+            // TEMP debug: unlock & show ALL levels so any level is enterable for testing.
+            // Set false (or delete this + restore the original two lines) before release — same as the LEVELS button.
+            bool debugUnlockAll = true;
+            int total = debugUnlockAll ? 60 : Mathf.Max(unlocked + LockedPreview, MinShown);
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 
             for (int n = 1; n <= total; n++)
             {
-                bool isUnlocked = n <= unlocked;
+                bool isUnlocked = debugUnlockAll || n <= unlocked;
                 bool isCompleted = n < unlocked;
                 AddLevelButton(n, isUnlocked, isCompleted);
             }

@@ -101,7 +101,7 @@ namespace BusJam
         bool pumpRunning, pumpDirty;
 
         // (#4) Level-1 tutorial coach (self-contained overlay; created lazily; reused by #5/#6).
-        TutorialCoach coach; bool tutorialActive; int tutorialStep; string tutStep2;
+        TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost;
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
         const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
@@ -116,6 +116,7 @@ namespace BusJam
         bool trafficGo;                     // true = green (cars move, crash risk); false = red (frozen, safe)
         float trafficPhaseLeft;             // seconds left in the current red/green phase
         float bonusTimeLeft;
+        bool bonusStarted;                  // bonus countdown waits for the player's FIRST tap, then ticks (no auto-start at load)
         int bonusCombo;                     // consecutive crash-free bonus sends; resets to 0 on any crash
         bool crashedThisBonus;              // set on a T3 crash -> disqualifies the perfect bonus
         bool nightMode;                     // cached in ApplyTheme (Night/Bonus) -> board + traffic headlights
@@ -287,7 +288,7 @@ namespace BusJam
             if (state != GameState.Playing) return;
             // The bonus timer may end the level THIS frame (FinishBonus -> NextLevel rebuilds + re-sets Playing),
             // so bail if the level changed or we left Playing — never run taps against a half-swapped board.
-            if (IsBonus) { int lv0 = currentLevel; TickBonusTimer(); if (currentLevel != lv0 || state != GameState.Playing) return; }
+            if (IsBonus && bonusStarted) { int lv0 = currentLevel; TickBonusTimer(); if (currentLevel != lv0 || state != GameState.Playing) return; } // bonus clock starts on the player's FIRST tap (set in TryTapBus), not at level load
 #if UNITY_EDITOR
             AssertNoOccOverlap(); // invariant watchdog: logs to the Console if two vehicles ever share a cell
 #endif
@@ -379,6 +380,7 @@ namespace BusJam
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
+                if (IsBonus && !bonusStarted) { bonusStarted = true; if (coach != null) coach.Hide(); } // first vehicle sent -> start the bonus clock + drop the intro text
                 if (tutorialActive) AdvanceTutorialOnFirstMove(); // (#4) first successful park advances the coach
                 StartCoroutine(ExitRoutine(bus, slot)); // engine (vroom) starts automatically while it drives — see UpdateEngineSfx
                 return;
@@ -1304,6 +1306,7 @@ namespace BusJam
                 crashedThisBonus = false;
                 bonusCombo = 0;
                 bonusTimeLeft = BonusTime;
+                bonusStarted = false;                                       // frozen until the first tap; the bonus round shows NO coach text
                 ui.SetBonusCountdown(bonusTimeLeft);
                 trafficGo = false; trafficPhaseLeft = BonusRedTime;          // start on RED -> a free safe window to begin
                 trafficVis = 0f;                                             // RED at start -> cars cleared off, the road is empty for the opening window
@@ -1321,14 +1324,23 @@ namespace BusJam
             CheckEnd(); // detect an immediately-stuck board (no-op normally: free slots exist at start)
 
             // (#4/#5) First-time coaches: level 1 teaches the core loop; level 10 introduces the bonus round.
+            // Clear any leftover coach state (pulsing pointer ring + step flags) from the previous level first,
+            // so a prior level's joker/diagonal coach can't bleed into this one (e.g. Lv5's RECOLOR ring lingering
+            // into Lv6 when jumping levels). Each branch below re-arms its own banner/pointer fresh.
+            tutorialActive = false; tutorialStep = 0;
+            if (coach != null) coach.HidePointer();
             if (levelNumber == 1)
-                StartTutorial(Loc.T("Tap a bus to send it to a parking spot!"),
-                              Loc.T("Same-color passengers board automatically. Clear them all to win!"));
+                StartTutorial(Loc.T("Tap a car to send it to a parking spot!"),                          // Lv1 is CARS only (vehicleMix 2) -> never say "bus"
+                              Loc.T("Same-color passengers board automatically — small cars seat 4. Clear them all to win!"));
             else if (levelNumber == 5)
-                StartJokerTutorial();   // (#6) RECOLOR unlocks at level 5 -> grant 1 free + coach how to use it
+                StartCoroutine(ShowBanner(Loc.T("Buses seat 10 people!"), 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
+            else if (levelNumber == 6)
+                StartCoroutine(ShowBanner(Loc.T("New: vehicles can now move DIAGONALLY!"), 5f));       // diagonals unlock at level 6
             else if (levelNumber == 10)
-                StartTutorial(Loc.T("Bonus round! Clear every bus before the timer runs out!"),
-                              Loc.T("Watch out — crossing cars can crash a moving bus!"));
+            {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
+                if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
+                coach.ShowText(Loc.T("Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!"));
+            }
             else { tutorialActive = false; if (coach != null) coach.Hide(); }
         }
 
@@ -1396,12 +1408,12 @@ namespace BusJam
         }
 
         // ---- (#4) Level-1 tutorial: coach the tap -> park -> board loop -----------------------------------
-        void StartTutorial(string step1, string step2)
+        void StartTutorial(string step1, params string[] postSteps)
         {
             if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
             tutorialActive = true;
             tutorialStep = 1;
-            tutStep2 = step2;
+            tutPost = postSteps;
             coach.ShowText(step1);
             StartCoroutine(TutorialLoop());
         }
@@ -1428,15 +1440,30 @@ namespace BusJam
             if (!tutorialActive || tutorialStep != 1) return;
             tutorialStep = 2;
             coach.HidePointer();
-            coach.ShowText(tutStep2);
-            StartCoroutine(EndTutorialAfter(5f));
+            StartCoroutine(PostStepSequence());   // walk through the post-move info lines, then drop the coach
         }
 
-        IEnumerator EndTutorialAfter(float delay)
+        IEnumerator PostStepSequence()
         {
-            float t = 0f;
-            while (t < delay && tutorialActive && state == GameState.Playing) { t += Time.unscaledDeltaTime; yield return null; }
+            if (tutPost != null)
+                foreach (var msg in tutPost)
+                {
+                    if (!tutorialActive || state != GameState.Playing) yield break;
+                    coach.ShowText(msg);
+                    float t = 0f;
+                    while (t < 3f && tutorialActive && state == GameState.Playing) { t += Time.unscaledDeltaTime; yield return null; }
+                }
             EndTutorial();
+        }
+
+        // A non-interactive coach banner shown for `dur` seconds (info-only tutorials, e.g. capacity / diagonal notes).
+        IEnumerator ShowBanner(string msg, float dur, System.Action then = null)
+        {
+            if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
+            coach.ShowText(msg);
+            float t = 0f;
+            while (t < dur && state == GameState.Playing) { t += Time.unscaledDeltaTime; yield return null; }
+            if (then != null && state == GameState.Playing) then(); else if (coach != null) coach.Hide(); // don't chain into the joker tutorial if the level already ended
         }
 
         void EndTutorial()
@@ -1463,6 +1490,9 @@ namespace BusJam
         // ---- (#6) Joker-unlock coach + the one-time mandatory free joker --------------------------------
         void StartJokerTutorial()
         {
+            // RECOLOR coaching belongs ONLY to its unlock level (Lv5). The capacity banner defers this by 3.5s, so
+            // if the player jumped to another level meanwhile, bail — never let it bleed onto Lv6/Lv10/etc.
+            if (currentLevel != J1UnlockLevel) { if (coach != null) coach.Hide(); return; }
             if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
             // Mandatory free joker: grant ONE Recolor the first time it unlocks, so the player can try it for free.
             if (!SaveSystem.FreeJokerGranted) { SaveSystem.AddFreeJoker(0, 1); SaveSystem.FreeJokerGranted = true; ui.RefreshJokerLocks(); }
