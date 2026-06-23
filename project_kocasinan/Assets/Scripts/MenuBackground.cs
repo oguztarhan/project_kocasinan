@@ -54,7 +54,7 @@ namespace BusJam
         static readonly Color WinDay = Hex("#CFF0FF"), WinDay2 = Hex("#A9DCF2"), Wheel = Hex("#23262e"), Hub = Hex("#cfd2da"), Headlight = Hex("#FFE9B0"), Taillight = Hex("#FF5B5B");
 
         // ---------- render targets ----------
-        const float BandTopF = 0.59f, BandBotF = 0.97f;   // v1: road/traffic band fills the lower screen (lanes at 0.70 & 0.88)
+        const float BandTopF = 0.59f, BandBotF = 0.97f;   // traffic band buffer; v2 keeps both lanes in its UPPER part (0.685 & 0.745) and leaves the lower road clear
         RawImage staticImg, dynImg;
         Texture2D staticTex, dynTex;
         Sprite shipSprite;                // the boat (HTML ship()) — rasterised once, slid + bobbed by MenuShip
@@ -154,7 +154,6 @@ namespace BusJam
 
             BuildSidewalk(rootRT);  // v1: promenade props (bus stop + planter + bench + bush), over the palms
             SetupPeople();          // the walking family + waiting passengers + dog
-            BuildPanel(rootRT);     // soft scrim dimming the road BEHIND the menu buttons (declutters the button area)
             BuildPeopleBand(rootRT);// their own animated band, on the promenade
             BuildVignette(rootRT);  // v1: soft dark vignette in the corners (replaces the old dark panel + bokeh)
 
@@ -187,8 +186,8 @@ namespace BusJam
         {
             lanes = new List<Lane>
             {
-                MkLane(Hs * 0.70f, M * 0.0020f, 18f * DPR),
-                MkLane(Hs * 0.88f, M * 0.0034f, 32f * DPR),   // ~1.4x bigger so cars/buses read proportional to the people
+                MkLane(Hs * 0.685f, M * 0.0014f, 18f * DPR),
+                MkLane(Hs * 0.745f, M * 0.0021f, 26f * DPR),  // v2: both lanes pulled up into a tight band; the lower road stays clear for the menu buttons
             };
         }
         Lane MkLane(float y, float S, float baseSpd)

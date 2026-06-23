@@ -116,5 +116,27 @@ public static class Loc
             "RECOLOR açıldı — 1 tanesi bedava! Sıkışınca otobüslerin renklerini karıştırmak için dokun.","RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.","RECOLOR freigeschaltet — 1 gratis! Tippe drauf, um die Busfarben zu mischen, wenn du feststeckst.",
             "RICOLORA sbloccato — 1 gratis! Toccalo per rimescolare i colori degli autobus quando sei bloccato.","¡RECOLOR desbloqueado — 1 gratis! Tócalo para barajar los colores de los autobuses cuando te atasques.","已解锁换色道具——免费赠送1个！卡住时点击它打乱巴士颜色。",
             "RECOLORIER débloqué — 1 gratuit ! Touche-le pour mélanger les couleurs des bus quand tu es bloqué.","RECOLORIR desbloqueado — 1 grátis! Toca para baralhar as cores dos autocarros quando estiveres preso.","RECOLOR terbuka — 1 gratis! Ketuk untuk mengacak warna bus saat buntu." } },
+
+        // ---- Tutorial (new lines: Lv1 cars-only + seat 4, Lv5 bus seat 10, Lv6 diagonals) ----
+        { "Tap a car to send it to a parking spot!", new[]{
+            "Bir arabaya dokun, park yerine gitsin!","Tap a car to send it to a parking spot!","Tippe auf ein Auto, um es zum Parkplatz zu schicken!",
+            "Tocca un'auto per mandarla al parcheggio!","¡Toca un coche para enviarlo al aparcamiento!","点击汽车，把它送到停车位！",
+            "Touche une voiture pour l'envoyer au parking !","Toque num carro para enviá-lo à vaga!","Ketuk mobil untuk mengirimnya ke tempat parkir!" } },
+        { "Same-color passengers board automatically — small cars seat 4. Clear them all to win!", new[]{
+            "Aynı renk yolcular otomatik biner — küçük arabalar 4 kişilik. Hepsini bitir, kazan!","Same-color passengers board automatically — small cars seat 4. Clear them all to win!","Gleichfarbige Fahrgäste steigen automatisch ein — kleine Autos fassen 4. Schaffe alle, um zu gewinnen!",
+            "I passeggeri dello stesso colore salgono da soli — le auto piccole hanno 4 posti. Eliminali tutti per vincere!","Los pasajeros del mismo color suben solos — los coches pequeños tienen 4 plazas. ¡Despeja a todos para ganar!","同色乘客会自动上车——小汽车坐4人。清空所有乘客即可获胜！",
+            "Les passagers de même couleur montent tout seuls — les petites voitures ont 4 places. Élimine-les tous pour gagner !","Passageiros da mesma cor embarcam sozinhos — carros pequenos levam 4. Limpe todos para vencer!","Penumpang sewarna naik otomatis — mobil kecil memuat 4. Habiskan semua untuk menang!" } },
+        { "Buses seat 10 people!", new[]{
+            "Otobüsler 10 kişiliktir!","Buses seat 10 people!","Busse fassen 10 Personen!",
+            "Gli autobus hanno 10 posti!","¡Los autobuses tienen 10 plazas!","巴士可坐10人！",
+            "Les bus ont 10 places !","Os autocarros levam 10 pessoas!","Bus memuat 10 orang!" } },
+        { "New: vehicles can now move DIAGONALLY!", new[]{
+            "Yeni: araçlar artık ÇAPRAZ gidebilir!","New: vehicles can now move DIAGONALLY!","Neu: Fahrzeuge können sich jetzt DIAGONAL bewegen!",
+            "Novità: i veicoli ora possono muoversi in DIAGONALE!","¡Nuevo: los vehículos ahora pueden moverse en DIAGONAL!","新增：车辆现在可以斜向移动！",
+            "Nouveau : les véhicules peuvent maintenant se déplacer en DIAGONALE !","Novo: os veículos agora podem mover-se na DIAGONAL!","Baru: kendaraan kini bisa bergerak DIAGONAL!" } },
+        { "Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!", new[]{
+            "Bonus tur! Süre dolmadan tüm otobüsleri gönder — ve yoldan geçen arabalara çarpma!","Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!","Bonusrunde! Schaffe alle Busse, bevor die Zeit abläuft — und ramme nicht die kreuzenden Autos!",
+            "Round bonus! Libera tutti gli autobus prima che scada il tempo — e non urtare le auto che attraversano!","¡Ronda bonus! Despeja todos los autobuses antes de que acabe el tiempo y no choques con los autos que cruzan!","奖励关！在时间结束前清空所有巴士——别撞上横穿马路的汽车！",
+            "Manche bonus ! Dégage tous les bus avant la fin du temps — et ne percute pas les voitures qui traversent !","Rodada bónus! Limpa todos os autocarros antes do tempo acabar — e não batas nos carros que atravessam!","Ronde bonus! Bersihkan semua bus sebelum waktu habis — dan jangan tabrak mobil yang menyeberang!" } },
     };
 }
