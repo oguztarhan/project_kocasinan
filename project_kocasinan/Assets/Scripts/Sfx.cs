@@ -13,10 +13,12 @@ namespace BusJam
 
         AudioSource src;     // one-shot SFX voice (stop-before-play -> these never overlap each other)
         AudioSource engine;  // SEPARATE looping voice for the "vehicle moving" vroom (a continuous layer)
-        AudioClip board, coin, error, win, lose, click, crash, honk, screech, deploy;
+        AudioSource heliSrc; // SEPARATE looping voice for the helicopter-joker rotor (owns the audio while flying)
+        AudioClip board, coin, error, win, lose, click, crash, honk, screech, deploy, heli;
+        int heliVoices;      // # of helicopters in flight; the rotor loop owns the move-audio while > 0 (one ending heli can't cut another's audio)
         float master = 1f;                                   // master multiplier (catalog)
         // per-clip volumes (catalog), each 0..1
-        float vBoard = 1f, vCoin = 1f, vError = 1f, vWin = 1f, vLose = 1f, vClick = 1f, vCrash = 1f, vHonk = 1f, vScreech = 1f, vDeploy = 1f;
+        float vBoard = 1f, vCoin = 1f, vError = 1f, vWin = 1f, vLose = 1f, vClick = 1f, vCrash = 1f, vHonk = 1f, vScreech = 1f, vDeploy = 1f, vHeli = 0.6f;
 
         /// <summary>Get the single Sfx, creating it if no scene has made one yet.</summary>
         public static Sfx Ensure()
@@ -40,6 +42,11 @@ namespace BusJam
             engine.spatialBlend = 0f;
             engine.loop = true;   // the vroom loops for as long as a vehicle is moving
 
+            heliSrc = gameObject.AddComponent<AudioSource>();
+            heliSrc.playOnAwake = false;
+            heliSrc.spatialBlend = 0f;
+            heliSrc.loop = true;  // rotor loops for the whole helicopter-joker flight
+
             // Your own clips (Resources/SoundCatalog.asset) OVERRIDE the built-ins; empty slots fall back.
             var cat = Resources.Load<SoundCatalog>("SoundCatalog");
             if (cat != null)
@@ -55,7 +62,12 @@ namespace BusJam
                 vHonk    = Mathf.Clamp01(cat.vehicleArrivesAtStopVolume);
                 vScreech = Mathf.Clamp01(cat.fullBusDrivesAwayVolume);
                 vDeploy  = Mathf.Clamp01(cat.vehicleSlidesOutVolume);
+                vHeli    = Mathf.Clamp01(cat.helicopterVolume);
             }
+
+            // If the catalog slot is empty we randomly pick one of the 3 generated helicopter_0N clips per flight
+            // (see Helicopter), so `heli` stays null here and only holds a user-assigned override.
+            heli = cat ? cat.helicopter : null;
 
             board   = Pick(cat ? cat.passengerBoardsBus    : null, Blip("board", 0.12f, 520f, 880f, 0.35f));
             coin    = Pick(cat ? cat.coinReward            : null, Arp("coin", new[] { 880f, 1175f, 1568f }, 0.05f, 0.28f));
@@ -86,12 +98,46 @@ namespace BusJam
         public void SetEngine(bool on)
         {
             if (engine == null) return;
+            if (heliVoices > 0) { if (engine.isPlaying) engine.Stop(); return; } // a rotor loop owns the move-audio
             if (on && deploy != null && SaveSystem.Sound)
             {
                 engine.volume = Mathf.Clamp01(master * vDeploy); // low volume via catalog
                 if (!engine.isPlaying) { engine.clip = deploy; engine.Play(); }
             }
             else if (engine.isPlaying) engine.Stop();              // stop immediately when movement stops
+        }
+
+        /// <summary>Ref-counted start/stop for the looping helicopter-joker rotor — `on` when a chopper takes off,
+        /// `!on` when it leaves. The loop plays while ANY chopper is up (so an exiting one re-tapped into a new
+        /// one keeps a single continuous rotor) and mutes the vroom meanwhile (you hear the chopper, not the carried
+        /// car's engine). Empty catalog slot -> a random one of the 3 built-in helicopter_0N clips, so lifts vary.</summary>
+        public void Helicopter(bool on)
+        {
+            if (on) heliVoices++;
+            else if (heliVoices > 0) heliVoices--;
+            if (heliSrc == null) return;
+
+            if (heliVoices > 0 && SaveSystem.Sound)
+            {
+                if (!heliSrc.isPlaying) // first chopper up -> start the loop (later overlapping ones just keep it going)
+                {
+                    AudioClip clip = heli != null ? heli : Resources.Load<AudioClip>("Sounds/helicopter_0" + Random.Range(1, 4));
+                    if (clip == null) return;
+                    heliSrc.clip = clip;
+                    heliSrc.volume = Mathf.Clamp01(master * vHeli);
+                    heliSrc.Play();
+                }
+                if (engine != null && engine.isPlaying) engine.Stop(); // hand the move-audio over to the rotor
+            }
+            else if (heliSrc.isPlaying) heliSrc.Stop();
+        }
+
+        /// <summary>Hard-reset the rotor (level teardown): drop the voice count and stop the loop, so two choppers
+        /// caught mid-flight by a rebuild can't leave it droning.</summary>
+        public void StopAllHelicopter()
+        {
+            heliVoices = 0;
+            if (heliSrc != null && heliSrc.isPlaying) heliSrc.Stop();
         }
 
         void Play(AudioClip c, float vol = 1f)

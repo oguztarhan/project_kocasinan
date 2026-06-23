@@ -40,6 +40,7 @@ namespace BusJam
 
         // Joker prices tuned to the flat 25-gold/level economy (Swap = ~2 levels, Recolor = ~3, Heli = ~4).
         const int RecolorCost = 75, SwapCost = 50, HeliCost = 100, SlotUnlockCost = 75;
+        bool heliCarrying;   // a helicopter joker is mid-lift; blocks a 2nd heli tap until the 1st starts leaving the screen
         const int ContinueBaseCost = 150;   // 1st continue costs this; doubles each further continue in the level
         int continueCount;                  // gold continues used this level (resets on StartLevel)
         int CurrentContinueCost => ContinueBaseCost << continueCount; // 150, 300, 600, 1200, ...
@@ -84,6 +85,7 @@ namespace BusJam
 
         readonly Dictionary<PieceColor, Material> bodyMats = new Dictionary<PieceColor, Material>();
         Material glassMat, wheelMat, lightMat, skinMat, seatEmptyMat, mysteryMat, goldMat, arrowMat, lockMat, slotMat;
+        Material heliBodyMat, heliAccentMat;  // helicopter-joker chopper: rescue-red shell + yellow accent (fin/hub/hook)
         Material roadMat, neonMat, stripeMat; // asphalt road + emissive neon (people-left sign) + white parking-bay lane stripes
         Material headlightMat, beamMat, beamMatDim, lampGlowMat; // T4: warm emissive lens + night beam (bright for moving traffic / dim for the packed jam) + soft lamp halo
         Mesh headlightBeamMesh;               // procedural tapered ground cone (built once, shared by every headlight)
@@ -293,6 +295,7 @@ namespace BusJam
             AssertNoOccOverlap(); // invariant watchdog: logs to the Console if two vehicles ever share a cell
 #endif
             RevealMystery();
+            RevealReadyMysteryVehicles(); // gray vehicles turn their true color the moment their exit lane is clear
 
             if (TryGetPointerDown(out Vector2 sp))
             {
@@ -376,6 +379,7 @@ namespace BusJam
 
             if (canExit && slot != null)
             {
+                if (bus.mystery && !bus.revealed) RevealVehicle(bus); // never drive off still gray (normally already revealed by Update)
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
@@ -959,6 +963,14 @@ namespace BusJam
             UpdatePeopleLeft(); // a person was just served (or skipped) -> refresh the counter
         }
 
+        // The WHOLE remaining queue in order: the on-screen window first, then the not-yet-streamed groups. Callers
+        // (the heli's color pick) must see past `visible` because a single color's run can fill all 10 visible slots.
+        IEnumerable<PieceColor> RemainingQueueColors()
+        {
+            foreach (var u in visible) if (u != null) yield return u.color;
+            if (groups != null) for (int i = nextGroupIndex; i < groups.Count; i++) yield return groups[i].color;
+        }
+
         // People still to serve = unspawned (groups - cursor) + on-screen window. Reads the LOGICAL
         // pool, NOT visible.Count alone; equals 0 exactly when visible==0 && cursor>=groups.Count (Win).
         int PeopleLeft() => Mathf.Max(0, (groups != null ? groups.Count - nextGroupIndex : 0) + visible.Count);
@@ -1158,38 +1170,173 @@ namespace BusJam
         // Only relocates a vehicle that had to be parked eventually -> per-color balance unchanged.
         void JokerHelicopter()
         {
+            if (heliCarrying) { sfx.Error(); return; } // a chopper is still lifting — wait until it starts leaving the screen
             if (state != GameState.Playing || gridBuses.Count == 0) { sfx.Error(); return; }
             if (SaveSystem.Level < J3UnlockLevel) { sfx.Error(); return; }
             var slot = FirstFreeSlot();
             if (slot == null) { sfx.Error(); return; } // no free slot -> nothing spent
 
-            // Prefer a vehicle matching the front passenger (directly unsticks), else any queued one.
-            Bus pick = null;
-            if (visible.Count > 0)
+            // Bring the NEXT color in line that ISN'T already being handled. A color counts as handled if a vehicle
+            // of it is at/heading to a stop and still boarding (Parked or arriving, not full). Walk the WHOLE
+            // remaining queue (past the visible window — runs can fill all 10 slots) and fetch the first queued
+            // vehicle whose color isn't handled. So sending a correct vehicle then tapping heli grabs a DIFFERENT,
+            // next-needed color instead of duplicating the one currently boarding.
+            var handled = new HashSet<PieceColor>();
+            foreach (var s in slots)
             {
-                var want = visible[0].color;
-                foreach (var b in gridBuses) if (b.state == BusState.Queued && b.color == want) { pick = b; break; }
+                var b = s.occupant;
+                if (b != null && (b.state == BusState.MovingToSlot || b.state == BusState.Parked) && !b.IsFull)
+                    handled.Add(b.color);
             }
-            if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }
+            Bus pick = null;
+            foreach (var color in RemainingQueueColors())
+            {
+                if (handled.Contains(color)) continue;                                                              // a vehicle is already on this color
+                foreach (var b in gridBuses) if (b.state == BusState.Queued && b.color == color) { pick = b; break; } // fetch this next-needed color
+                if (pick != null) break;
+            }
+            if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }      // fallback: any queued vehicle
             if (pick == null) { sfx.Error(); return; }
             if (!SpendJoker(2, HeliCost)) { sfx.Error(); return; }
 
             foreach (var c in LevelGenerator.OccCells(pick.cell, pick.dir, pick.length)) occ.Remove(c); // free ALL body cells (no phantom)
             gridBuses.Remove(pick);
             slot.occupant = pick; pick.slotIndex = slot.index; pick.state = BusState.MovingToSlot;
+            heliCarrying = true; // lock out a 2nd heli tap until this one starts leaving (cleared before the climb-away)
             StartCoroutine(HeliRoutine(pick, slot));
         }
 
+        // A real rescue-chopper lift: a mini helicopter flies in from off-screen, drops a hook onto the picked
+        // vehicle, winches it up, carries it over the jam to its bus stop, lowers it in, then climbs away
+        // off-screen. The chopper + cable + hook are spawned here and torn down at the end (joker is one-shot).
         IEnumerator HeliRoutine(Bus bus, ParkingSlot slot)
         {
             busy++;
-            // big arc -> the vehicle lifts and flies OVER the jam to its slot, ignoring obstacles.
-            yield return MoveAndRotateArc(bus.transform, ParkingWorld(slot.index), Quaternion.Euler(0, 180f, 0), 0.55f, 2.6f);
+            sfx.Helicopter(true); // looping rotor for the whole flight (mutes the vroom while it owns the audio)
+
+            float vehSize   = gameSettings.vehicleSize;
+            float roofWorld = Mathf.Max(0.25f, bus.roofY * vehSize);          // height the cable grabs the roof at
+            Vector3 vStart  = bus.transform.position;
+            Quaternion vRot0 = bus.transform.rotation;
+            Quaternion vPark = Quaternion.Euler(0, 180f, 0);                  // final parked facing (nose +Z) — matches drive-in parks
+            Vector3 park    = ParkingWorld(slot.index);
+
+            const float cruiseY  = 4.4f;   // cruise altitude — well in frame under the steep top-down camera
+            const float carryGap = 1.5f;   // belly-to-roof gap while the vehicle dangles
+            float hangY = cruiseY - carryGap - roofWorld;                     // vehicle base-Y while carried
+            Vector3 bellyLocal = new Vector3(0f, -0.32f, 0.04f);             // cable anchor under the chopper
+
+            Vector3 overCar  = new Vector3(vStart.x, cruiseY, vStart.z);
+            Vector3 overPark = new Vector3(park.x,   cruiseY, park.z);
+            float inSide  = vStart.x >= 0f ? 1f : -1f;
+            float outSide = park.x  >= 0f ? 1f : -1f;
+            Vector3 entry = new Vector3(inSide  * 14f, cruiseY + 1.2f, vStart.z);       // fly in from the near side
+            Vector3 exit  = new Vector3(outSide * 15f, cruiseY + 3.5f, park.z + 2.0f);  // climb out + off-screen
+
+            var heli = LowPolyBuilder.BuildHelicopter(boardRoot, heliBodyMat, glassMat, wheelMat, heliAccentMat);
+            heli.transform.localScale = Vector3.one * 0.82f; // a touch smaller chopper
+            heli.transform.position = entry;
+            heli.transform.rotation = Quaternion.LookRotation((overCar - entry).normalized, Vector3.up);
+            OutlineAll(heli);
+            var cable = MakeCube(boardRoot, wheelMat,      new Vector3(0.05f, 0.3f, 0.05f)); cable.name = "HeliCable";
+            var hook  = MakeCube(boardRoot, heliAccentMat, new Vector3(0.14f, 0.14f, 0.14f)); hook.name  = "HeliHook";
+
+            Vector3 BellyPt() => heli.transform.TransformPoint(bellyLocal);
+            Vector3 RoofPt()  => bus.transform.position + Vector3.up * roofWorld;
+            Vector3 TuckPt()  => BellyPt() + Vector3.down * 0.3f;
+            void DrawCable(Vector3 bot)
+            {
+                Vector3 top = BellyPt();
+                Vector3 d = bot - top; float len = d.magnitude;
+                cable.transform.position = (top + bot) * 0.5f;
+                cable.transform.rotation = len > 1e-4f ? Quaternion.FromToRotation(Vector3.up, d / len) : Quaternion.identity;
+                cable.transform.localScale = new Vector3(0.05f, Mathf.Max(len, 0.001f), 0.05f);
+                hook.transform.position = bot;
+            }
+
+            DrawCable(TuckPt());
+
+            // 1) fly in and hover over the picked vehicle
+            yield return HeliFly(heli.transform, entry, overCar, 0.7f, true, () => DrawCable(TuckPt()));
+            // 2) lower the hook onto the roof
+            yield return HeliTween(0.4f, k => DrawCable(Vector3.Lerp(TuckPt(), RoofPt(), Mathf.SmoothStep(0, 1, k))));
+            yield return new WaitForSeconds(0.06f);
+            StartCoroutine(Juice.PunchScale(bus.transform, 0.08f)); // latch nudge
+            // 3) winch the vehicle up to dangle below
+            yield return HeliTween(0.5f, k =>
+            {
+                float s = Mathf.SmoothStep(0, 1, k);
+                var p = bus.transform.position; p.y = Mathf.Lerp(0f, hangY, s); bus.transform.position = p;
+                bus.transform.rotation = Quaternion.Slerp(vRot0, vPark, s);
+                DrawCable(RoofPt());
+            });
+            // 4) carry it across to over the stop
+            yield return HeliFly(heli.transform, overCar, overPark, 0.95f, true, () =>
+            {
+                var h = heli.transform.position;
+                bus.transform.position = new Vector3(h.x, hangY, h.z);
+                bus.transform.rotation = vPark;
+                DrawCable(RoofPt());
+            });
+            // 5) lower it gently into the bay
+            yield return HeliTween(0.5f, k =>
+            {
+                float s = Mathf.SmoothStep(0, 1, k);
+                bus.transform.position = new Vector3(park.x, Mathf.Lerp(hangY, 0f, s), park.z);
+                bus.transform.rotation = vPark;
+                DrawCable(RoofPt());
+            });
+            bus.transform.position = park;
+            bus.transform.rotation = vPark;
             bus.state = BusState.Parked;
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
+            // 6) release the hook
+            yield return HeliTween(0.28f, k => DrawCable(Vector3.Lerp(RoofPt(), TuckPt(), Mathf.SmoothStep(0, 1, k))));
+            // 7) climb away off-screen — the chopper is now LEAVING, so free the heli joker for another tap
+            heliCarrying = false;
+            yield return HeliFly(heli.transform, overPark, exit, 0.8f, true, () => DrawCable(TuckPt()));
+
+            if (heli  != null) Destroy(heli);
+            if (cable != null) Destroy(cable);
+            if (hook  != null) Destroy(hook);
+            sfx.Helicopter(false); // rotor off -> the vroom may resume for normal moves
+
             busy--;
             TryStartBoardingPump();
             CheckEnd();
+        }
+
+        // Move the chopper from->to over dur (smoothstep), optionally banking its nose toward travel, and run
+        // `tick` every frame AFTER the move so the cable + any dangling vehicle stay glued to the new pose.
+        IEnumerator HeliFly(Transform heli, Vector3 from, Vector3 to, float dur, bool face, System.Action tick)
+        {
+            Quaternion r0 = heli != null ? heli.rotation : Quaternion.identity;
+            Vector3 flat = to - from; flat.y = 0f;
+            Quaternion r1 = (face && flat.sqrMagnitude > 0.04f)
+                ? Quaternion.LookRotation(flat.normalized, Vector3.up) * Quaternion.Euler(8f, 0, 0) // slight nose-down lean
+                : r0;
+            float e = 0f;
+            while (e < dur)
+            {
+                if (heli == null) yield break;
+                e += Time.deltaTime;
+                float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(e / dur));
+                heli.position = Vector3.Lerp(from, to, k);
+                heli.rotation = Quaternion.Slerp(r0, r1, Mathf.Clamp01(e / dur * 1.8f));
+                tick?.Invoke();
+                yield return null;
+            }
+            if (heli != null) { heli.position = to; heli.rotation = r1; }
+            tick?.Invoke();
+        }
+
+        // Timed driver for the heli's hover phases: calls step(k) with k 0->1 over dur, then a final step(1).
+        IEnumerator HeliTween(float dur, System.Action<float> step)
+        {
+            if (dur <= 0f) { step(1f); yield break; }
+            float e = 0f;
+            while (e < dur) { e += Time.deltaTime; step(Mathf.Clamp01(e / dur)); yield return null; }
+            step(1f);
         }
 
         // Re-tint a jam bus to a new match-color (body + roof passengers) for RECOLOR.
@@ -1229,6 +1376,71 @@ namespace BusJam
                     var hat = pax.transform.Find("Hat");
                     if (hat != null) { var hr = hat.GetComponent<Renderer>(); if (hr != null) hr.sharedMaterial = bodyMats[newColor]; }
                 }
+        }
+
+        // GRAY a mystery vehicle's whole shell to the mystery material (mirror of RecolorBus, but to gray).
+        // bus.color is left untouched — only the materials change, so reveal just re-tints from the prefab base.
+        void GrayBus(Bus bus)
+        {
+            var modelTf = bus.transform.Find("Model");
+            if (modelTf != null)
+            {
+                var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
+                for (int r = 0; r < modelRends.Length; r++)
+                {
+                    var m = modelRends[r].sharedMaterials;
+                    for (int i = 0; i < m.Length; i++) m[i] = mysteryMat;
+                    modelRends[r].sharedMaterials = m;
+                }
+            }
+            else // code-built fallback: gray the body cube
+            {
+                var bodyTf = bus.transform.Find("Body");
+                if (bodyTf != null) { var br = bodyTf.GetComponent<Renderer>(); if (br != null) br.sharedMaterial = mysteryMat; }
+            }
+            // Gray the roof heads' caps too, so no color leaks through.
+            if (bus.roofPeople != null)
+                foreach (var pax in bus.roofPeople)
+                {
+                    if (pax == null) continue;
+                    var hat = pax.transform.Find("Hat");
+                    if (hat != null) { var hr = hat.GetComponent<Renderer>(); if (hr != null) hr.sharedMaterial = mysteryMat; }
+                }
+        }
+
+        // Reveal a mystery vehicle's true color (its lane just became fully clear). Re-tints from the prefab
+        // base via RecolorBus(bus, bus.color), drops the diamond marker, and pops for a beat of feedback.
+        void RevealVehicle(Bus bus)
+        {
+            if (bus == null || bus.revealed) return;
+            bus.revealed = true;
+            RecolorBus(bus, bus.color); // bus.color already holds the TRUE color -> restores the real shell
+            if (bus.mysteryMarker != null) { Destroy(bus.mysteryMarker); bus.mysteryMarker = null; }
+            StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
+        }
+
+        // Per-frame: any still-gray mystery vehicle whose exit lane is now fully clear (it could drive all the
+        // way out) reveals its color. Same clearance test the tap-to-exit path uses, so "revealed" == "tappable".
+        void RevealReadyMysteryVehicles()
+        {
+            if (gridBuses == null) return;
+            for (int i = 0; i < gridBuses.Count; i++)
+            {
+                var b = gridBuses[i];
+                if (b == null || !b.mystery || b.revealed) continue;
+                if (b.state != BusState.Queued && b.state != BusState.Staging) continue; // only while still parked in the jam
+                if (VehicleLaneClear(b)) RevealVehicle(b);
+            }
+        }
+
+        // True when `bus` could drive its full length out of the jam right now — cardinal lane clear, OR a
+        // diagonal whose real preserve-45° body path is clear. Mirrors the canExit test in TryTapBus exactly.
+        bool VehicleLaneClear(Bus bus)
+        {
+            bool jamClear = LevelGenerator.SlideClear(bus.cell, bus.dir, bus.length,
+                c => occ.TryGetValue(c, out var ob) && ob != bus, gridW, gridH);
+            bool isDiag = bus.dir.x != 0 && bus.dir.y != 0;
+            return jamClear || (isDiag && BodySlideClear(bus));
         }
 
         IEnumerator AfterJoker()
@@ -1347,9 +1559,9 @@ namespace BusJam
         {
             StopAllCoroutines();
             Juice.ClearAllPunches(); // drop punch state left by hard-stopped coroutines (no cross-level leak)
-            busy = 0; pumpRunning = false; pumpDirty = false;
+            busy = 0; pumpRunning = false; pumpDirty = false; heliCarrying = false;
             occ.Clear(); reservedByMoving.Clear(); gridDriver = null; gridBuses.Clear(); liveBuses.Clear(); visible.Clear(); slots = null;
-            if (sfx != null) sfx.SetEngine(false); // kill the engine loop across a level rebuild
+            if (sfx != null) { sfx.SetEngine(false); sfx.StopAllHelicopter(); } // kill the engine + rotor loops across a level rebuild (a heli may be interrupted mid-flight)
             traffic.Clear(); // T2: drop pooled traffic refs (the cars themselves die with boardRoot below)
             trafficRedLamps.Clear(); trafficGreenLamps.Clear(); // drop traffic-light lamp refs (poles die with boardRoot)
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
@@ -1694,7 +1906,7 @@ namespace BusJam
             occ.Clear(); gridBuses.Clear();
             foreach (var gb in level.gridBuses)
             {
-                var bus = CreateBus(gb.color, gb.type, gb.capacity, gb.advanceN, DirYaw(gb.dir));
+                var bus = CreateBus(gb.color, gb.type, gb.capacity, gb.advanceN, DirYaw(gb.dir), gb.mystery);
                 bus.cell = gb.cell; bus.dir = gb.dir; bus.length = Vehicles.CellLength(gb.type);
                 bus.state = BusState.Queued;
                 bus.transform.position = GridWorldCenter(gb.cell, gb.dir, bus.length);
@@ -1933,13 +2145,13 @@ namespace BusJam
             }
         }
 
-        Bus CreateBus(PieceColor color, VehicleType type, int capacity, int advanceN, float yaw)
+        Bus CreateBus(PieceColor color, VehicleType type, int capacity, int advanceN, float yaw, bool mystery = false)
         {
             var root = new GameObject(type + "_" + color);
             root.transform.SetParent(boardRoot, false);
             root.transform.rotation = Quaternion.Euler(0, yaw, 0);
             var bus = root.AddComponent<Bus>();
-            bus.color = color; bus.type = type; bus.capacity = capacity; bus.advanceN = advanceN;
+            bus.color = color; bus.type = type; bus.capacity = capacity; bus.advanceN = advanceN; bus.mystery = mystery;
             liveBuses.Add(bus); // track for the engine-sound movement scan (cleared on level teardown)
 
             GameObject prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(type) : null;
@@ -1954,12 +2166,34 @@ namespace BusJam
                 // Cute heads pop onto the roof as people board (replaces the empty-seat NUMBER).
                 float cbTop = CellSize * 0.6f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
                 bus.roofPeople = BuildRoofHeads(root.transform, capacity, color, cbTop, CellSize * 0.26f, cbLen);
+                bus.roofY = cbTop; // for the mystery "?" placement (same roof level as the arrow)
                 // (Removed) the "«N" advance badge that floated on the roof — advanceN still works in gameplay, it's just no longer shown.
             }
+            // MYSTERY: gray the whole shell and add the "?" roof badge BEFORE OutlineAll, so the toon outline
+            // is added fresh on top (stays black ink) and reveal — RecolorBus from the prefab base — restores it.
+            if (mystery) { GrayBus(bus); BuildMysteryMarker(bus, root.transform); }
             root.transform.localScale = Vector3.one * gameSettings.vehicleSize; // editable vehicle-size multiplier (both render paths)
             OutlineAll(root); // toon ink edge on the vehicle body + roof markers (before headlights so the glowing lenses stay clean)
             if (nightMode) AttachHeadlights(root.transform, LowPolyBuilder.VehicleLength(type, CellSize) * 0.5f, false); // T4: night headlights (no real spot on the jam vehicles)
             return bus;
+        }
+
+        // A small "?" badge sitting on a mystery vehicle's roof, at the SAME height + centerline as the direction
+        // arrow (bus.roofY) so the two read as one set of roof markings — sized to stay within the body. It's a
+        // screen-aligned world-space label (BillboardUp keeps it upright + readable at any vehicle yaw), parented
+        // under the root so it follows crawls and inherits the vehicle's size scale. Destroyed on reveal. (Jam
+        // vehicles carry no roof passengers until they've parked — reveal always fires first — so it never clashes.)
+        void BuildMysteryMarker(Bus bus, Transform root)
+        {
+            var go = new GameObject("MysteryMark", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(root, false);
+            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(100, 100);
+            go.transform.localPosition = new Vector3(0f, bus.roofY + CellSize * 0.15f, 0f); // rest it on the roof, by the arrow
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (CellSize * 0.30f / 100f); // -X cancels the BillboardUp mirror; ~0.33u = small enough for tiny car roofs
+            go.AddComponent<BillboardUp>();
+            AddSignText(go.transform, "?", 100, Vector2.zero, Vector2.one, new Color(0.97f, 0.97f, 0.97f)); // white "?" w/ black outline reads on gray
+            bus.mysteryMarker = go;
         }
 
         // Instantiate an imported vehicle, drive its BODY ("Main Color 1" = _Color01) to the match
@@ -2047,6 +2281,7 @@ namespace BusJam
             // on a later frame ("buses look funny on Play, Replay fixes it"). roofY already == the scaled model
             // height with the base sitting at y=0, so it IS the true top — and matches Renderer.bounds when valid.
             float topY = roofY;
+            bus.roofY = topY; // for the mystery "?" placement (same roof level as the arrow)
 
             // Tappable box (the prefab's colliders were stripped).
             var box = root.gameObject.AddComponent<BoxCollider>();
@@ -2671,6 +2906,8 @@ namespace BusJam
             arrowMat     = lib["Arrow"];
             lockMat      = lib["Lock"];
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
+            if (heliBodyMat == null)   heliBodyMat   = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.46f, 0.82f), 0.4f);  // sky-blue shell (built once, reused by every heli joker)
+            if (heliAccentMat == null) heliAccentMat = MaterialLibrary.MakeRuntime(new Color(0.97f, 0.78f, 0.16f), 0.35f); // warm yellow accent (fin/hub/hook)
             roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
             stripeMat    = MaterialLibrary.MakeRuntime(new Color(0.93f, 0.93f, 0.86f), 0.10f);       // white-cream paint for the parking-bay lane markings
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign

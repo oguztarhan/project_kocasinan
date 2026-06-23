@@ -17,6 +17,7 @@ namespace BusJam
         public Vector2Int cell;
         public Vector2Int dir;
         public int advanceN;
+        public bool mystery;   // spawns GRAY (color hidden) like a mystery person; reveals when it could fully drive out
     }
 
     /// <summary>One queue slot: a single waiting person.</summary>
@@ -242,7 +243,11 @@ namespace BusJam
             var style = (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
             float pack = Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f)); // more slack early, denser later
             bool allowDiagonals = levelNumber >= 6; // early high-count boards stay 4-way/readable; 6+ = 8-way
-            var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, out int gridW, out int gridH);
+            // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
+            // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
+            // level layouts are byte-for-byte unchanged.
+            float vehicleMysteryP = Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f);
+            var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, vehicleMysteryP, out int gridW, out int gridH);
 
             return new LevelData
             {
@@ -325,7 +330,7 @@ namespace BusJam
         // direction. Placing in reverse so that, for every k, the body cells are free AND the
         // exit lane ahead is clear, guarantees forward extraction (0..n-1) is always solvable:
         // when vehicle k leaves, all later-placed vehicles are still clear of its lane.
-        static List<GridBus> BuildGrid(List<BusDef> buses, System.Random rng, int gridWidth, int gridHeightHint, LayoutStyle style, float pack, bool allowDiagonals, out int W, out int H)
+        static List<GridBus> BuildGrid(List<BusDef> buses, System.Random rng, int gridWidth, int gridHeightHint, LayoutStyle style, float pack, bool allowDiagonals, float vehicleMysteryP, out int W, out int H)
         {
             int n = buses.Count;
             int totalCells = 0;
@@ -347,6 +352,8 @@ namespace BusJam
             for (int k = n - 1; k >= 0; k--)
             {
                 int L = Vehicles.CellLength(buses[k].type);
+                // Roll mystery ONCE per vehicle (short-circuits so P==0 levels never touch rng -> identical layout).
+                bool isMystery = vehicleMysteryP > 0f && rng.NextDouble() < vehicleMysteryP;
                 // Special "<<" crawlers stay CARDINAL for clean per-tap framing (the unified occ rewrite is
                 // diagonal-safe via the shared OccCells; this is a design choice, not a geometry limit).
                 var dirs = (allowDiagonals && buses[k].advanceN == 0) ? eight : cardinals;
@@ -384,7 +391,7 @@ namespace BusJam
                             // diagonal vehicle's thick footprint + corner-sweep are placed solvably.
                             if (BodyFree(anchor, d, L, occupied, W, H) && SlideClear(anchor, d, L, occupied.Contains, W, H))
                             {
-                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
+                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
                                 foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
                                 placed = true;
                                 break;
@@ -405,12 +412,23 @@ namespace BusJam
                             // DEEPEST ON-SCREEN row (<=8) and never grow H past 9, so no vehicle lands off-screen.
                             var d = new Vector2Int(-1, 0);
                             var anchor = new Vector2Int(0, Mathf.Min(H, 8));
-                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN };
+                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
                             foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
                             H = Mathf.Min(H + 2, 9); placed = true;
                         }
                     }
                 }
+            }
+
+            // GUARANTEE at least one mystery vehicle on every level past 10. The per-vehicle roll can come up
+            // empty at the low early chances (3% at L11), so if none landed, force a random vehicle gray. Bonus
+            // levels use BuildBonusGrid (not this), so they stay mystery-free. Runs AFTER placement (no layout
+            // impact) and only when P>0, so levels <=10 never touch rng here -> identical to before.
+            if (vehicleMysteryP > 0f)
+            {
+                bool any = false;
+                for (int k = 0; k < n; k++) if (result[k].mystery) { any = true; break; }
+                if (!any && n > 0) result[rng.Next(n)].mystery = true;
             }
 
             return new List<GridBus>(result);

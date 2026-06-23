@@ -53,6 +53,12 @@ namespace BusJam
         public AudioClip passengerBoardsBus;
         [Range(0f, 1f)] public float passengerBoardsBusVolume = 0.9f;
 
+        [Tooltip("Looping rotor sound for the HELICOPTER joker — plays while the chopper flies in, lifts the vehicle, " +
+                 "carries it to the stop, and leaves. Leave EMPTY to randomly use one of the 3 built-in helicopter_0N " +
+                 "clips (Resources/Sounds). Look for: a steady rotor 'whomp-whomp' LOOP (~2-4s).")]
+        public AudioClip helicopter;
+        [Range(0f, 1f)] public float helicopterVolume = 0.6f;
+
         [Header("REWARDS & ERRORS")]
 
         [Tooltip("Plays when you earn or spend coins — rewards, purchases, joker costs. Look for: a coin jingle / chime (~0.3s).")]

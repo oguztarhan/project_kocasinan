@@ -32,6 +32,14 @@ namespace BusJam
         // grid cells along its arrow per tap (crawls out over multiple taps).
         public int advanceN;
 
+        // MYSTERY vehicle: spawns GRAY (real color hidden, like a mystery person) and reveals its color
+        // the moment its exit lane is fully clear (it could drive all the way out). `color` always holds the
+        // TRUE color underneath — only the materials are grayed — so boarding/win logic is unaffected.
+        [System.NonSerialized] public bool mystery;
+        [System.NonSerialized] public bool revealed;
+        [System.NonSerialized] public GameObject mysteryMarker; // the "?" badge on the roof; destroyed on reveal
+        [System.NonSerialized] public float roofY;              // roof-top height (root-local, pre vehicleSize) — where the arrow + "?" sit
+
         // Tiny passengers on the roof — one per seat, hidden until that seat fills. Replaces the old
         // floating empty-seat NUMBER: the player COUNTS empty seats instead of reading a digit.
         public GameObject[] roofPeople;

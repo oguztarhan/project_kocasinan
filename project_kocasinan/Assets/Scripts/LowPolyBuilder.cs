@@ -286,6 +286,87 @@ namespace BusJam
             crown.transform.localScale = new Vector3(1.5f * scale, 0.5f * scale, 1.5f * scale);
         }
 
+        // ---- Helicopter (joker) -------------------------------------------------
+        // A mini low-poly rescue chopper built from primitives, matching the toy look of the vehicles.
+        // Nose points +Z so LookRotation(travelDir) aims it forward. The main + tail rotors auto-spin
+        // (Spinner). The lift cable + hook are NOT built here — BusJamGame creates+animates them in world
+        // space so they hang straight down regardless of how the body banks. Returns the body root.
+        public static GameObject BuildHelicopter(Transform parent, Material body, Material glass, Material rotor, Material accent)
+        {
+            var root = new GameObject("Helicopter");
+            if (parent != null) root.transform.SetParent(parent, false);
+
+            // Fuselage — rounded capsule lying along Z.
+            var fus = Prim(PrimitiveType.Capsule, root.transform, body);
+            fus.transform.localRotation = Quaternion.Euler(90f, 0, 0);
+            fus.transform.localScale = new Vector3(0.66f, 0.9f, 0.66f);
+            fus.transform.localPosition = new Vector3(0, 0, 0.05f);
+
+            // Belly pod (slightly boxy underside the cable hangs from).
+            var belly = Prim(PrimitiveType.Cube, root.transform, body);
+            belly.transform.localScale = new Vector3(0.52f, 0.32f, 1.0f);
+            belly.transform.localPosition = new Vector3(0, -0.22f, 0.05f);
+
+            // Cockpit glass bubble at the nose (+Z).
+            var glassGo = Prim(PrimitiveType.Sphere, root.transform, glass);
+            glassGo.transform.localScale = new Vector3(0.6f, 0.55f, 0.66f);
+            glassGo.transform.localPosition = new Vector3(0, 0.06f, 0.72f);
+
+            // Tail boom (thin, back -Z) + vertical fin.
+            var boom = Prim(PrimitiveType.Cube, root.transform, body);
+            boom.transform.localScale = new Vector3(0.14f, 0.16f, 1.05f);
+            boom.transform.localPosition = new Vector3(0, 0.14f, -0.95f);
+            var fin = Prim(PrimitiveType.Cube, root.transform, accent);
+            fin.transform.localScale = new Vector3(0.07f, 0.42f, 0.3f);
+            fin.transform.localPosition = new Vector3(0, 0.34f, -1.45f);
+
+            // Main rotor — mast + hub + a spinning 2-blade cross on top.
+            var mast = Prim(PrimitiveType.Cylinder, root.transform, rotor);
+            mast.transform.localScale = new Vector3(0.08f, 0.13f, 0.08f);
+            mast.transform.localPosition = new Vector3(0, 0.52f, 0.05f);
+            var hub = Prim(PrimitiveType.Cylinder, root.transform, accent);
+            hub.transform.localScale = new Vector3(0.18f, 0.04f, 0.18f);
+            hub.transform.localPosition = new Vector3(0, 0.66f, 0.05f);
+            var mainRotor = new GameObject("MainRotor");
+            mainRotor.transform.SetParent(root.transform, false);
+            mainRotor.transform.localPosition = new Vector3(0, 0.68f, 0.05f);
+            for (int i = 0; i < 2; i++)
+            {
+                var blade = Prim(PrimitiveType.Cube, mainRotor.transform, rotor);
+                blade.transform.localScale = new Vector3(2.5f, 0.035f, 0.16f);
+                blade.transform.localRotation = Quaternion.Euler(0, i * 90f, 0);
+            }
+            mainRotor.AddComponent<Spinner>().Set(Vector3.up, 1150f);
+
+            // Tail rotor — a small spinning cross at the boom end (spins about X).
+            var tailRotor = new GameObject("TailRotor");
+            tailRotor.transform.SetParent(root.transform, false);
+            tailRotor.transform.localPosition = new Vector3(0.12f, 0.34f, -1.5f);
+            for (int i = 0; i < 2; i++)
+            {
+                var blade = Prim(PrimitiveType.Cube, tailRotor.transform, rotor);
+                blade.transform.localScale = new Vector3(0.05f, 0.62f, 0.07f);
+                blade.transform.localRotation = Quaternion.Euler(0, 0, i * 90f);
+            }
+            tailRotor.AddComponent<Spinner>().Set(Vector3.right, 1700f);
+
+            // Landing skids (two rails + struts).
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var skid = Prim(PrimitiveType.Cube, root.transform, rotor);
+                skid.transform.localScale = new Vector3(0.05f, 0.05f, 1.2f);
+                skid.transform.localPosition = new Vector3(s * 0.34f, -0.46f, 0.05f);
+                var strutF = Prim(PrimitiveType.Cube, root.transform, rotor);
+                strutF.transform.localScale = new Vector3(0.04f, 0.26f, 0.04f);
+                strutF.transform.localPosition = new Vector3(s * 0.3f, -0.34f, 0.42f);
+                var strutB = Prim(PrimitiveType.Cube, root.transform, rotor);
+                strutB.transform.localScale = new Vector3(0.04f, 0.26f, 0.04f);
+                strutB.transform.localPosition = new Vector3(s * 0.3f, -0.34f, -0.32f);
+            }
+
+            return root;
+        }
+
         public static GameObject Slab(Transform parent, Vector3 center, Vector3 size, Material mat)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
