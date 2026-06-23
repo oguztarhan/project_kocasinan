@@ -1151,6 +1151,7 @@ namespace BusJam
                 for (int i = list.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (colors[i], colors[j]) = (colors[j], colors[i]); }
                 for (int i = 0; i < list.Count; i++) RecolorBus(list[i], colors[i]);
             }
+            StartCoroutine(RecolorFx(new List<Bus>(gridBuses)));     // colour-burst wave across the freshly recoloured jam
             StartCoroutine(AfterJoker());
         }
 
@@ -1163,6 +1164,7 @@ namespace BusJam
             if (!SpendJoker(1, SwapCost)) { sfx.Error(); return; }
             // success click handled globally by UiClickSound (button press)
             for (int i = visible.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (visible[i], visible[j]) = (visible[j], visible[i]); }
+            StartCoroutine(SwapFx(new List<LineUnit>(visible)));     // each shuffled person sparks in their OWN colour
             StartCoroutine(AfterJoker());
         }
 
@@ -1441,6 +1443,51 @@ namespace BusJam
                 c => occ.TryGetValue(c, out var ob) && ob != bus, gridW, gridH);
             bool isDiag = bus.dir.x != 0 && bus.dir.y != 0;
             return jamClear || (isDiag && BodySlideClear(bus));
+        }
+
+        // ---- Joker "reward" FX (re-added after an origin-sync wipe — COMMIT this so it sticks) -----------
+        // RECOLOR: a colour-burst that radiates OUT from the jam centre — each vehicle pops and sprays its
+        // NEW colour, so the recolour visibly ripples across the whole jam (a happy splash of colour).
+        IEnumerator RecolorFx(List<Bus> buses)
+        {
+            Vector3 center = Vector3.zero; int n = 0;
+            foreach (var b in buses) if (b != null) { center += b.transform.position; n++; }
+            if (n > 0) center /= n;
+            buses.Sort((a, c) =>
+            {
+                float da = a != null ? (a.transform.position - center).sqrMagnitude : 1e9f;
+                float dc = c != null ? (c.transform.position - center).sqrMagnitude : 1e9f;
+                return da.CompareTo(dc);
+            });
+            foreach (var b in buses)
+            {
+                if (state != GameState.Playing) yield break;
+                if (b == null) continue;
+                StartCoroutine(Juice.PunchScale(b.transform, 0.18f, 0.26f));
+                Juice.Burst(this, boardRoot, b.transform.position + Vector3.up * 0.9f, bodyMats[b.color], 8, 4.4f);  // spark in the vehicle's NEW colour
+                yield return new WaitForSeconds(0.035f);
+            }
+        }
+
+        // SWAP: a colour sparkle that sweeps left-to-right across the reshuffled queue — each waiting person
+        // pops and sparks in THEIR OWN colour, so you see the colours rearranging (mystery folk stay hidden).
+        IEnumerator SwapFx(List<LineUnit> people)
+        {
+            people.Sort((a, c) =>
+            {
+                float xa = a != null ? a.transform.position.x : 1e9f;
+                float xc = c != null ? c.transform.position.x : 1e9f;
+                return xa.CompareTo(xc);
+            });
+            foreach (var u in people)
+            {
+                if (state != GameState.Playing) yield break;
+                if (u == null) continue;
+                StartCoroutine(Juice.PunchScale(u.transform, 0.22f, 0.24f));
+                Material m = (u.mystery && !u.revealed) ? goldMat : bodyMats[u.color];  // person's OWN colour; don't spoil a hidden mystery
+                Juice.Burst(this, boardRoot, u.transform.position + Vector3.up * 0.9f, m, 7, 3.9f);
+                yield return new WaitForSeconds(0.045f);
+            }
         }
 
         IEnumerator AfterJoker()
