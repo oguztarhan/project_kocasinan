@@ -168,7 +168,9 @@ namespace BusJam
             smokeFx       = Resources.Load<GameObject>("Fx/smoke");            // imported pack prefabs copied into Resources/Fx (null -> procedural)
             hitFx         = Resources.Load<GameObject>("Fx/hit");
             busStopFx     = Resources.Load<GameObject>("Fx/busstop");
-            toonOutlineFx = Resources.Load<Material>("Fx/toon_outline");
+            // Gritline toon outline REMOVED — leave this null so OutlineAll() no-ops (no ink edge is drawn on
+            // any vehicle/person/building). The Gritline Outline_BackFaceCull shadergraph is no longer loaded.
+            toonOutlineFx = null;
             cityBuildings = Resources.LoadAll<GameObject>("Fx/Buildings");
             cityTrees     = Resources.LoadAll<GameObject>("Fx/Trees");
             cityRoads     = Resources.LoadAll<GameObject>("Fx/Roads");
@@ -1358,7 +1360,11 @@ namespace BusJam
                 else if (vehicleCatalog != null) // imported gameplay pack: re-tint each slot's _Color01 from the prefab base
                 {
                     var prefab = vehicleCatalog.PrefabFor(bus.type);
-                    if (prefab != null)
+                    if (prefab != null && !ModelHasColor01(prefab)) // glb / no-_Color01 model: body-only recolor (matches build)
+                    {
+                        ColorSkinModel(modelTf, prefab, newColor);
+                    }
+                    else if (prefab != null)
                     {
                         var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
                         var prefabRends = prefab.GetComponentsInChildren<Renderer>(true);
@@ -2434,9 +2440,10 @@ namespace BusJam
             foreach (var rb in model.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
             foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);
 
-            // Color the body. Skin/glb models color ONLY their largest part (the body) to the exact gameplay-color
-            // material, leaving glass/wheels/lights as-is; the imported gameplay pack tints each slot's _Color01.
-            if (bodyOnly)
+            // Color the body. Skin/glb models — and ANY imported model WITHOUT the pack's _Color01 slot (e.g. a raw
+            // .glb bus from othercars) — color ONLY their largest part (the body) to the gameplay color, leaving
+            // glass/wheels/lights as-is; only the LowPolyRoadVehicles pack (which exposes _Color01) tints per-slot.
+            if (bodyOnly || !ModelHasColor01(prefab))
                 ColorSkinModel(model.transform, prefab, color);
             else
                 foreach (var r in model.GetComponentsInChildren<Renderer>(true))
@@ -2543,6 +2550,18 @@ namespace BusJam
             return m;
         }
 
+        // True if the prefab exposes the LowPolyRoadVehicles pack's "_Color01" body slot. glTF/.glb imports (the
+        // othercars Bus/Connect/Sedan) lack it -> they tint via the body-only path (ColorSkinModel) instead, so no
+        // catalog flag is needed: drop a glb into busPrefab/carPrefab and it recolors correctly on its own.
+        bool ModelHasColor01(GameObject prefab)
+        {
+            if (prefab == null) return false;
+            foreach (var r in prefab.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in r.sharedMaterials)
+                    if (m != null && m.HasProperty("_Color01")) return true;
+            return false;
+        }
+
         // Car-pack skin tinting: drive the BODY (the paint material — its name doesn't match a "detail" part) to the
         // match color so the car shows the gameplay color, keeping glass/wheels/lights/trim as-is. Cached per
         // (material, color) so it never allocates per-vehicle and never mutates the shared pack material.
@@ -2641,6 +2660,12 @@ namespace BusJam
             Color c = PeopleColor(color);
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
             if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+            // glTF-imported bodies (the othercars .glb vehicles) expose their base colour as the glTF-spec
+            // "baseColorFactor" (NOT _BaseColor), so set that too. The body texture is then MULTIPLIED by the
+            // match colour: the light body shell turns the gameplay colour, while the baked-dark windows, tyres
+            // and headlights stay dark and untouched. Without this the .glb kept its raw grey texture (never
+            // took its colour), which is why the new bus rendered grey instead of red/yellow/etc.
+            if (m.HasProperty("baseColorFactor")) m.SetColor("baseColorFactor", c);
             skinTintCache[key] = m;
             return m;
         }
