@@ -56,6 +56,7 @@ public class MenuController : MonoBehaviour
             FindByName("Btn_NoAds"),   // no-ads icon
             FindByName("Btn_AdReward"),// watch-ad-for-gold
             FindByName("Btn_Play"),    // PLAY button
+            FindByName("Btn_Garage"),  // GARAGE button (skins / chests)
         };
         CloseAll();
         Refresh();
@@ -215,6 +216,9 @@ public class MenuController : MonoBehaviour
     }
 
     public void Play() { SceneManager.LoadScene(gameSceneName); }
+
+    // Main-menu GARAGE button: load the game scene and open the garage straight away (closing it returns to the menu).
+    public void OpenGarage() { GameUI.OpenGarageOnLoad = true; SceneManager.LoadScene(gameSceneName); }
 
     // Spend 100 gold (joker purchase). Returns silently if not enough.
     public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }

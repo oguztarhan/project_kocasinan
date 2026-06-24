@@ -22,6 +22,8 @@ MonoBehaviour:
   vehicleBlockedCrashVolume: 1
   passengerBoardsBus: {fileID: 8300000, guid: 0d5d08302d7df2249b85edccdd8bd8f8, type: 3}
   passengerBoardsBusVolume: 0.9
+  helicopter: {fileID: 8300000, guid: b814da26acb1df14289712c2a41e0da9, type: 3}
+  helicopterVolume: 0.6
   coinReward: {fileID: 0}
   coinRewardVolume: 1
   invalidActionError: {fileID: 0}

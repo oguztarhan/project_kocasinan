@@ -186,6 +186,8 @@ namespace BusJam
             ui.OnRecolor = JokerRecolor;
             ui.OnSwap = JokerSwapPeople;
             ui.OnHeli = JokerHelicopter;
+            ui.OnCycleSkin = DebugCycleSkin;     // TEMP (Phase 1): settings debug button cycles vehicle skins
+            ui.OnReskin = RetryLevel;            // Garage equip -> rebuild the board so the new skin MODEL is shown
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
@@ -1341,28 +1343,37 @@ namespace BusJam
             step(1f);
         }
 
-        // Re-tint a jam bus to a new match-color (body + roof passengers) for RECOLOR.
+        // Re-tint a jam bus to a new match-color (body + roof passengers) for RECOLOR / mystery reveal. Works for a
+        // skin car-pack model (body tinted by material name), the imported gameplay pack (_Color01), or code-built.
         void RecolorBus(Bus bus, PieceColor newColor)
         {
             bus.color = newColor;
             var modelTf = bus.transform.Find("Model");
-            var prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(bus.type) : null;
-            if (modelTf != null && prefab != null)
+            if (modelTf != null)
             {
-                // Tint each model slot against its ORIGINAL prefab material (same as the build path) so
-                // multi-material vehicles keep windows/wheels, and the cache key stays bounded.
-                var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
-                var prefabRends = prefab.GetComponentsInChildren<Renderer>(true);
-                for (int r = 0; r < modelRends.Length; r++)
+                if (bus.skinModelPrefab != null) // skin / glb model: recolor ONLY the body (texture × color / largest solid part)
                 {
-                    var m = modelRends[r].sharedMaterials;
-                    var baseMats = r < prefabRends.Length ? prefabRends[r].sharedMaterials : null;
-                    for (int i = 0; i < m.Length; i++)
+                    ColorSkinModel(modelTf, bus.skinModelPrefab, newColor);
+                }
+                else if (vehicleCatalog != null) // imported gameplay pack: re-tint each slot's _Color01 from the prefab base
+                {
+                    var prefab = vehicleCatalog.PrefabFor(bus.type);
+                    if (prefab != null)
                     {
-                        Material baseM = (baseMats != null && i < baseMats.Length) ? baseMats[i] : null;
-                        if (baseM != null) m[i] = TintedVehicleMat(baseM, newColor);
+                        var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
+                        var prefabRends = prefab.GetComponentsInChildren<Renderer>(true);
+                        for (int r = 0; r < modelRends.Length; r++)
+                        {
+                            var m = modelRends[r].sharedMaterials;
+                            var baseMats = r < prefabRends.Length ? prefabRends[r].sharedMaterials : null;
+                            for (int i = 0; i < m.Length; i++)
+                            {
+                                Material baseM = (baseMats != null && i < baseMats.Length) ? baseMats[i] : null;
+                                if (baseM != null) m[i] = TintedVehicleMat(baseM, newColor);
+                            }
+                            modelRends[r].sharedMaterials = m;
+                        }
                     }
-                    modelRends[r].sharedMaterials = m;
                 }
             }
             else // code-built fallback: re-tint the body cube
@@ -1380,6 +1391,19 @@ namespace BusJam
                 }
         }
 
+        // TEMP debug (skins): own + equip the NEXT vehicle skin in the catalog, then rebuild the level so the new
+        // MODEL is built fresh (a model swap can't just re-tint). Wired to the settings "SKIN:" button.
+        void DebugCycleSkin()
+        {
+            var list = SkinCatalog.Vehicles;
+            int idx = 0;
+            for (int i = 0; i < list.Count; i++) if (list[i].id == SaveSystem.EquippedVehicleSkin) { idx = i; break; }
+            var next = list[(idx + 1) % list.Count];
+            SaveSystem.AddOwnedSkin(next.id);
+            SaveSystem.EquippedVehicleSkin = next.id;
+            RetryLevel(); // rebuild the current level so the new car MODEL is built fresh
+        }
+
         // GRAY a mystery vehicle's whole shell to the mystery material (mirror of RecolorBus, but to gray).
         // bus.color is left untouched — only the materials change, so reveal just re-tints from the prefab base.
         void GrayBus(Bus bus)
@@ -1387,6 +1411,7 @@ namespace BusJam
             var modelTf = bus.transform.Find("Model");
             if (modelTf != null)
             {
+                // Gray the whole model (mystery = fully hidden). Reveal re-derives the body color from the prefab.
                 var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
                 for (int r = 0; r < modelRends.Length; r++)
                 {
@@ -2201,8 +2226,23 @@ namespace BusJam
             bus.color = color; bus.type = type; bus.capacity = capacity; bus.advanceN = advanceN; bus.mystery = mystery;
             liveBuses.Add(bus); // track for the engine-sound movement scan (cleared on level teardown)
 
+            var skin = SkinService.EquippedVehicleSkin();          // equipped theme (Classic => code-built, identical to before)
             GameObject prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(type) : null;
-            if (prefab != null)
+            // A skinned CAR uses a RANDOM model from the theme (variety); a skinned BUS uses a code-built themed bus
+            // (the car pack has no bus). Classic / no-skin falls through to the imported or code-built default.
+            GameObject carPrefab = (skin.HasModels && type != VehicleType.Bus) ? SkinService.RandomCarModel(skin) : null;
+            if (skin.HasModels && type == VehicleType.Bus)
+            {
+                var busPrefab = SkinService.BusModel();                            // the real bus model, recolored to the match color
+                if (busPrefab != null) { bus.skinModelPrefab = busPrefab; BuildSkinVehicle(bus, root.transform, busPrefab, color, capacity, type); }
+                else BuildThemedBus(bus, root.transform, color, capacity, type, skin); // fallback: code-built bus if the model is missing
+            }
+            else if (carPrefab != null)
+            {
+                bus.skinModelPrefab = carPrefab;                                   // remember the source so recolor/reveal can re-tint it
+                BuildSkinVehicle(bus, root.transform, carPrefab, color, capacity, type);
+            }
+            else if (prefab != null)
             {
                 BuildImportedVehicle(bus, root.transform, prefab, color, capacity, type); // builds seat-number + "<<" badge
             }
@@ -2216,6 +2256,7 @@ namespace BusJam
                 bus.roofY = cbTop; // for the mystery "?" placement (same roof level as the arrow)
                 // (Removed) the "«N" advance badge that floated on the roof — advanceN still works in gameplay, it's just no longer shown.
             }
+            BuildSkinExtras(root.transform, skin, type); // equipped skin's accessories + livery, on whatever base (code-built OR imported)
             // MYSTERY: gray the whole shell and add the "?" roof badge BEFORE OutlineAll, so the toon outline
             // is added fresh on top (stays black ink) and reveal — RecolorBus from the prefab base — restores it.
             if (mystery) { GrayBus(bus); BuildMysteryMarker(bus, root.transform); }
@@ -2243,15 +2284,149 @@ namespace BusJam
             bus.mysteryMarker = go;
         }
 
-        // Instantiate an imported vehicle, drive its BODY ("Main Color 1" = _Color01) to the match
-        // color so the body IS the boarding color, keep a white direction arrow, and float a
-        // people-colored empty-seat NUMBER above it. No roof tint.
+        // Imported-vehicle wrapper: the gameplay pack prefab, tinted via _Color01, using its catalog yaw/fit/offset.
         void BuildImportedVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type)
+            => BuildModelVehicle(bus, root, prefab, color, capacity, type, vehicleCatalog.yaw, vehicleCatalog.fitFactor, vehicleCatalog.yOffset, false, TintedVehicleMat);
+
+        // Skin-model wrapper: an imported car/SUV/bus model — color ONLY its body (largest part) to the match color.
+        void BuildSkinVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type)
+            => BuildModelVehicle(bus, root, prefab, color, capacity, type, 0f, 1f, 0f, true, null);
+
+        // A code-built BUS themed to a skin: the standard low-poly bus (body = match color) + two roof-edge accent
+        // rails in the theme color, so it clearly reads as a BUS (not a stretched car) while matching the car theme.
+        readonly Dictionary<string, Material> busAccentMats = new Dictionary<string, Material>();
+        void BuildThemedBus(Bus bus, Transform root, PieceColor color, int capacity, VehicleType type, SkinDef skin)
+        {
+            LowPolyBuilder.BuildVehicle(root, type, CellSize, bodyMats[color], glassMat, wheelMat, lightMat, arrowMat);
+            float cbTop = CellSize * 0.6f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
+            bus.roofPeople = BuildRoofHeads(root, capacity, color, cbTop, CellSize * 0.26f, cbLen);
+            bus.roofY = cbTop;
+
+            Material accent = (busAccentMats.TryGetValue(skin.id, out var am) && am != null)
+                ? am : (busAccentMats[skin.id] = MaterialLibrary.MakeRuntime(skin.busAccent, 0.5f, 0.15f));
+            float w = CellSize * 0.52f;
+            for (int s = -1; s <= 1; s += 2) // a rail down each roof edge, clear of the centre arrow
+            {
+                var rail = MakeCube(root, accent, new Vector3(w * 0.12f, 0.06f * CellSize, cbLen * 0.86f));
+                rail.transform.localPosition = new Vector3(s * w * 0.42f, cbTop + 0.04f * CellSize, 0);
+            }
+        }
+
+        // ---- Code-built vehicle SKINS (v2) ----------------------------------------------------------------
+        // A skin layers accent-coloured ACCESSORIES + a LIVERY onto the standard low-poly vehicle. Purely additive:
+        // the body stays the gameplay match-colour, so recolor / reveal / colour-matching are completely untouched.
+
+        readonly Dictionary<string, Material> skinAccentMats = new Dictionary<string, Material>();
+        Material SkinAccent(SkinDef skin)
+        {
+            if (skin == null) return null;
+            if (skinAccentMats.TryGetValue(skin.id, out var m) && m != null) return m;
+            m = MaterialLibrary.MakeRuntime(skin.accent, 0.45f, skin.glow ? 0.75f : 0.12f); // emissive for neon/galaxy
+            skinAccentMats[skin.id] = m;
+            return m;
+        }
+
+        GameObject SkinCube(Transform root, Material mat, Vector3 pos, Vector3 scale)
+        {
+            var c = MakeCube(root, mat, scale);
+            c.name = "SkinExtra"; // tagged so it's easy to find/strip; OutlineAll inks it like the rest
+            c.transform.localPosition = pos;
+            return c;
+        }
+
+        // The built vehicle's extent in ROOT-LOCAL space (before the vehicleSize scale), from its mesh renderers — so
+        // skin extras fit whatever base was built (a code-built body OR an imported model). Skips our own extras + the
+        // roof direction-arrow (which would inflate the measured top).
+        bool TryVehicleBounds(Transform root, out Bounds b)
+        {
+            b = new Bounds(); bool has = false;
+            var toLocal = root.worldToLocalMatrix;
+            foreach (var r in root.GetComponentsInChildren<Renderer>())
+            {
+                if (r.name == "SkinExtra" || r.sharedMaterial == arrowMat) continue; // skip our extras + the roof arrow (head + shaft)
+                Mesh mesh = null;
+                var mf = r.GetComponent<MeshFilter>(); if (mf != null) mesh = mf.sharedMesh;
+                if (mesh == null && r is SkinnedMeshRenderer smr) mesh = smr.sharedMesh;
+                if (mesh == null) continue;
+                var mb = mesh.bounds; Vector3 c = mb.center, e = mb.extents;
+                Matrix4x4 m = toLocal * r.transform.localToWorldMatrix;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z);
+                    Vector3 pt = m.MultiplyPoint3x4(corner);
+                    if (!has) { b = new Bounds(pt, Vector3.zero); has = true; } else b.Encapsulate(pt);
+                }
+            }
+            return has;
+        }
+
+        // Lay the equipped skin's GENERATED pattern texture over the vehicle — a roof DECAL (small patch) or a full
+        // BODY WRAP (covers the roof). The texture is transparent except for the accent pattern, so the body's
+        // gameplay match-colour always shows through and colour-matching stays clear. Sized to the measured vehicle.
+        void BuildSkinExtras(Transform root, SkinDef skin, VehicleType type)
+        {
+            if (skin == null || !skin.HasPattern) return;
+            if (!TryVehicleBounds(root, out Bounds vb)) return;
+            var tex = SkinTextureFactory.Get(skin.pattern, skin.accent);
+            float halfW = Mathf.Max(0.06f, vb.extents.x), halfLen = Mathf.Max(0.06f, vb.extents.z);
+            float cover = (skin.apply == SkinApply.BodyWrap) ? 0.98f : 0.58f; // wrap = whole roof, decal = small patch
+
+            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var col = quad.GetComponent<Collider>(); if (col != null) Destroy(col);
+            quad.name = "SkinExtra";
+            quad.transform.SetParent(root, false);
+            quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);                       // lie flat on the roof, facing up
+            quad.transform.localPosition = new Vector3(vb.center.x, vb.max.y + CellSize * 0.01f, vb.center.z);
+            quad.transform.localScale = new Vector3(halfW * 2f * cover, halfLen * 2f * cover, 1f);
+            quad.GetComponent<MeshRenderer>().sharedMaterial = SkinDecalMat(tex, skin.glow);
+        }
+
+        // Transparent unlit material that shows a skin pattern texture (alpha-blended). Cached per texture.
+        readonly Dictionary<Texture, Material> skinDecalMats = new Dictionary<Texture, Material>();
+        Material SkinDecalMat(Texture tex, bool glow)
+        {
+            if (skinDecalMats.TryGetValue(tex, out var cached) && cached != null) return cached;
+            Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Transparent");
+            var m = new Material(sh);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", glow ? new Color(1.7f, 1.7f, 1.7f, 1f) : Color.white);
+            if (m.HasProperty("_Surface")) m.SetFloat("_Surface", 1f); // URP: transparent
+            if (m.HasProperty("_Blend")) m.SetFloat("_Blend", 0f);     // alpha blend
+            if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", 5f);   // SrcAlpha
+            if (m.HasProperty("_DstBlend")) m.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
+            if (m.HasProperty("_ZWrite")) m.SetFloat("_ZWrite", 0f);
+            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f); // double-sided -> visible whichever way the quad faces
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            skinDecalMats[tex] = m;
+            return m;
+        }
+
+        Transform FindArrow(Transform root)
+        {
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t != root && t.name.StartsWith("Arrow")) return t;
+            return null;
+        }
+
+        Material policeRed, policeBlue;
+        Material PoliceLightMat(bool red)
+        {
+            if (red)  return policeRed  != null ? policeRed  : (policeRed  = MaterialLibrary.MakeRuntime(new Color(1f, 0.16f, 0.13f), 0.3f, 0.95f));
+            return         policeBlue != null ? policeBlue : (policeBlue = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.32f, 1f), 0.3f, 0.95f));
+        }
+
+        // Instantiate a vehicle MODEL, drive its body to the match color (via `tintMat`), auto-face + auto-scale it
+        // into the cell footprint, and add the white arrow + roof passenger heads + a tap box. Shared by the
+        // imported-gameplay path and the cosmetic skin path (they differ only in config + which material is the body).
+        void BuildModelVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type,
+                               float yaw, float fitFactor, float yOffset, bool bodyOnly, System.Func<Material, PieceColor, Material> tintMat)
         {
             var model = Instantiate(prefab, root, false);
             model.name = "Model";
             model.transform.localPosition = Vector3.zero;
-            model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw, 0);
+            model.transform.localRotation = Quaternion.Euler(0, yaw, 0);
             model.transform.localScale = Vector3.one;
 
             // Strip physics from the pack prefab — its root Rigidbody+gravity would make the
@@ -2259,14 +2434,18 @@ namespace BusJam
             foreach (var rb in model.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
             foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);
 
-            // Drive the body — "Main Color 1" (_Color01) — to the match color; keep windows/wheels (_Color02..08).
-            foreach (var r in model.GetComponentsInChildren<Renderer>(true))
-            {
-                var mats = r.sharedMaterials;
-                for (int i = 0; i < mats.Length; i++)
-                    if (mats[i] != null) mats[i] = TintedVehicleMat(mats[i], color);
-                r.sharedMaterials = mats;
-            }
+            // Color the body. Skin/glb models color ONLY their largest part (the body) to the exact gameplay-color
+            // material, leaving glass/wheels/lights as-is; the imported gameplay pack tints each slot's _Color01.
+            if (bodyOnly)
+                ColorSkinModel(model.transform, prefab, color);
+            else
+                foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+                {
+                    var mats = r.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++)
+                        if (mats[i] != null) mats[i] = tintMat(mats[i], color);
+                    r.sharedMaterials = mats;
+                }
 
             // Auto-face forward: rotate the model so its LONGEST horizontal axis runs along the root's
             // local Z (the exit direction), regardless of the pack's native orientation. Measured in
@@ -2275,10 +2454,10 @@ namespace BusJam
             // at 45°, so the old test was an unstable tie that flipped some diagonal bodies crosswise to their arrow.)
             Bounds faceB = ModelBoundsIn(root, model);
             if (faceB.size.x > faceB.size.z)
-                model.transform.localRotation = Quaternion.Euler(0, vehicleCatalog.yaw + 90f, 0);
+                model.transform.localRotation = Quaternion.Euler(0, yaw + 90f, 0);
 
             // Span the vehicle's grid footprint: CellLength cells (Car 1 / Bus 2).
-            float target = Vehicles.CellLength(type) * CellSize * vehicleCatalog.fitFactor;
+            float target = Vehicles.CellLength(type) * CellSize * fitFactor;
 
             var rends = model.GetComponentsInChildren<Renderer>(true); // include inactive for first-frame consistency (matches the mesh queries)
             float span = target, wid = target * 0.5f, roofY = CellSize * 0.5f;
@@ -2316,8 +2495,8 @@ namespace BusJam
                 // Re-center the body on the root origin in X/Z (a pack pivot is often NOT the mesh center),
                 // so the roof arrow + heads + tap box sit symmetric on the ACTUAL body, not the pivot.
                 Vector3 ctr = localFrame ? model.transform.localRotation * (lb.center * scl) : Vector3.zero;
-                model.transform.localPosition = new Vector3(-ctr.x, -bottom * scl + vehicleCatalog.yOffset, -ctr.z);
-                roofY = lb.size.y * scl + vehicleCatalog.yOffset;
+                model.transform.localPosition = new Vector3(-ctr.x, -bottom * scl + yOffset, -ctr.z);
+                roofY = lb.size.y * scl + yOffset;
                 span = len * scl;
                 wid = widRaw * scl;
             }
@@ -2361,6 +2540,108 @@ namespace BusJam
                 if (m.HasProperty("_Metallic"))   m.SetFloat("_Metallic", 0f);
                 tintedVehicleMats[key] = m;
             }
+            return m;
+        }
+
+        // Car-pack skin tinting: drive the BODY (the paint material — its name doesn't match a "detail" part) to the
+        // match color so the car shows the gameplay color, keeping glass/wheels/lights/trim as-is. Cached per
+        // (material, color) so it never allocates per-vehicle and never mutates the shared pack material.
+        // The vehicle BODY = the renderer-submesh with the MOST geometry (windows/wheels/lights are smaller parts).
+        // This lets us color ONLY the body of an imported skin/glb model — no reliance on how its materials are named.
+        (Renderer rend, int slot) FindSkinBody(GameObject model)
+        {
+            Renderer best = null; int bestSlot = 0; long bestCount = -1;
+            foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                Mesh mesh = null;
+                var mf = r.GetComponent<MeshFilter>(); if (mf != null) mesh = mf.sharedMesh;
+                if (mesh == null && r is SkinnedMeshRenderer smr) mesh = smr.sharedMesh;
+                if (mesh == null) continue;
+                for (int s = 0; s < mesh.subMeshCount; s++)
+                {
+                    long cnt = mesh.GetIndexCount(s);
+                    if (cnt > bestCount) { bestCount = cnt; best = r; bestSlot = s; }
+                }
+            }
+            return (best, bestSlot);
+        }
+
+        Material LargestMaterial(GameObject model)
+        {
+            var (rend, slot) = FindSkinBody(model);
+            if (rend == null) return null;
+            var mats = rend.sharedMaterials;
+            return slot < mats.Length ? mats[slot] : null;
+        }
+
+        // The model's albedo texture (try the common shader property names so it works for URP Lit AND glTFast).
+        static Texture GetAlbedo(Material m)
+        {
+            if (m == null) return null;
+            if (m.mainTexture != null) return m.mainTexture;
+            string[] props = { "_BaseMap", "_BaseColorMap", "baseColorTexture", "_MainTex" };
+            foreach (var p in props) if (m.HasProperty(p)) { var t = m.GetTexture(p); if (t != null) return t; }
+            return null;
+        }
+
+        // A URP/Lit material that keeps the model's texture but MULTIPLIES it by the match color. The texture's dark
+        // windows/wheels stay dark (dark × color ≈ dark); only the light body takes the color. Cached per texture+color.
+        readonly Dictionary<(Texture, PieceColor), Material> texTintCache = new Dictionary<(Texture, PieceColor), Material>();
+        Material TexturedTint(Texture tex, PieceColor color)
+        {
+            var key = (tex, color);
+            if (texTintCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var m = new Material(sh);
+            Color c = PeopleColor(color);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.5f);
+            texTintCache[key] = m;
+            return m;
+        }
+
+        // Color a skin/imported model to the match color — BODY ONLY. Re-derives each slot from `srcPrefab` so it
+        // works at build AND after a recolor. A TEXTURED material (single-mesh .glb like the SUV) keeps its texture
+        // and is multiplied by the color, so the baked-dark windows/wheels stay dark. A SOLID material (FBX paint)
+        // gets the gameplay-color material on the body part only; its glass/wheels/lights are left untouched.
+        void ColorSkinModel(Transform modelTf, GameObject srcPrefab, PieceColor color)
+        {
+            var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
+            var srcRends = srcPrefab != null ? srcPrefab.GetComponentsInChildren<Renderer>(true) : null;
+            Material bodyMat = LargestMaterial(srcPrefab != null ? srcPrefab : modelTf.gameObject);
+            for (int r = 0; r < modelRends.Length; r++)
+            {
+                var m = modelRends[r].sharedMaterials;
+                var src = (srcRends != null && r < srcRends.Length) ? srcRends[r].sharedMaterials : null;
+                for (int i = 0; i < m.Length; i++)
+                {
+                    Material baseM = (src != null && i < src.Length) ? src[i] : m[i];
+                    if (baseM == null) continue;
+                    // BODY (the largest material) -> tinted to the match colour, KEEPING its texture + shader so the
+                    // model still reads as a taxi / police / ambulance while showing the gameplay colour. Every other
+                    // material is left exactly as shipped. A single-material vehicle (SimplePoly) tints whole — its one
+                    // material IS the body.
+                    m[i] = (baseM == bodyMat) ? TintExistingMat(baseM, color) : baseM;
+                }
+                modelRends[r].sharedMaterials = m;
+            }
+        }
+
+        // Clone a model's material and drive its base colour to the match colour (keeps the texture + shader, so a
+        // textured palette model tints toward the gameplay colour instead of being flattened). Cached per (material, colour).
+        readonly Dictionary<(Material, PieceColor), Material> skinTintCache = new Dictionary<(Material, PieceColor), Material>();
+        Material TintExistingMat(Material baseM, PieceColor color)
+        {
+            var key = (baseM, color);
+            if (skinTintCache.TryGetValue(key, out var m) && m != null) return m;
+            m = new Material(baseM);
+            Color c = PeopleColor(color);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+            skinTintCache[key] = m;
             return m;
         }
 
@@ -3727,6 +4008,7 @@ namespace BusJam
             if (lowEnd || go == null || toonOutlineFx == null) return;
             foreach (var mr in go.GetComponentsInChildren<MeshRenderer>(true))
             {
+                if (mr.name == "SkinExtra") continue; // flat skin decal/wrap quad — no toon edge
                 var mf = mr.GetComponent<MeshFilter>();
                 if (mf == null || mf.sharedMesh == null) continue;
                 var dup = new GameObject("ToonEdge") { layer = mr.gameObject.layer };

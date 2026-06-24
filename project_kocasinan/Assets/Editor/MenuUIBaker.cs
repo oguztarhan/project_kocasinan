@@ -76,6 +76,11 @@ public static class MenuUIBaker
         Label(play.transform, "Txt_Play", "PLAY", Title, Vector2.zero, new Vector2(460, 120), 70, White);
         Wire(play, ctrl.Play);
 
+        // GARAGE button (skins / chests) — orange button + black label, sitting just under PLAY.
+        var garage = Btn(root, "Btn_Garage", UIKit.BtnOrange(), Orange, new Vector2(0.5f, 0.5f), new Vector2(0, -330), new Vector2(430, 132));
+        Label(garage.transform, "Txt_Garage", "GARAGE", Title, Vector2.zero, new Vector2(430, 96), 52, new Color(0.10f, 0.09f, 0.09f));
+        Wire(garage, ctrl.OpenGarage);
+
         var noads = Btn(root, "Btn_NoAds", UIKit.NoAds(), new Color(0.85f, 0.30f, 0.30f), new Vector2(1, 1), new Vector2(-110, -360), new Vector2(150, 150));
         Wire(noads, ctrl.OpenRemoveAds);
 

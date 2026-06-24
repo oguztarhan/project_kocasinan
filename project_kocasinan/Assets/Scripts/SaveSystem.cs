@@ -145,5 +145,78 @@ namespace BusJam
             get => PlayerPrefs.GetInt("bj_freejoker_granted", 0) == 1;
             set { PlayerPrefs.SetInt("bj_freejoker_granted", value ? 1 : 0); PlayerPrefs.Save(); }
         }
+
+        // ===================== COSMETIC SKINS / GACHA ECONOMY =====================
+        // Owned skins = a comma-separated list of ids in ONE key (bounded, <1KB). Classic is implicitly owned, so
+        // a fresh save needs no migration: OwnsSkin(Classic)==true and the equipped value self-heals to Classic.
+        const string K_SkinsOwned   = "bj_skins_owned";
+        const string K_SkinEquipVeh = "bj_skin_veh";
+        const string K_Shards       = "bj_shards";
+
+        public static string SkinsOwnedRaw
+        {
+            get => PlayerPrefs.GetString(K_SkinsOwned, "");
+            set { PlayerPrefs.SetString(K_SkinsOwned, value ?? ""); PlayerPrefs.Save(); }
+        }
+
+        public static bool OwnsSkin(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id == SkinCatalog.DefaultVehicleId) return true; // Classic always owned
+            return ("," + SkinsOwnedRaw + ",").Contains("," + id + ",");
+        }
+
+        public static void AddOwnedSkin(string id)
+        {
+            if (string.IsNullOrEmpty(id) || OwnsSkin(id)) return;
+            string raw = SkinsOwnedRaw;
+            SkinsOwnedRaw = string.IsNullOrEmpty(raw) ? id : raw + "," + id;
+        }
+
+        // Equipped vehicle skin; self-heals a blank/unowned value back to Classic.
+        public static string EquippedVehicleSkin
+        {
+            get
+            {
+                string id = PlayerPrefs.GetString(K_SkinEquipVeh, SkinCatalog.DefaultVehicleId);
+                return OwnsSkin(id) ? id : SkinCatalog.DefaultVehicleId;
+            }
+            set { PlayerPrefs.SetString(K_SkinEquipVeh, string.IsNullOrEmpty(value) ? SkinCatalog.DefaultVehicleId : value); PlayerPrefs.Save(); }
+        }
+
+        // Crafting currency (duplicate pulls melt into these).
+        public static int Shards
+        {
+            get => Mathf.Max(0, PlayerPrefs.GetInt(K_Shards, 0));
+            set { PlayerPrefs.SetInt(K_Shards, Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+        public static void AddShards(int delta) => Shards = Shards + delta;
+        public static bool TrySpendShards(int cost)
+        {
+            if (Shards < cost) return false;
+            Shards -= cost;
+            return true;
+        }
+
+        // Per-chest-tier pity counter (opens since the last Rare-or-better).
+        public static int Pity(string tier) => Mathf.Max(0, PlayerPrefs.GetInt("bj_pity_" + tier, 0));
+        public static void SetPity(string tier, int v) { PlayerPrefs.SetInt("bj_pity_" + tier, Mathf.Max(0, v)); PlayerPrefs.Save(); }
+
+        // Chest keys per tier: a rare bonus drop from chests; one key opens that tier's chest for free.
+        public static int Keys(string tier) => Mathf.Max(0, PlayerPrefs.GetInt("bj_key_" + tier, 0));
+        public static void AddKeys(string tier, int n = 1) { PlayerPrefs.SetInt("bj_key_" + tier, Keys(tier) + Mathf.Max(0, n)); PlayerPrefs.Save(); }
+        public static bool TrySpendKey(string tier)
+        {
+            int k = Keys(tier);
+            if (k <= 0) return false;
+            PlayerPrefs.SetInt("bj_key_" + tier, k - 1); PlayerPrefs.Save();
+            return true;
+        }
+
+        // Free-chest cooldown gate (epoch seconds; stored as a string to hold a long).
+        public static long FreeChestReadyAt
+        {
+            get => long.TryParse(PlayerPrefs.GetString("bj_freechest_at", "0"), out long t) ? t : 0L;
+            set { PlayerPrefs.SetString("bj_freechest_at", value.ToString()); PlayerPrefs.Save(); }
+        }
     }
 }

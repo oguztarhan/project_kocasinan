@@ -13,10 +13,10 @@ namespace BusJam
     /// scene-authored canvas is disabled at runtime so legacy white backgrounds, the
     /// old coin display and stray texts never show during gameplay.
     /// </summary>
-    public class GameUI : MonoBehaviour
+    public partial class GameUI : MonoBehaviour
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
-        public System.Action OnHome, OnReplay, OnLevels;
+        public System.Action OnHome, OnReplay, OnLevels, OnCycleSkin;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
         public System.Action<int> OnFreeCoins; // +coins rewarded button -> BusJamGame grants coins & fires CoinsChanged
@@ -86,9 +86,11 @@ namespace BusJam
             SetupFailed();
             SetupSuccess();
             SetupJokerBuy();
+            BuildGarage();
             ShowHud();
             DisableOldCanvases(); // hide legacy scene canvas (white bg / old coin / texts)
             Localizer.LocalizeScene(); // translate all in-game text to the saved language
+            if (OpenGarageOnLoad) { OpenGarageOnLoad = false; garageFromMenu = true; ShowGarage(); } // opened from the main-menu Garage button
         }
 
         // Hide every canvas that doesn't belong to this game object's hierarchy
@@ -142,6 +144,7 @@ namespace BusJam
             // (ReserveBannerSpace: +190px to clear the banner) overrode your manual placement, so it's gone.
             // (#1) The watch-ad / +coins button was removed from the in-game HUD per request.
             RefreshJokers();
+            AddGarageButton(hudPanel.transform);
             BuildBonusCountdown();
         }
 
@@ -212,6 +215,7 @@ namespace BusJam
             jSwap    = JokerButton(0,    UIKit.JokerSwap(),    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = JokerButton(260,  UIKit.JokerHeli(),    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             RefreshJokers();
+            AddGarageButton(hudPanel.transform);
             BuildBonusCountdown();
         }
 
@@ -418,6 +422,7 @@ namespace BusJam
                 WireSettings(settingsPanel.transform);
                 WireLanguageButton(settingsPanel.transform); // (#1/#2) open the language popup + fix its label font
                 AddLevelsDebugButton(settingsPanel.transform); // TEMP debug — remove later
+                AddSkinDebugButton(settingsPanel.transform);   // TEMP debug — cycle vehicle skins (Phase 1)
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback already includes the LEVELS button
@@ -465,6 +470,17 @@ namespace BusJam
                 () => { HideSettings(); OnLevels?.Invoke(); });
             Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(440, 80), 42, White);
         }
+
+        // TEMP debug (Phase 1): cycle the equipped vehicle skin (owns + equips the next one, re-skins the board
+        // live) so skins can be eyeballed before the Garage UI exists. The label shows the current skin.
+        void AddSkinDebugButton(Transform panel)
+        {
+            Text lbl = null;
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.62f, 0.40f, 0.86f), new Vector2(0.5f, 1f), new Vector2(0, -350), new Vector2(440, 110),
+                () => { OnCycleSkin?.Invoke(); if (lbl != null) lbl.text = SkinDebugLabel(); });
+            lbl = Label(btn.transform, SkinDebugLabel(), title, Vector2.zero, new Vector2(440, 80), 36, White);
+        }
+        string SkinDebugLabel() => "SKIN: " + (SkinCatalog.ById(SaveSystem.EquippedVehicleSkin)?.displayName ?? "Classic");
 
         void WireSettings(Transform root)
         {

@@ -39,6 +39,7 @@ namespace BusJam
         [System.NonSerialized] public bool revealed;
         [System.NonSerialized] public GameObject mysteryMarker; // the "?" badge on the roof; destroyed on reveal
         [System.NonSerialized] public float roofY;              // roof-top height (root-local, pre vehicleSize) — where the arrow + "?" sit
+        [System.NonSerialized] public GameObject skinModelPrefab; // the car-pack prefab THIS vehicle was built from (random per car), so recolor/reveal can re-tint from its base materials
 
         // Tiny passengers on the roof — one per seat, hidden until that seat fills. Replaces the old
         // floating empty-seat NUMBER: the player COUNTS empty seats instead of reading a digit.
