@@ -242,7 +242,7 @@ namespace BusJam
 
         // ---- Public control ------------------------------------------------
         public void LoadLevel(int levelNumber) { CancelInvoke(); StartLevel(levelNumber); }
-        public void NextLevel() { LoadLevel(SaveSystem.Level); }
+        public void NextLevel() { LoadLevel(currentLevel + 1); } // the level AFTER the one just played (not SaveSystem.Level, which is the highest UNLOCKED -> replaying L7 used to jump to L10)
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
 
@@ -2233,7 +2233,10 @@ namespace BusJam
             liveBuses.Add(bus); // track for the engine-sound movement scan (cleared on level teardown)
 
             var skin = SkinService.EquippedVehicleSkin();          // equipped theme (Classic => code-built, identical to before)
-            GameObject prefab = vehicleCatalog != null ? vehicleCatalog.PrefabFor(type) : null;
+            // The player's EQUIPPED model for this type (from the unlocked set / "dolap" wardrobe); falls back to
+            // the VehicleCatalog default when no set catalog has been built yet.
+            GameObject prefab = VehicleWardrobe.EquippedModel(type);
+            if (prefab == null && vehicleCatalog != null) prefab = vehicleCatalog.PrefabFor(type);
             // A skinned CAR uses a RANDOM model from the theme (variety); a skinned BUS uses a code-built themed bus
             // (the car pack has no bus). Classic / no-skin falls through to the imported or code-built default.
             GameObject carPrefab = (skin.HasModels && type != VehicleType.Bus) ? SkinService.RandomCarModel(skin) : null;
@@ -2250,6 +2253,10 @@ namespace BusJam
             }
             else if (prefab != null)
             {
+                // Remember the ACTUAL model so RecolorBus re-tints from IT (not the catalog default). Without this a
+                // wardrobe-equipped sedan recoloured via the Royal default -> renderer/slot mismatch -> it fell back
+                // to the raw atlas colour ("recolor a basınca kahverengiye dönüyordu").
+                bus.skinModelPrefab = prefab;
                 BuildImportedVehicle(bus, root.transform, prefab, color, capacity, type); // builds seat-number + "<<" badge
             }
             else
@@ -2290,9 +2297,10 @@ namespace BusJam
             bus.mysteryMarker = go;
         }
 
-        // Imported-vehicle wrapper: the gameplay pack prefab, tinted via _Color01, using its catalog yaw/fit/offset.
+        // Imported-vehicle wrapper: the catalog/wardrobe model, using its PER-TYPE catalog yaw (glTF minivan/bus face
+        // opposite to the FBX car) + fit/offset.
         void BuildImportedVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type)
-            => BuildModelVehicle(bus, root, prefab, color, capacity, type, vehicleCatalog.yaw, vehicleCatalog.fitFactor, vehicleCatalog.yOffset, false, TintedVehicleMat);
+            => BuildModelVehicle(bus, root, prefab, color, capacity, type, vehicleCatalog.YawFor(type), vehicleCatalog.fitFactor, vehicleCatalog.yOffset, false, TintedVehicleMat);
 
         // Skin-model wrapper: an imported car/SUV/bus model — color ONLY its body (largest part) to the match color.
         void BuildSkinVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type)
@@ -2494,9 +2502,11 @@ namespace BusJam
             {
                 float len = Mathf.Max(lb.size.x, lb.size.z, 0.01f);
                 float widRaw = Mathf.Max(Mathf.Min(lb.size.x, lb.size.z), 0.01f);
-                // UNIFORM scale keeps the model's true PROPORTIONS (no width stretching); fit length to the
-                // L-cell span, lightly boosted (1.05) so vehicles fill their cells WITHOUT overlapping/meshing.
-                float scl = Mathf.Min(target / len, (CellSize * 1.1f) / widRaw) * 1.05f;
+                // UNIFORM scale keeps the model's true PROPORTIONS (no width stretching); fit length to the L-cell
+                // span. PER-TYPE fill leaves a GAP so neighbours don't look joined ("bitişik"); the minivan fills a
+                // touch more so it reads as a bigger vehicle than a car. (Tune these two numbers freely.)
+                float fill = type == VehicleType.Minivan ? 0.97f : 0.88f;
+                float scl = Mathf.Min(target / len, (CellSize * 1.1f) / widRaw) * fill;
                 model.transform.localScale = Vector3.one * scl;
                 float bottom = localFrame ? lb.min.y : (lb.min.y - root.position.y);
                 // Re-center the body on the root origin in X/Z (a pack pivot is often NOT the mesh center),
@@ -2626,27 +2636,109 @@ namespace BusJam
         // works at build AND after a recolor. A TEXTURED material (single-mesh .glb like the SUV) keeps its texture
         // and is multiplied by the color, so the baked-dark windows/wheels stay dark. A SOLID material (FBX paint)
         // gets the gameplay-color material on the body part only; its glass/wheels/lights are left untouched.
+        // Distinct shared materials on a model — used to tell a SEPARATE-body model (Mega Pack: body + lights) from a
+        // SINGLE-material one (the .glb van/bus, whose one texture bakes in the windows).
+        int DistinctMaterialCount(GameObject prefab)
+        {
+            if (prefab == null) return 0;
+            var set = new HashSet<Material>();
+            foreach (var r in prefab.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in r.sharedMaterials) if (m != null) set.Add(m);
+            return set.Count;
+        }
+
         void ColorSkinModel(Transform modelTf, GameObject srcPrefab, PieceColor color)
         {
+            GameObject matSrc = srcPrefab != null ? srcPrefab : modelTf.gameObject;
             var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
-            var srcRends = srcPrefab != null ? srcPrefab.GetComponentsInChildren<Renderer>(true) : null;
-            Material bodyMat = LargestMaterial(srcPrefab != null ? srcPrefab : modelTf.gameObject);
-            for (int r = 0; r < modelRends.Length; r++)
+            var srcRends = matSrc.GetComponentsInChildren<Renderer>(true);
+
+            // Tint ONLY the BODY = the single LARGEST mesh submesh (the painted shell). Everything ELSE is left exactly
+            // as shipped: the separate wheel renderers (TYRES), and the body's OTHER submesh (lights / brake lights /
+            // glass / mirrors / bumpers). A Mega Pack car is one shell submesh + a details submesh + 4 wheel renderers
+            // that ALL share one colour-atlas material, so painting every atlas slot used to colour the tyres & trim
+            // too — this paints just the shell. (renderer index maps prefab->instance 1:1, same hierarchy order.)
+            var (bodyRend, bodySlot) = FindSkinBody(matSrc);
+            int bodyIdx = bodyRend != null ? System.Array.IndexOf(srcRends, bodyRend) : -1;
+            if (bodyIdx < 0 || bodyIdx >= modelRends.Length) return;
+            var rend = modelRends[bodyIdx];
+
+            // SEPARATE-body model (Mega Pack: body + details materials): paint the shell with the EXACT gameplay
+            // palette material (the SAME one the people use) — its body texture is a shared COLOUR ATLAS, so tinting
+            // it would only muddy the car toward its atlas colour (red people ended up on a "brown" car). A SINGLE-
+            // material model (the .glb van/bus, whose one texture bakes in the windows) keeps its texture and is
+            // MULTIPLIED by the colour so the baked-dark windows survive.
+            bool separateBody = DistinctMaterialCount(matSrc) > 1;
+            if (separateBody)
             {
-                var m = modelRends[r].sharedMaterials;
-                var src = (srcRends != null && r < srcRends.Length) ? srcRends[r].sharedMaterials : null;
-                for (int i = 0; i < m.Length; i++)
-                {
-                    Material baseM = (src != null && i < src.Length) ? src[i] : m[i];
-                    if (baseM == null) continue;
-                    // BODY (the largest material) -> tinted to the match colour, KEEPING its texture + shader so the
-                    // model still reads as a taxi / police / ambulance while showing the gameplay colour. Every other
-                    // material is left exactly as shipped. A single-material vehicle (SimplePoly) tints whole — its one
-                    // material IS the body.
-                    m[i] = (baseM == bodyMat) ? TintExistingMat(baseM, color) : baseM;
-                }
-                modelRends[r].sharedMaterials = m;
+                // Mega Pack: the whole paint job is ONE colour ATLAS (a band of body-colour swatches + glass + chrome
+                // regions). Recolour ONLY the body-swatch band to the gameplay colour and keep the glass (windows) +
+                // chrome (bumpers) regions -> clean body, original windows/bumpers. Use the PREFAB's original material
+                // as the base (not the already-recoloured runtime one) so rebuild/recolour stay consistent.
+                var origMats = bodyRend.sharedMaterials;
+                Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
+                var m = rend.sharedMaterials;
+                if (bodySlot < m.Length && origBody != null) { m[bodySlot] = RecoloredAtlasMat(origBody, color); rend.sharedMaterials = m; }
             }
+            else
+            {
+                var inst = rend.materials;            // per-instance copies (unique to this renderer -> no bleed between cars)
+                if (bodySlot < inst.Length)
+                {
+                    var mi = inst[bodySlot];
+                    Color c = PeopleColor(color);
+                    if (mi.HasProperty("_BaseColor")) mi.SetColor("_BaseColor", c);
+                    if (mi.HasProperty("_Color")) mi.SetColor("_Color", c);
+                    if (mi.HasProperty("baseColorFactor")) mi.SetColor("baseColorFactor", c);
+                    rend.materials = inst;
+                }
+            }
+        }
+
+        // --- Mega Pack atlas recolour ---------------------------------------------------------------------
+        // A Mega Pack car's whole paint is ONE shared COLOUR ATLAS: a horizontal BAND of body-colour swatches, plus
+        // glass / chrome / black regions for windows / bumpers / tyres. To get a clean gameplay-colour body WITHOUT
+        // touching the windows + bumpers, recolour ONLY that body band to the match colour and leave the rest. V0..V1
+        // = the UV-y range of the swatch band (tune to the atlas; verified live). Cached per (texture, colour).
+        const float AtlasBodyV0 = 0.22f, AtlasBodyV1 = 0.76f;
+        readonly Dictionary<(Texture, PieceColor), Texture2D> atlasRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>();
+        Texture2D RecoloredAtlas(Texture2D src, PieceColor color)
+        {
+            if (src == null) return null;
+            var key = ((Texture)src, color);
+            if (atlasRecolorCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            int w = src.width, h = src.height;
+            Color32[] px;
+            try { px = src.GetPixels32(); }              // needs "Read/Write Enabled" on the texture import
+            catch (UnityException) { atlasRecolorCache[key] = null; return null; }
+            Color32 c = PeopleColor(color);
+            int y0 = Mathf.Clamp(Mathf.RoundToInt(AtlasBodyV0 * h), 0, h);
+            int y1 = Mathf.Clamp(Mathf.RoundToInt(AtlasBodyV1 * h), 0, h);
+            for (int y = y0; y < y1; y++) { int row = y * w; for (int x = 0; x < w; x++) px[row + x] = c; }
+            var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_" + color };
+            dst.SetPixels32(px); dst.Apply(false);
+            atlasRecolorCache[key] = dst;
+            return dst;
+        }
+
+        // A clone of the atlas body material whose texture has the body band recoloured to the match colour. If the
+        // source texture isn't readable, falls back to the flat palette colour (paints the whole shell, but clean).
+        readonly Dictionary<(Material, PieceColor), Material> atlasMatCache = new Dictionary<(Material, PieceColor), Material>();
+        Material RecoloredAtlasMat(Material bodyMat, PieceColor color)
+        {
+            var key = (bodyMat, color);
+            if (atlasMatCache.TryGetValue(key, out var m) && m != null) return m;
+            var srcTex = (bodyMat.HasProperty("_BaseMap") ? bodyMat.GetTexture("_BaseMap") : null) as Texture2D
+                      ?? (bodyMat.HasProperty("_MainTex") ? bodyMat.GetTexture("_MainTex") : null) as Texture2D;
+            var rt = RecoloredAtlas(srcTex, color);
+            if (rt == null) { var fb = bodyMats.TryGetValue(color, out var bm) ? bm : bodyMat; atlasMatCache[key] = fb; return fb; }
+            m = new Material(bodyMat);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", rt);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", rt);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+            atlasMatCache[key] = m;
+            return m;
         }
 
         // Clone a model's material and drive its base colour to the match colour (keeps the texture + shader, so a

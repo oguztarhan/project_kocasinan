@@ -1,0 +1,7 @@
+Hello!, :)
+
+This track is not intented to be a useful asset prop. The purpose of this track is just for presentation purposes (showcase
+the vehicles). That is why it does not include colliders and it is not a complete track. However, if you find it useful, 
+use it as you want.
+
+Best regards.

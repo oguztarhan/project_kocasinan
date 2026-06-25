@@ -5,27 +5,30 @@ namespace BusJam.EditorTools
 {
     /// <summary>
     /// "BusJam ▸ Build Vehicle Catalog" — points the VehicleCatalog at the chosen vehicle models.
-    /// Bus is now the othercars "Bus" glb; Car is still the LowPolyRoadVehicles Sedan. glb models have no
-    /// _Color01, so the runtime auto-tints them BODY-ONLY (ColorSkinModel) — no catalog flag needed.
-    /// Overwrites the model slots (fit tuning fields are left untouched). To trial the rest of the othercars
-    /// set later, repoint CarPath at SedanGlb and/or BusPath at ConnectGlb below — one line each.
+    /// THREE types now: Car = "Royal" (Low Poly Cars Mega Pack, URP-Lit), Minivan = othercars "Connect" (.glb),
+    /// Bus = othercars "Bus" (.glb). None expose _Color01, so the runtime tints them BODY-ONLY (ColorSkinModel) —
+    /// no catalog flag needed. Overwrites the model slots (fit tuning fields are left untouched).
+    /// RUN THIS ONCE after pulling these changes: the .glb minivan/bus can only be wired by AssetDatabase
+    /// (their internal fileIDs aren't in the .meta), so a hand-edit of the .asset can't reference them.
     /// </summary>
     public static class VehicleCatalogBuilder
     {
-        // LowPolyRoadVehicles pack (FBX prefabs — tinted per-slot via _Color01)
-        const string PackRoot  = "Assets/YelScryptFireStudio/LowPolyRoadVehiclesFreePackage/Vehicles";
-        const string SedanPack = PackRoot + "/Sedan_01/pref_Sedan_01.prefab";
-        const string BusPack   = PackRoot + "/Bus_01/pref_Bus_01.prefab";
+        // Low Poly Cars Mega Pack (URP-Lit prefabs — tinted body-only via _BaseColor)
+        const string MegaRoot  = "Assets/Low Poly Cars - Mega Pack/Prefabs";
+        const string RoyalCar  = MegaRoot + "/Stock Cars/Royal.prefab";
 
-        // othercars set (raw glTF .glb — auto-tinted body-only at runtime)
-        const string OtherRoot = "Assets/Unity Technologies/othercars";
+        // othercars set (raw glTF .glb — auto-tinted body-only at runtime via baseColorFactor)
+        const string OtherRoot  = "Assets/Unity Technologies/othercars";
         const string BusGlb     = OtherRoot + "/bus.glb";
         const string ConnectGlb = OtherRoot + "/connectt.glb";
-        const string SedanGlb   = OtherRoot + "/sedan.glb";
 
-        // ACTIVE selection — buses replaced with the othercars "Bus" glb; car unchanged for now.
-        const string CarPath = SedanPack;
-        const string BusPath = BusGlb;
+        // LowPolyRoadVehicles pack (legacy FBX, _Color01) — kept for reference/fallback only.
+        const string SedanPack = "Assets/YelScryptFireStudio/LowPolyRoadVehiclesFreePackage/Vehicles/Sedan_01/pref_Sedan_01.prefab";
+
+        // ACTIVE selection — Car=Royal, Minivan=Connect, Bus=Bus.
+        const string CarPath     = RoyalCar;
+        const string MinivanPath = ConnectGlb;
+        const string BusPath     = BusGlb;
         const string CatalogPath = "Assets/Resources/VehicleCatalog.asset";
 
         [MenuItem("BusJam/Build Vehicle Catalog")]
@@ -43,15 +46,16 @@ namespace BusJam.EditorTools
                 created = true;
             }
 
-            cat.carPrefab = Load(CarPath, "Car");
-            cat.busPrefab = Load(BusPath, "Bus");
+            cat.carPrefab     = Load(CarPath, "Car");
+            cat.minivanPrefab = Load(MinivanPath, "Minivan");
+            cat.busPrefab     = Load(BusPath, "Bus");
 
             EditorUtility.SetDirty(cat);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
             Debug.Log($"[VehicleCatalog] {(created ? "created" : "updated")} at {CatalogPath} — " +
-                      $"Car={Name(cat.carPrefab)}, Bus={Name(cat.busPrefab)}");
+                      $"Car={Name(cat.carPrefab)}, Minivan={Name(cat.minivanPrefab)}, Bus={Name(cat.busPrefab)}");
             Selection.activeObject = cat;
         }
 

@@ -68,6 +68,18 @@ public static class Loc
         { "AD",    new[]{ "REKLAM","AD","WERBUNG","ANNUNCIO","ANUNCIO","广告","PUB","ANÚNCIO","IKLAN" } },
         { "COMBO x{0}!", new[]{ "KOMBO x{0}!","COMBO x{0}!","COMBO x{0}!","COMBO x{0}!","COMBO x{0}!","连击 x{0}!","COMBO x{0} !","COMBO x{0}!","COMBO x{0}!" } },
 
+        // ---- Garage: vehicle wardrobe ("dolap") ----
+        { "VEHICLES", new[]{ "ARAÇLAR","VEHICLES","FAHRZEUGE","VEICOLI","VEHÍCULOS","车辆","VÉHICULES","VEÍCULOS","KENDARAAN" } },
+        { "CARS",     new[]{ "ARABALAR","CARS","AUTOS","AUTO","COCHES","汽车","VOITURES","CARROS","MOBIL" } },
+        { "MINIVANS", new[]{ "MİNİVANLAR","MINIVANS","MINIVANS","MINIVAN","MINIVANS","面包车","MONOSPACES","MINIVANS","MINIVAN" } },
+        { "BUSES",    new[]{ "OTOBÜSLER","BUSES","BUSSE","AUTOBUS","AUTOBUSES","巴士","BUS","ÔNIBUS","BUS" } },
+        { "EQUIPPED", new[]{ "TAKILI","EQUIPPED","AUSGERÜSTET","EQUIPAGGIATO","EQUIPADO","已装备","ÉQUIPÉ","EQUIPADO","TERPASANG" } },
+        { "LOCKED",   new[]{ "KİLİTLİ","LOCKED","GESPERRT","BLOCCATO","BLOQUEADO","已锁定","VERROUILLÉ","BLOQUEADO","TERKUNCI" } },
+        { "Run BusJam > Build Vehicle Sets", new[]{
+            "Araç setleri yok — BusJam ▸ Build Vehicle Sets çalıştır","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
+            "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
+            "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets" } },
+
         // ---- Daily rewards ----
         { "Daily Rewards", new[]{ "Günlük Ödüller","Daily Rewards","Tägliche Belohnungen","Premi Giornalieri","Recompensas Diarias","每日奖励","Récompenses Quotidiennes","Recompensas Diárias","Hadiah Harian" } },
         { "COME BACK EVERY DAY TO GET\nGREAT REWARDS", new[]{

@@ -87,6 +87,7 @@ namespace BusJam
             SetupSuccess();
             SetupJokerBuy();
             BuildGarage();
+            BuildVehicles(); // vehicle wardrobe ("dolap") panel — opened from a button on the garage
             ShowHud();
             DisableOldCanvases(); // hide legacy scene canvas (white bg / old coin / texts)
             Localizer.LocalizeScene(); // translate all in-game text to the saved language

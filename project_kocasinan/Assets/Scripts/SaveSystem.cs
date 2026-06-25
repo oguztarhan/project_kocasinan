@@ -212,6 +212,52 @@ namespace BusJam
             return true;
         }
 
+        // ===================== VEHICLE SETS (the "dolap" / wardrobe) =====================
+        // Unlock is PER SET (a set = 1 car + 1 minivan + 1 bus). Equip is PER TYPE and INDEPENDENT — three
+        // separate slots, each storing a set id. Owned sets = a CSV of ids; the free default set is implicitly
+        // owned, so a fresh save needs no migration. DefaultSetId MUST match the set-catalog's set 0 id (the
+        // builder makes set 0 = Royal -> "set_royal"); change both together if set 0 changes.
+        public const string DefaultSetId = "set_royal";
+        const string K_SetsOwned    = "bj_sets_owned";
+        const string K_SetEquipCar  = "bj_set_car";
+        const string K_SetEquipMini = "bj_set_mini";
+        const string K_SetEquipBus  = "bj_set_bus";
+
+        public static string SetsOwnedRaw
+        {
+            get => PlayerPrefs.GetString(K_SetsOwned, "");
+            set { PlayerPrefs.SetString(K_SetsOwned, value ?? ""); PlayerPrefs.Save(); }
+        }
+
+        public static bool OwnsSet(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id == DefaultSetId) return true; // free default always owned
+            return ("," + SetsOwnedRaw + ",").Contains("," + id + ",");
+        }
+
+        public static void AddOwnedSet(string id)
+        {
+            if (string.IsNullOrEmpty(id) || OwnsSet(id)) return;
+            string raw = SetsOwnedRaw;
+            SetsOwnedRaw = string.IsNullOrEmpty(raw) ? id : raw + "," + id;
+        }
+
+        static string EquipKey(VehicleType t) =>
+            t == VehicleType.Car ? K_SetEquipCar : (t == VehicleType.Minivan ? K_SetEquipMini : K_SetEquipBus);
+
+        // The set id equipped for a given vehicle type; self-heals a blank/unowned value to the free default.
+        public static string EquippedSet(VehicleType t)
+        {
+            string id = PlayerPrefs.GetString(EquipKey(t), DefaultSetId);
+            return OwnsSet(id) ? id : DefaultSetId;
+        }
+
+        public static void SetEquippedSet(VehicleType t, string id)
+        {
+            PlayerPrefs.SetString(EquipKey(t), string.IsNullOrEmpty(id) ? DefaultSetId : id);
+            PlayerPrefs.Save();
+        }
+
         // Free-chest cooldown gate (epoch seconds; stored as a string to hold a long).
         public static long FreeChestReadyAt
         {

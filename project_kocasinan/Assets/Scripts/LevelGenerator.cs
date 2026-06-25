@@ -71,11 +71,13 @@ namespace BusJam
                          goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4);
         }
 
-        // Car-heavy early (many small cap-4 cars = easy + many + few people); buses ramp in for difficulty.
+        // Gentle ramp across the THREE vehicle types: cap-4 cars only at first (easy + many + few people),
+        // then 6-seat minivans join, then 10-seat buses complete the set. (Tune the level thresholds freely.)
         static VehicleMix MixForLevel(int level)
         {
-            if (level <= 5) return VehicleMix.CarsOnly;
-            return VehicleMix.CarsAndBuses;
+            if (level <= 3) return VehicleMix.CarsOnly;        // L1-3: small 4-seat cars
+            if (level <= 6) return VehicleMix.CarsAndMinivans; // L4-6: add 6-seat minivans
+            return VehicleMix.AllThree;                        // L7+: cars + minivans + buses
         }
 
         // ---- BONUS levels (every 10th): a DENSELY-PACKED jam where EVERY vehicle is one color (fill) except
@@ -92,8 +94,9 @@ namespace BusJam
             for (int i = 0; i < busCount; i++)
             {
                 bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after all the fill clears)
+                int rt = rng.Next(10);                                                    // fill spread across all 3 types
                 var type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
-                                  : (rng.Next(10) < 6 ? VehicleType.Car : VehicleType.Bus); // fill: ~60% cars, 40% buses
+                                  : (rt < 4 ? VehicleType.Car : (rt < 7 ? VehicleType.Minivan : VehicleType.Bus)); // ~40% car, 30% minivan, 30% bus
                 buses.Add(new BusDef { color = isCore ? core : fill, type = type,
                                        capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
             }
@@ -267,6 +270,10 @@ namespace BusJam
             {
                 case VehicleMix.CarsOnly: return VehicleType.Car;
                 case VehicleMix.CarsAndBuses: return rng.Next(2) == 0 ? VehicleType.Car : VehicleType.Bus;
+                case VehicleMix.CarsAndMinivans: return rng.Next(2) == 0 ? VehicleType.Car : VehicleType.Minivan;
+                case VehicleMix.AllThree:
+                    // Even-ish spread over the three types.
+                    { int r = rng.Next(3); return r == 0 ? VehicleType.Car : (r == 1 ? VehicleType.Minivan : VehicleType.Bus); }
                 case VehicleMix.WithLimo:
                     // Limos removed — bias toward buses with some cars (no limo type generated).
                     return rng.Next(100) < 65 ? VehicleType.Bus : VehicleType.Car;

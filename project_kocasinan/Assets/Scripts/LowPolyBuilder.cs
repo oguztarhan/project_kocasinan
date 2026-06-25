@@ -55,7 +55,7 @@ namespace BusJam
         {
             float len = VehicleLength(type, cellSize);                                   // spans the L cells (along Z)
             float w   = cellSize * 0.52f;                                                // proportional width (along X) -- not stretched
-            float h   = cellSize * (type == VehicleType.Car ? 0.46f : 0.42f);
+            float h   = cellSize * (type == VehicleType.Bus ? 0.42f : 0.46f); // Bus is lower/longer; Car & Minivan (1-cell) sit taller
             float wr  = cellSize * 0.11f;    // wheel radius
             float bodyY = wr + h * 0.5f;
             float top = wr + h;

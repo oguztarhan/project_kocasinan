@@ -134,6 +134,9 @@ namespace BusJam
                 Destroy(ch.gameObject);
             }
 
+            // 0) vehicle wardrobe ("dolap") entry — opens the 3-section Cars/Minivans/Buses panel
+            AddVehiclesEntry(garageContent);
+
             // 1) chests
             SectionLabel(garageContent, "CHESTS");
             var chestGrid = GridRow(garageContent, new Vector2(275, 275), 3);
