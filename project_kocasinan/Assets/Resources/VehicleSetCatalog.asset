@@ -13,63 +13,122 @@ MonoBehaviour:
   m_Name: VehicleSetCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.VehicleSetCatalog
   sets:
-  - id: set_royal
-    displayName: Royal
+  - id: set_rhino
+    displayName: Rhino
     price: 0
-    carPrefab: {fileID: 5111360760994950977, guid: 23aa1164faad9e648a7f4de22c49c31d, type: 3}
+    rarity: 0
+    carPrefab: {fileID: 2247248388643138458, guid: 74e308a798ddfa04c8330fc0f2b6cd52, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_magnum
-    displayName: Magnum
-    price: 400
-    carPrefab: {fileID: 5458814512663211089, guid: 57c4dc006250cf544be7c248d377d76d, type: 3}
+  - id: set_r9
+    displayName: R9
+    price: 0
+    rarity: 0
+    carPrefab: {fileID: 5008552725263946293, guid: be0c99f37c9383c49afe22159eebacdc, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_panther
-    displayName: Panther
-    price: 600
-    carPrefab: {fileID: 4332112622319893963, guid: a03b4f83f2be4904593f2c4e783c5089, type: 3}
+  - id: set_storm
+    displayName: Storm
+    price: 0
+    rarity: 0
+    carPrefab: {fileID: 5831974804143150737, guid: a9eb1de6c863fc94a8b34e7fbe7a701f, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_phantom
-    displayName: Phantom
-    price: 800
-    carPrefab: {fileID: 2757107388177578492, guid: 826078cf50a822745a75ced59fa74cd5, type: 3}
+  - id: set_tetra
+    displayName: Tetra
+    price: 0
+    rarity: 0
+    carPrefab: {fileID: 4937963772868497699, guid: 78d67492dd8f2a44bbaef92f67f11d6e, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_spilner
-    displayName: Spilner
-    price: 1000
-    carPrefab: {fileID: 2073321762982127635, guid: deaf818f6d3c4dc4fa40710652ff018c, type: 3}
+  - id: set_fox
+    displayName: Fox
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 3695423517318660533, guid: 6878fe6014158564ebccf74d4b2ba87a, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_supremec
-    displayName: Supreme-C
-    price: 1300
-    carPrefab: {fileID: 5607413168763344923, guid: 79ee0004cd11c0c459a1b328a6f1187c, type: 3}
+  - id: set_silverc
+    displayName: Silver-C
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 2024734800727310584, guid: e627f0dd691115a42bdf3e2fa29f4207, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_trophy
-    displayName: Trophy
-    price: 1600
-    carPrefab: {fileID: 1678547266766140379, guid: 8864a7bd0dfcea44c8d21a971623c664, type: 3}
+  - id: set_p600
+    displayName: P-600
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 9200308838117171352, guid: 1ea24537fc873ea49bb0ba9c67205888, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_valley
-    displayName: Valley
-    price: 2000
-    carPrefab: {fileID: 3145479656284655354, guid: 61a45614153cdbf4a843718ffd53f71e, type: 3}
+  - id: set_cassini
+    displayName: Cassini
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 2241961735867606950, guid: e3fdee602e279874b8b1032663787720, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_wagen
-    displayName: Wagen
-    price: 2500
-    carPrefab: {fileID: 4401654777128367279, guid: 33a8d7c245aa8a14aa52185d8e7f9b2f, type: 3}
+  - id: set_poisson
+    displayName: Poisson
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 5128140267254924614, guid: 61b1c0ec3c5325444bd3a8d95fd4bc25, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
-  - id: set_xenon
-    displayName: Xenon
-    price: 3000
-    carPrefab: {fileID: 7163738768661034236, guid: 1453dc8c7d6055a499e2341327f52230, type: 3}
+  - id: set_wave
+    displayName: Wave
+    price: 0
+    rarity: 1
+    carPrefab: {fileID: 5588897312475945282, guid: aaa6c3d5291df0f428ac87c3437f66c4, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_omen
+    displayName: Omen
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 3150159682812606725, guid: ae719a6f8ed48094e8a5528b68f7ff96, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_marsella
+    displayName: Marsella
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 8524673164292927120, guid: a2d87191c4bd5b34ea5afa478f960555, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_agata
+    displayName: Agata
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 107705724672723391, guid: c50be6dc40848b3419f2b32019413ef0, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_chimera
+    displayName: Chimera
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 8928115195132048897, guid: 0e3b040f879c28a48a5914877d82409d, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_blacklist
+    displayName: Blacklist
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 8842937393688568471, guid: f669ee0269163474aab9f9b9844795d1, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_slipstream
+    displayName: Slipstream
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 5634381023391105036, guid: c3fcb3cbc53b22543af1ee76473461e5, type: 3}
+    minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
+    busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  - id: set_skywalker
+    displayName: Skywalker
+    price: 0
+    rarity: 2
+    carPrefab: {fileID: 5681851544613961433, guid: df7894c49b5e9434e81404f17356bba9, type: 3}
     minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
     busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}

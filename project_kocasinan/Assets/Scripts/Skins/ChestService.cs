@@ -5,11 +5,11 @@ namespace BusJam
 {
     public enum ChestTier { Bronze, Silver, Gold, Legendary }
 
-    /// <summary>Result of opening one chest: the skin rolled, whether it was a duplicate, and (if so) the shards
-    /// the duplicate melted into.</summary>
+    /// <summary>Result of opening one chest: the CAR won, whether it was a duplicate, and (if so) the shards the
+    /// duplicate melted into.</summary>
     public struct ChestResult
     {
-        public SkinDef skin;
+        public VehicleSetCatalog.VehicleSet car; // the car won (chests give cars now, not skins)
         public bool wasDupe;
         public int shardsGained;
         public bool keyDropped;   // a bonus key to a higher-tier chest dropped this open
@@ -39,18 +39,8 @@ namespace BusJam
         static int PityEvery(ChestTier t) =>
             t == ChestTier.Bronze ? 10 : t == ChestTier.Silver ? 8 : t == ChestTier.Gold ? 6 : 4;
 
-        static int DupeShards(SkinRarity r)
-        {
-            switch (r)
-            {
-                case SkinRarity.Common:    return 5;
-                case SkinRarity.Uncommon:  return 12;
-                case SkinRarity.Rare:      return 30;
-                case SkinRarity.Epic:      return 80;
-                case SkinRarity.Legendary: return 200;
-                default:                   return 5;
-            }
-        }
+        // Shards a DUPLICATE car melts into, by car tier (0 Common / 1 Medium / 2 Legendary).
+        static int DupeShardsTier(int tier) => tier >= 2 ? 200 : tier == 1 ? 60 : 15;
 
         /// <summary>Spend the tier's gold then open. Returns null (and spends nothing) if the player can't afford it.</summary>
         public static ChestResult? BuyAndOpen(ChestTier t)
@@ -77,17 +67,22 @@ namespace BusJam
             SkinRarity rarity = RollRarity(Odds(t), forceRarePlus);
             SaveSystem.SetPity(tierKey, rarity >= SkinRarity.Rare ? 0 : pity); // reset the counter on any Rare+
 
-            var skin = RollItem(rarity);
-            var res = new ChestResult { skin = skin };
-            if (skin == null) return res;
+            // Same rarity odds as before — only the REWARD is now a CAR. Map the rolled rarity to a car tier, and gate
+            // the Legendary tier to the Legendary CHEST (any lower chest that rolls Legendary gives a Medium car).
+            int tier = rarity <= SkinRarity.Uncommon ? 0 : (rarity <= SkinRarity.Epic ? 1 : 2);
+            if (t != ChestTier.Legendary && tier == 2) tier = 1;
 
-            if (SaveSystem.OwnsSkin(skin.id))
+            var car = RollCar(tier);
+            var res = new ChestResult { car = car };
+            if (car == null) return res;
+
+            if (SaveSystem.OwnsSet(car.id))
             {
                 res.wasDupe = true;
-                res.shardsGained = DupeShards(skin.rarity);
+                res.shardsGained = DupeShardsTier(car.rarity);
                 SaveSystem.AddShards(res.shardsGained);
             }
-            else SaveSystem.AddOwnedSkin(skin.id);
+            else SaveSystem.AddOwnedSet(car.id);
 
             // Bonus "chase": a small chance to ALSO drop a key to a higher-tier chest.
             var key = RollKeyDrop(t);
@@ -142,15 +137,16 @@ namespace BusJam
             return (SkinRarity)(odds.Length - 1);
         }
 
-        // Pick a random NON-default item of `rarity`; if that rarity has none, fall to a lower one (safety only).
-        // Classic (isDefault) is excluded — it's the free default, never a chest prize.
-        static SkinDef RollItem(SkinRarity rarity)
+        // Pick a random car of `tier`; if that tier has none, fall to a lower one (safety only). Cars come from the
+        // wardrobe catalog (built by "BusJam ▸ Build Vehicle Sets"). The free starter can be re-rolled -> a dupe.
+        static VehicleSetCatalog.VehicleSet RollCar(int tier)
         {
-            for (int r = (int)rarity; r >= 0; r--)
+            var cat = VehicleWardrobe.Catalog;
+            if (cat == null || cat.sets == null) return null;
+            for (int tr = tier; tr >= 0; tr--)
             {
-                var pool = new List<SkinDef>();
-                foreach (var s in SkinCatalog.ByRarity(SkinCategory.Vehicle, (SkinRarity)r))
-                    if (!s.isDefault) pool.Add(s);
+                var pool = new List<VehicleSetCatalog.VehicleSet>();
+                foreach (var s in cat.sets) if (s != null && s.rarity == tr) pool.Add(s);
                 if (pool.Count > 0) return pool[Random.Range(0, pool.Count)];
             }
             return null;

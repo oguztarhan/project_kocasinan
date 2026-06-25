@@ -18,3 +18,5 @@ MonoBehaviour:
   fitFactor: 1
   yaw: 180
   yOffset: 0
+  yawMinivan: 0
+  yawBus: 0

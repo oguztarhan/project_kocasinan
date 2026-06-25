@@ -212,12 +212,12 @@ namespace BusJam
             return true;
         }
 
-        // ===================== VEHICLE SETS (the "dolap" / wardrobe) =====================
-        // Unlock is PER SET (a set = 1 car + 1 minivan + 1 bus). Equip is PER TYPE and INDEPENDENT — three
-        // separate slots, each storing a set id. Owned sets = a CSV of ids; the free default set is implicitly
-        // owned, so a fresh save needs no migration. DefaultSetId MUST match the set-catalog's set 0 id (the
-        // builder makes set 0 = Royal -> "set_royal"); change both together if set 0 changes.
-        public const string DefaultSetId = "set_royal";
+        // ===================== VEHICLE CARS (the "dolap" / wardrobe) =====================
+        // A "set" is really ONE collectible car (+ the shared Connect/Bus). Cars are WON FROM CHESTS (OwnsSet =
+        // collected); equip is PER TYPE and INDEPENDENT. Owned cars = a CSV of ids; the free starter is implicitly
+        // owned, so a fresh save needs no migration. DefaultSetId MUST match the catalog's set 0 id (the builder
+        // makes set 0 = Rhino -> "set_rhino"); change both together if set 0 changes.
+        public const string DefaultSetId = "set_rhino";
         const string K_SetsOwned    = "bj_sets_owned";
         const string K_SetEquipCar  = "bj_set_car";
         const string K_SetEquipMini = "bj_set_mini";

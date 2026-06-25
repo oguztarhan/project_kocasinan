@@ -334,8 +334,8 @@ namespace BusJam
         void OpenFreeChest()                  { var res = ChestService.OpenFree();          if (res == null) return; ShowChestResult(res.Value); }
         void ShowChestResult(ChestResult r)
         {
-            if (r.skin == null) return;
-            ShowReveal(r.skin, r.wasDupe ? ("DUPLICATE  +" + r.shardsGained + " shards") : "NEW!", r.keyDropped, r.keyTier);
+            if (r.car == null) return;
+            ShowRevealCar(r.car, r.wasDupe ? ("DUPLICATE  +" + r.shardsGained + " shards") : "NEW!", r.keyDropped, r.keyTier);
             RefreshGarage();
         }
         void CraftRarity(SkinRarity rar)
@@ -416,22 +416,32 @@ namespace BusJam
             revealPanel.SetActive(false);
         }
 
+        // Skin reveal (still used by the shard-craft path) — resolves the skin's look, then shares the reveal anim.
         void ShowReveal(SkinDef skin, string sub, bool keyDropped, ChestTier keyTier)
         {
             if (skin == null || revealPanel == null) return;
             revealPanel.SetActive(true);
             if (revealCo != null) StopCoroutine(revealCo);
-            revealCo = StartCoroutine(RevealAnim(skin, sub, keyDropped, keyTier));
+            Texture preview = skin.HasPattern ? SkinTextureFactory.Get(skin.pattern, skin.accent) : null;
+            revealCo = StartCoroutine(RevealAnim(RarityColor(skin.rarity), (int)skin.rarity / 4f, preview, skin.displayName, sub, keyDropped, keyTier));
         }
 
-        IEnumerator RevealAnim(SkinDef skin, string sub, bool keyDropped, ChestTier keyTier)
+        // Car reveal (chest path) — the won car's 3D thumbnail + name in its rarity-tier colour.
+        void ShowRevealCar(VehicleSetCatalog.VehicleSet car, string sub, bool keyDropped, ChestTier keyTier)
         {
-            Color rc = RarityColor(skin.rarity);
-            float inten = (int)skin.rarity / 4f; // 0 (Common) .. 1 (Legendary) -> bigger, longer, brighter reveal
+            if (car == null || revealPanel == null) return;
+            revealPanel.SetActive(true);
+            if (revealCo != null) StopCoroutine(revealCo);
+            Texture preview = VehiclePreview.Get(car.PrefabFor(VehicleType.Car));
+            revealCo = StartCoroutine(RevealAnim(TierColor(car.rarity), Mathf.Clamp01(car.rarity / 2f), preview, car.displayName, sub, keyDropped, keyTier));
+        }
+
+        IEnumerator RevealAnim(Color rc, float inten, Texture preview, string nm, string sub, bool keyDropped, ChestTier keyTier)
+        {
             if (revealFrame) revealFrame.color = rc;
-            if (revealName)  revealName.text = skin.displayName;
+            if (revealName)  revealName.text = nm;
             if (revealSub)   revealSub.text  = sub;
-            if (revealPattern) revealPattern.texture = skin.HasPattern ? SkinTextureFactory.Get(skin.pattern, skin.accent) : null;
+            if (revealPattern) revealPattern.texture = preview;
 
             revealItemGroup.alpha = 0f; revealItemGroup.transform.localScale = Vector3.one * 0.6f;
             revealKeyGroup.alpha = 0f;

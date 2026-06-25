@@ -20,20 +20,31 @@ namespace BusJam.EditorTools
         const string BusGlb      = "Assets/Unity Technologies/othercars/bus.glb";
         const string CatalogPath = "Assets/Resources/VehicleSetCatalog.asset";
 
-        // 10 CLASS-THEMED sets: one sedan from each Mega Pack class. displayName = the class (the package's name shown
-        // on the card, e.g. "Super Cars"). Set 0 (Stock / Royal) is free; prices ramp up. Minivan + Bus are shared.
-        static readonly (string cls, string car, int price)[] Defs =
+        // 17 collectible CARS, grouped by rarity (0 = Common, 1 = Medium, 2 = Legendary). Cars are WON FROM CHESTS now
+        // (not bought) — rarity drives the chest draw. Set 0 (Rhino) is the FREE starter (always owned). Minivan + Bus
+        // are shared (Connect / Bus) on every set. Legendary cars only ever drop from the Legendary chest.
+        static readonly (string cls, string car, int rarity)[] Defs =
         {
-            ("Stock Cars",     "Royal",      0),
-            ("Super Cars",     "Maximus",    800),
-            ("Muscle Cars",    "Colorado",   1100),
-            ("GT Cars",        "Silhouette", 1400),
-            ("Rally Cars",     "Safari",     1800),
-            ("Retro Cars",     "Betty",      2200),
-            ("Tuned Cars",     "Asphalt",    2700),
-            ("Deluxe Cars",    "Julieta",    3300),
-            ("Prototype Cars", "Savage",     4000),
-            ("Electric Cars",  "Spiral",     5000),
+            // Common (4) — set 0 (Rhino) is the free default
+            ("Super Cars",     "Rhino",      0),
+            ("Super Cars",     "R9",         0),
+            ("Super Cars",     "Storm",      0),
+            ("Super Cars",     "Tetra",      0),
+            // Medium (6)
+            ("Tuned Cars",     "Fox",        1),
+            ("Tuned Cars",     "Silver-C",   1),
+            ("Tuned Cars",     "P-600",      1),
+            ("Super Cars",     "Cassini",    1),
+            ("Super Cars",     "Poisson",    1),
+            ("Super Cars",     "Wave",       1),
+            // Legendary (7) — Legendary-chest only
+            ("Prototype Cars", "Omen",       2),
+            ("Prototype Cars", "Marsella",   2),
+            ("Super Cars",     "Agata",      2),
+            ("Super Cars",     "Chimera",    2),
+            ("Tuned Cars",     "Blacklist",  2),
+            ("Tuned Cars",     "Slipstream", 2),
+            ("Tuned Cars",     "Skywalker",  2),
         };
 
         [MenuItem("BusJam/Build Vehicle Sets")]
@@ -61,8 +72,8 @@ namespace BusJam.EditorTools
                 list.Add(new VehicleSetCatalog.VehicleSet
                 {
                     id          = "set_" + d.car.ToLower().Replace("-", ""),
-                    displayName = d.cls,   // the CLASS is the package name shown on the card (e.g. "Super Cars")
-                    price       = d.price,
+                    displayName = d.car,    // the CAR name shown on the card (e.g. "Chimera")
+                    rarity      = d.rarity,
                     carPrefab   = car,
                     minivanPrefab = connect,
                     busPrefab   = bus,

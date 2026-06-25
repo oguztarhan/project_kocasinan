@@ -15,9 +15,10 @@ namespace BusJam
         [System.Serializable]
         public class VehicleSet
         {
-            public string id;            // stable key, e.g. "set_royal" (set 0's id MUST equal SaveSystem.DefaultSetId)
-            public string displayName;   // shown on the car card in the wardrobe, e.g. "Royal"
-            public int price;            // coins to unlock the whole set (0 = free default)
+            public string id;            // stable key, e.g. "set_rhino" (set 0's id MUST equal SaveSystem.DefaultSetId)
+            public string displayName;   // the CAR name shown on the card, e.g. "Chimera"
+            public int price;            // (legacy) unused — cars are won from CHESTS now, not bought with coins
+            public int rarity;           // 0 = Common, 1 = Medium, 2 = Legendary (drives the chest draw + the card badge)
             public GameObject carPrefab;
             public GameObject minivanPrefab;
             public GameObject busPrefab;

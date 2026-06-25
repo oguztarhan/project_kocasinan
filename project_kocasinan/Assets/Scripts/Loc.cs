@@ -75,6 +75,7 @@ public static class Loc
         { "BUSES",    new[]{ "OTOBÜSLER","BUSES","BUSSE","AUTOBUS","AUTOBUSES","巴士","BUS","ÔNIBUS","BUS" } },
         { "EQUIPPED", new[]{ "TAKILI","EQUIPPED","AUSGERÜSTET","EQUIPAGGIATO","EQUIPADO","已装备","ÉQUIPÉ","EQUIPADO","TERPASANG" } },
         { "LOCKED",   new[]{ "KİLİTLİ","LOCKED","GESPERRT","BLOCCATO","BLOQUEADO","已锁定","VERROUILLÉ","BLOQUEADO","TERKUNCI" } },
+        { "From chests", new[]{ "Sandıktan","From chests","Aus Truhen","Dai forzieri","De cofres","来自宝箱","Des coffres","De baús","Dari peti" } },
         { "Run BusJam > Build Vehicle Sets", new[]{
             "Araç setleri yok — BusJam ▸ Build Vehicle Sets çalıştır","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
             "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",

@@ -107,8 +107,14 @@ namespace BusJam
         {
             SectionLabel(vehiclesContent, Loc.T(headerKey));
             var grid = GridRow(vehiclesContent, new Vector2(275, 320), 3);
+            var sets = VehicleWardrobe.Catalog.sets;
+            if (t == VehicleType.Car) // show the rarest cars first
+            {
+                sets = (VehicleSetCatalog.VehicleSet[])sets.Clone();
+                System.Array.Sort(sets, (a, b) => (b?.rarity ?? -1).CompareTo(a?.rarity ?? -1));
+            }
             var seen = new HashSet<GameObject>();
-            foreach (var s in VehicleWardrobe.Catalog.sets)
+            foreach (var s in sets)
             {
                 if (s == null) continue;
                 var pf = s.PrefabFor(t);
@@ -127,8 +133,16 @@ namespace BusJam
 
             var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(0.22f, 0.24f, 0.31f);
 
+            // rarity badge (cars only) — a tier-coloured pill at the top
+            if (t == VehicleType.Car)
+            {
+                var pill = Img(card.transform, null, TierColor(set.rarity)); pill.raycastTarget = false;
+                Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(170, 36));
+                Label(pill.transform, TierName(set.rarity), num, Vector2.zero, new Vector2(166, 32), 19, White);
+            }
+
             var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
-            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 18), new Vector2(210, 150));
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 4), new Vector2(210, 140));
 
             // live 3D thumbnail of this vehicle, fitted into the tile (rendered once + cached by VehiclePreview)
             var preview = VehiclePreview.Get(set.PrefabFor(t));
@@ -156,17 +170,20 @@ namespace BusJam
             }
             else
             {
-                var lk = Img(card.transform, null, new Color(0, 0, 0, 0.58f)); lk.raycastTarget = false;
-                Place(lk.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 18), new Vector2(214, 154));
-                Label(lk.transform, Loc.T("LOCKED"), num, new Vector2(0, 34), new Vector2(200, 40), 22, new Color(0.9f, 0.9f, 0.96f));
-                bool afford = SaveSystem.Coins >= set.price;
-                var buy = Btn(card.transform, UIKit.PriceBtnA(), afford ? new Color(0.30f, 0.72f, 0.36f) : new Color(0.45f, 0.45f, 0.50f),
-                              new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(232, 64), () => UnlockVehicle(set.id));
-                var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
-                Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(40, 40));
-                Label(buy.transform, set.price.ToString(), num, new Vector2(24, 0), new Vector2(232, 44), 26, White);
+                // Locked = not collected yet. Cars are won from CHESTS now (no coin unlock).
+                var lk = Img(card.transform, null, new Color(0, 0, 0, 0.62f)); lk.raycastTarget = false;
+                Place(lk.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 4), new Vector2(214, 144));
+                Label(lk.transform, Loc.T("LOCKED"), num, new Vector2(0, 22), new Vector2(200, 40), 22, new Color(0.9f, 0.9f, 0.96f));
+                Label(lk.transform, Loc.T("From chests"), num, new Vector2(0, -20), new Vector2(200, 34), 18, new Color(0.86f, 0.86f, 0.93f));
             }
         }
+
+        // Car rarity-tier -> badge colour / label (0 Common, 1 Medium, 2 Legendary). Shared with the reveal modal.
+        public static Color TierColor(int rarity) =>
+            rarity >= 2 ? new Color(0.95f, 0.66f, 0.20f)   // Legendary = gold
+          : rarity == 1 ? new Color(0.36f, 0.55f, 0.96f)   // Medium = blue
+          :               new Color(0.40f, 0.74f, 0.46f);  // Common = green
+        public static string TierName(int rarity) => rarity >= 2 ? "LEGENDARY" : rarity == 1 ? "MEDIUM" : "COMMON";
 
         // ---- actions ----------------------------------------------------------------------
         void EquipVehicle(VehicleType t, string setId)
