@@ -15,25 +15,25 @@ namespace BusJam.EditorTools
     /// </summary>
     public static class VehicleSetCatalogBuilder
     {
-        const string Mega        = "Assets/Low Poly Cars - Mega Pack/Prefabs/Stock Cars/";
+        const string MegaRoot    = "Assets/Low Poly Cars - Mega Pack/Prefabs/";
         const string ConnectGlb  = "Assets/Unity Technologies/othercars/connectt.glb";
         const string BusGlb      = "Assets/Unity Technologies/othercars/bus.glb";
         const string CatalogPath = "Assets/Resources/VehicleSetCatalog.asset";
 
-        // 10 sets: (car prefab name in Stock Cars, coin price). Set 0 is free; prices ramp up.
-        // Minivan + Bus are shared (Connect / Bus) for every set for now.
-        static readonly (string car, int price)[] Defs =
+        // 10 CLASS-THEMED sets: one sedan from each Mega Pack class. displayName = the class (the package's name shown
+        // on the card, e.g. "Super Cars"). Set 0 (Stock / Royal) is free; prices ramp up. Minivan + Bus are shared.
+        static readonly (string cls, string car, int price)[] Defs =
         {
-            ("Royal",     0),
-            ("Magnum",    400),
-            ("Panther",   600),
-            ("Phantom",   800),
-            ("Spilner",   1000),
-            ("Supreme-C", 1300),
-            ("Trophy",    1600),
-            ("Valley",    2000),
-            ("Wagen",     2500),
-            ("Xenon",     3000),
+            ("Stock Cars",     "Royal",      0),
+            ("Super Cars",     "Maximus",    800),
+            ("Muscle Cars",    "Colorado",   1100),
+            ("GT Cars",        "Silhouette", 1400),
+            ("Rally Cars",     "Safari",     1800),
+            ("Retro Cars",     "Betty",      2200),
+            ("Tuned Cars",     "Asphalt",    2700),
+            ("Deluxe Cars",    "Julieta",    3300),
+            ("Prototype Cars", "Savage",     4000),
+            ("Electric Cars",  "Spiral",     5000),
         };
 
         [MenuItem("BusJam/Build Vehicle Sets")]
@@ -57,11 +57,11 @@ namespace BusJam.EditorTools
             var list = new List<VehicleSetCatalog.VehicleSet>();
             foreach (var d in Defs)
             {
-                var car = Load(Mega + d.car + ".prefab", "Car '" + d.car + "'");
+                var car = Load(MegaRoot + d.cls + "/" + d.car + ".prefab", d.cls + " '" + d.car + "'");
                 list.Add(new VehicleSetCatalog.VehicleSet
                 {
                     id          = "set_" + d.car.ToLower().Replace("-", ""),
-                    displayName = d.car,
+                    displayName = d.cls,   // the CLASS is the package name shown on the card (e.g. "Super Cars")
                     price       = d.price,
                     carPrefab   = car,
                     minivanPrefab = connect,

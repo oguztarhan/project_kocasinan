@@ -146,10 +146,7 @@ namespace BusJam
             LegendaryChestRow(garageContent);
             FreeChestRow(garageContent);
 
-            // 2) skins
-            SectionLabel(garageContent, "VEHICLE SKINS");
-            var skinGrid = GridRow(garageContent, new Vector2(275, 330), 3);
-            foreach (var def in SkinCatalog.Vehicles) SkinCard(skinGrid, def);
+            // (Vehicle skins removed — the vehicle PACKAGES in the wardrobe, opened from the entry at the top, replace them.)
 
             // 3) craft (shards)
             SectionLabel(garageContent, "CRAFT  (shards)");

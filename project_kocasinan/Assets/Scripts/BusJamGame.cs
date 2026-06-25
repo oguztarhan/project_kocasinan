@@ -2232,30 +2232,17 @@ namespace BusJam
             bus.color = color; bus.type = type; bus.capacity = capacity; bus.advanceN = advanceN; bus.mystery = mystery;
             liveBuses.Add(bus); // track for the engine-sound movement scan (cleared on level teardown)
 
-            var skin = SkinService.EquippedVehicleSkin();          // equipped theme (Classic => code-built, identical to before)
-            // The player's EQUIPPED model for this type (from the unlocked set / "dolap" wardrobe); falls back to
-            // the VehicleCatalog default when no set catalog has been built yet.
+            // Skins removed: a vehicle ALWAYS uses the player's EQUIPPED wardrobe model for its type (from the unlocked
+            // set / "dolap"), falling back to the VehicleCatalog default, then to the code-built vehicle. No skin-model
+            // override + no livery/accessory extras -> the garage vehicles read clean (just the gameplay colour). This
+            // also drops the random-per-car skin model path, which built+recoloured a DIFFERENT model for every car and
+            // could storm the texture recolour on load (the level freeze / "yüklenmiyor").
             GameObject prefab = VehicleWardrobe.EquippedModel(type);
             if (prefab == null && vehicleCatalog != null) prefab = vehicleCatalog.PrefabFor(type);
-            // A skinned CAR uses a RANDOM model from the theme (variety); a skinned BUS uses a code-built themed bus
-            // (the car pack has no bus). Classic / no-skin falls through to the imported or code-built default.
-            GameObject carPrefab = (skin.HasModels && type != VehicleType.Bus) ? SkinService.RandomCarModel(skin) : null;
-            if (skin.HasModels && type == VehicleType.Bus)
+            if (prefab != null)
             {
-                var busPrefab = SkinService.BusModel();                            // the real bus model, recolored to the match color
-                if (busPrefab != null) { bus.skinModelPrefab = busPrefab; BuildSkinVehicle(bus, root.transform, busPrefab, color, capacity, type); }
-                else BuildThemedBus(bus, root.transform, color, capacity, type, skin); // fallback: code-built bus if the model is missing
-            }
-            else if (carPrefab != null)
-            {
-                bus.skinModelPrefab = carPrefab;                                   // remember the source so recolor/reveal can re-tint it
-                BuildSkinVehicle(bus, root.transform, carPrefab, color, capacity, type);
-            }
-            else if (prefab != null)
-            {
-                // Remember the ACTUAL model so RecolorBus re-tints from IT (not the catalog default). Without this a
-                // wardrobe-equipped sedan recoloured via the Royal default -> renderer/slot mismatch -> it fell back
-                // to the raw atlas colour ("recolor a basınca kahverengiye dönüyordu").
+                // Remember the ACTUAL model so RecolorBus re-tints from IT (not the catalog default), else a
+                // wardrobe-equipped sedan recoloured via the Royal default -> slot mismatch -> raw atlas colour.
                 bus.skinModelPrefab = prefab;
                 BuildImportedVehicle(bus, root.transform, prefab, color, capacity, type); // builds seat-number + "<<" badge
             }
@@ -2267,9 +2254,7 @@ namespace BusJam
                 float cbTop = CellSize * 0.6f, cbLen = LowPolyBuilder.VehicleLength(type, CellSize);
                 bus.roofPeople = BuildRoofHeads(root.transform, capacity, color, cbTop, CellSize * 0.26f, cbLen);
                 bus.roofY = cbTop; // for the mystery "?" placement (same roof level as the arrow)
-                // (Removed) the "«N" advance badge that floated on the roof — advanceN still works in gameplay, it's just no longer shown.
             }
-            BuildSkinExtras(root.transform, skin, type); // equipped skin's accessories + livery, on whatever base (code-built OR imported)
             // MYSTERY: gray the whole shell and add the "?" roof badge BEFORE OutlineAll, so the toon outline
             // is added fresh on top (stays black ink) and reveal — RecolorBus from the prefab base — restores it.
             if (mystery) { GrayBus(bus); BuildMysteryMarker(bus, root.transform); }
@@ -2647,7 +2632,15 @@ namespace BusJam
             return set.Count;
         }
 
+        // Recolour is best-effort: a texture read / Blit hiccup must NEVER abort the synchronous level build (that
+        // would freeze / half-load the level — "bazısında yüklenmiyor"); on any exception we just leave the vehicle
+        // its default texture and carry on.
         void ColorSkinModel(Transform modelTf, GameObject srcPrefab, PieceColor color)
+        {
+            try { ColorSkinModelCore(modelTf, srcPrefab, color); }
+            catch (System.Exception e) { Debug.LogWarning("[ColorSkinModel] recolour skipped: " + e.Message); }
+        }
+        void ColorSkinModelCore(Transform modelTf, GameObject srcPrefab, PieceColor color)
         {
             GameObject matSrc = srcPrefab != null ? srcPrefab : modelTf.gameObject;
             var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
@@ -2682,16 +2675,15 @@ namespace BusJam
             }
             else
             {
-                var inst = rend.materials;            // per-instance copies (unique to this renderer -> no bleed between cars)
-                if (bodySlot < inst.Length)
-                {
-                    var mi = inst[bodySlot];
-                    Color c = PeopleColor(color);
-                    if (mi.HasProperty("_BaseColor")) mi.SetColor("_BaseColor", c);
-                    if (mi.HasProperty("_Color")) mi.SetColor("_Color", c);
-                    if (mi.HasProperty("baseColorFactor")) mi.SetColor("baseColorFactor", c);
-                    rend.materials = inst;
-                }
+                // SINGLE-material .glb (van/bus): its ONE texture bakes in body + windows + wheels, so a flat tint
+                // muddied the body to an OFF shade — it didn't match the sedan (whose body is the EXACT palette colour)
+                // or the boarding people. Instead repaint just the LIGHT shell pixels of the texture to that same exact
+                // colour and keep the dark windows/wheels, so all three (sedan, van, people) read as ONE colour. Cached
+                // per (material, colour) on the SHARED slot: same-colour vans reuse it; different colours don't bleed.
+                var origMats = bodyRend.sharedMaterials;
+                Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
+                var m = rend.sharedMaterials;
+                if (bodySlot < m.Length && origBody != null) { m[bodySlot] = RecoloredVanMat(origBody, color); rend.sharedMaterials = m; }
             }
         }
 
@@ -2738,6 +2730,77 @@ namespace BusJam
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
             if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
             atlasMatCache[key] = m;
+            return m;
+        }
+
+        // --- .glb van/bus recolour (single-material model: one texture bakes in body + windows + wheels) -------------
+        // There's no swatch BAND to recolour like the Mega Pack atlas — the van is one textured shell. So recolour by
+        // VALUE: the body is the LIGHT / near-grey region; windows, tyres and shadows are DARK. Repaint the light pixels
+        // to the EXACT gameplay colour (the same flat colour the sedan body + boarding people use, so all three match)
+        // and keep the dark pixels so windows + wheels survive. Reads via a GPU copy (glb textures aren't CPU-readable).
+        readonly Dictionary<(Texture, PieceColor), Texture2D> vanRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>();
+        Texture2D RecoloredVanTex(Texture src, PieceColor color)
+        {
+            if (src == null) return null;
+            var key = (src, color);
+            if (vanRecolorCache.TryGetValue(key, out var cached)) return cached; // cached value may be null (un-recolourable)
+            int w = src.width, h = src.height;
+            // Cap the working resolution so a large atlas can't STALL the synchronous level build (the body becomes a
+            // FLAT colour anyway, so the cap doesn't soften it — only the kept windows/wheels lose a touch of detail).
+            const int Max = 512;
+            if (w > Max || h > Max) { float s = (float)Max / Mathf.Max(w, h); w = Mathf.Max(1, Mathf.RoundToInt(w * s)); h = Mathf.Max(1, Mathf.RoundToInt(h * s)); }
+            Color32[] px = ReadPixels32(src, w, h);
+            if (px == null) { vanRecolorCache[key] = null; return null; }
+            Color32 c = PeopleColor(color);
+            int bodyCount = 0;
+            for (int i = 0; i < px.Length; i++)
+            {
+                float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
+                float mx = Mathf.Max(r, Mathf.Max(g, b)), mn = Mathf.Min(r, Mathf.Min(g, b));
+                float sat = mx <= 0.001f ? 0f : (mx - mn) / mx;
+                if (mx > 0.55f && sat < 0.30f) { px[i] = c; bodyCount++; } // a light, near-grey shell pixel -> body
+            }
+            if (bodyCount < px.Length * 0.02f) { vanRecolorCache[key] = null; return null; } // not light-bodied -> caller falls back to a flat colour
+            var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
+            dst.SetPixels32(px); dst.Apply(false);
+            vanRecolorCache[key] = dst;
+            return dst;
+        }
+
+        // Read a texture's pixels at the target w x h: GetPixels32 if it's already that size + CPU-readable, else a GPU
+        // blit (which downscales) -> ReadPixels copy (works for non-readable + glb, and bounds the CPU pixel work).
+        static Color32[] ReadPixels32(Texture src, int w, int h)
+        {
+            if (src is Texture2D t2 && t2.width == w && t2.height == h) { try { return t2.GetPixels32(); } catch (UnityException) { } }
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            Graphics.Blit(src, rt);
+            var prev = RenderTexture.active; RenderTexture.active = rt;
+            var tmp = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tmp.ReadPixels(new Rect(0, 0, w, h), 0, 0); tmp.Apply(false);
+            RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+            var px = tmp.GetPixels32();
+            Object.Destroy(tmp);
+            return px;
+        }
+
+        // A clone of the .glb body material whose texture has the light shell repainted to the match colour (windows +
+        // wheels kept). Falls back to the flat palette material (solid colour, no window detail) if the texture can't be
+        // read or the model isn't light-bodied. Cached per (material, colour).
+        readonly Dictionary<(Material, PieceColor), Material> vanMatCache = new Dictionary<(Material, PieceColor), Material>();
+        Material RecoloredVanMat(Material bodyMat, PieceColor color)
+        {
+            var key = (bodyMat, color);
+            if (vanMatCache.TryGetValue(key, out var m) && m != null) return m;
+            var tex = RecoloredVanTex(GetAlbedo(bodyMat), color);
+            if (tex == null) { var fb = bodyMats.TryGetValue(color, out var bm) ? bm : bodyMat; vanMatCache[key] = fb; return fb; }
+            m = new Material(bodyMat);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+            if (m.HasProperty("baseColorTexture")) m.SetTexture("baseColorTexture", tex);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white); // texture now carries the colour -> don't multiply again
+            if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+            if (m.HasProperty("baseColorFactor")) m.SetColor("baseColorFactor", Color.white);
+            vanMatCache[key] = m;
             return m;
         }
 

@@ -77,8 +77,7 @@ namespace BusJam
             scroll.viewport = vpRt; scroll.content = ctRt;
             vehiclesContent = ctGo.transform;
 
-            RefreshVehicles();
-            vehiclesPanel.SetActive(false);
+            vehiclesPanel.SetActive(false); // content (+ vehicle thumbnails) is built lazily on first ShowVehicles
         }
 
         // ---- (re)populate the three sections + coin counter --------------------------------
@@ -130,6 +129,17 @@ namespace BusJam
 
             var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
             Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 18), new Vector2(210, 150));
+
+            // live 3D thumbnail of this vehicle, fitted into the tile (rendered once + cached by VehiclePreview)
+            var preview = VehiclePreview.Get(set.PrefabFor(t));
+            if (preview != null)
+            {
+                var pv = new GameObject("Preview", typeof(RectTransform)).AddComponent<RawImage>();
+                pv.transform.SetParent(tile.transform, false);
+                pv.texture = preview; pv.raycastTarget = false;
+                var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
+            }
+
             Label(card.transform, label, num, new Vector2(0, -126), new Vector2(255, 50), 28, White);
 
             if (owned)
