@@ -2656,34 +2656,19 @@ namespace BusJam
             if (bodyIdx < 0 || bodyIdx >= modelRends.Length) return;
             var rend = modelRends[bodyIdx];
 
-            // SEPARATE-body model (Mega Pack: body + details materials): paint the shell with the EXACT gameplay
-            // palette material (the SAME one the people use) — its body texture is a shared COLOUR ATLAS, so tinting
-            // it would only muddy the car toward its atlas colour (red people ended up on a "brown" car). A SINGLE-
-            // material model (the .glb van/bus, whose one texture bakes in the windows) keeps its texture and is
-            // MULTIPLIED by the colour so the baked-dark windows survive.
-            bool separateBody = DistinctMaterialCount(matSrc) > 1;
-            if (separateBody)
+            // Route by the BODY material. glTF/.glb bodies (the bus, the minivans + buses) expose "baseColorFactor" ->
+            // recolour their textured shell BY VALUE: repaint every non-dark pixel to the EXACT palette colour (so the
+            // body matches the boarding people, whatever its native colour) and keep the dark windows/tyres. The Mega
+            // Pack's URP colour-ATLAS body does NOT have baseColorFactor -> recolour ONLY its swatch band (keeps glass +
+            // bumpers). Material count alone misrouted a multi-material .glb into the atlas path — this keys off the body.
+            var origMats = bodyRend.sharedMaterials;
+            Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
+            bool megapackAtlas = origBody != null && !origBody.HasProperty("baseColorFactor") && DistinctMaterialCount(matSrc) > 1;
+            var m = rend.sharedMaterials;
+            if (bodySlot < m.Length && origBody != null)
             {
-                // Mega Pack: the whole paint job is ONE colour ATLAS (a band of body-colour swatches + glass + chrome
-                // regions). Recolour ONLY the body-swatch band to the gameplay colour and keep the glass (windows) +
-                // chrome (bumpers) regions -> clean body, original windows/bumpers. Use the PREFAB's original material
-                // as the base (not the already-recoloured runtime one) so rebuild/recolour stay consistent.
-                var origMats = bodyRend.sharedMaterials;
-                Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
-                var m = rend.sharedMaterials;
-                if (bodySlot < m.Length && origBody != null) { m[bodySlot] = RecoloredAtlasMat(origBody, color); rend.sharedMaterials = m; }
-            }
-            else
-            {
-                // SINGLE-material .glb (van/bus): its ONE texture bakes in body + windows + wheels, so a flat tint
-                // muddied the body to an OFF shade — it didn't match the sedan (whose body is the EXACT palette colour)
-                // or the boarding people. Instead repaint just the LIGHT shell pixels of the texture to that same exact
-                // colour and keep the dark windows/wheels, so all three (sedan, van, people) read as ONE colour. Cached
-                // per (material, colour) on the SHARED slot: same-colour vans reuse it; different colours don't bleed.
-                var origMats = bodyRend.sharedMaterials;
-                Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
-                var m = rend.sharedMaterials;
-                if (bodySlot < m.Length && origBody != null) { m[bodySlot] = RecoloredVanMat(origBody, color); rend.sharedMaterials = m; }
+                m[bodySlot] = megapackAtlas ? RecoloredAtlasMat(origBody, color) : RecoloredVanMat(origBody, color);
+                rend.sharedMaterials = m; // cached per (material, colour) on the SHARED slot — same colour reuses, different colours don't bleed
             }
         }
 
@@ -2756,9 +2741,8 @@ namespace BusJam
             for (int i = 0; i < px.Length; i++)
             {
                 float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
-                float mx = Mathf.Max(r, Mathf.Max(g, b)), mn = Mathf.Min(r, Mathf.Min(g, b));
-                float sat = mx <= 0.001f ? 0f : (mx - mn) / mx;
-                if (mx > 0.55f && sat < 0.30f) { px[i] = c; bodyCount++; } // a light, near-grey shell pixel -> body
+                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
+                if (lum > 0.30f) { px[i] = c; bodyCount++; } // any non-dark pixel = body (recolour, any native colour); only DARK windows/tyres/shadow are kept
             }
             if (bodyCount < px.Length * 0.02f) { vanRecolorCache[key] = null; return null; } // not light-bodied -> caller falls back to a flat colour
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };

@@ -103,6 +103,7 @@ namespace BusJam
             var shopCanvas = InGameShop.Instance != null ? InGameShop.Instance.GetComponent<Canvas>() : null;
             var panelsCanvas = InGamePanels.Instance != null ? InGamePanels.Instance.GetComponent<Canvas>() : null;
             var hudCanvas = InGameHud.Instance != null ? InGameHud.Instance.GetComponent<Canvas>() : null;
+            var garageCanvas = InGameGarage.Instance != null ? InGameGarage.Instance.GetComponent<Canvas>() : null;
             foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (c == null) continue;
@@ -110,6 +111,7 @@ namespace BusJam
                 if (shopCanvas != null && c == shopCanvas) continue; // baked in-game shop
                 if (panelsCanvas != null && c == panelsCanvas) continue; // baked settings/continue/failed
                 if (hudCanvas != null && c == hudCanvas) continue; // baked HUD
+                if (garageCanvas != null && c == garageCanvas) continue; // baked garage + vehicles panels
                 c.gameObject.SetActive(false);
             }
         }
@@ -951,6 +953,7 @@ namespace BusJam
             if (gearGo)       gearGo.SetActive(on);
             if (levelBadgeGo) levelBadgeGo.SetActive(on);
             if (adFreeBtnGo)  adFreeBtnGo.SetActive(on);
+            if (garageBtnGo)  garageBtnGo.SetActive(on); // hide the GARAGE button too while the garage/shop is open
         }
         public void ShowContinue() { Toggle(continuePanel, true); }
         public void SetContinuePrice(int cost) { if (continuePrice) continuePrice.text = cost.ToString(); }
@@ -1106,10 +1109,13 @@ namespace BusJam
             return btn;
         }
 
-        void RedClose(Transform card, System.Action onClose)
+        // Returns the button so callers that BAKE the chrome (garage/vehicles) can store the ref and wire the action
+        // at runtime; pass onClose = null to create it unwired. Existing callers ignore the return value.
+        Button RedClose(Transform card, System.Action onClose)
         {
             var b = Btn(card, UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-40, -40), new Vector2(96, 96), onClose);
             b.transform.SetAsLastSibling();
+            return b;
         }
 
         void Place(RectTransform rt, Vector2 min, Vector2 max, Vector2 pos, Vector2 size)

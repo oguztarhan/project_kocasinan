@@ -29,7 +29,9 @@ namespace BusJam
         public static GameObject EquippedModel(VehicleType t)
         {
             if (!HasCatalog) return null;
-            var set = Catalog.ById(SaveSystem.EquippedSet(t)) ?? Catalog.sets[0];
+            // the equipped item for this type (self-heals to the type's free default), then its prefab. NOT sets[0] —
+            // that is a CAR, whose PrefabFor(Minivan/Bus) would be null.
+            var set = Catalog.ById(SaveSystem.EquippedSet(t)) ?? Catalog.ById(SaveSystem.DefaultFor(t));
             return set != null ? set.PrefabFor(t) : null;
         }
 

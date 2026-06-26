@@ -40,7 +40,7 @@ namespace BusJam
             t == ChestTier.Bronze ? 10 : t == ChestTier.Silver ? 8 : t == ChestTier.Gold ? 6 : 4;
 
         // Shards a DUPLICATE car melts into, by car tier (0 Common / 1 Medium / 2 Legendary).
-        static int DupeShardsTier(int tier) => tier >= 2 ? 200 : tier == 1 ? 60 : 15;
+        static int DupeShardsTier(int tier) => tier >= 3 ? 200 : tier == 2 ? 80 : tier == 1 ? 25 : 10;
 
         /// <summary>Spend the tier's gold then open. Returns null (and spends nothing) if the player can't afford it.</summary>
         public static ChestResult? BuyAndOpen(ChestTier t)
@@ -67,10 +67,11 @@ namespace BusJam
             SkinRarity rarity = RollRarity(Odds(t), forceRarePlus);
             SaveSystem.SetPity(tierKey, rarity >= SkinRarity.Rare ? 0 : pity); // reset the counter on any Rare+
 
-            // Same rarity odds as before — only the REWARD is now a CAR. Map the rolled rarity to a car tier, and gate
-            // the Legendary tier to the Legendary CHEST (any lower chest that rolls Legendary gives a Medium car).
-            int tier = rarity <= SkinRarity.Uncommon ? 0 : (rarity <= SkinRarity.Epic ? 1 : 2);
-            if (t != ChestTier.Legendary && tier == 2) tier = 1;
+            // Same rarity odds as before — only the REWARD is now a CAR. Map the rolled rarity (Common..Legendary) to a
+            // car tier (0 Common / 1 Uncommon / 2 Epic / 3 Legendary), and gate the Legendary tier to the Legendary CHEST
+            // (any lower chest that rolls Legendary gives an Epic car instead).
+            int tier = rarity == SkinRarity.Legendary ? 3 : rarity >= SkinRarity.Rare ? 2 : (int)rarity;
+            if (t != ChestTier.Legendary && tier == 3) tier = 2;
 
             var car = RollCar(tier);
             var res = new ChestResult { car = car };

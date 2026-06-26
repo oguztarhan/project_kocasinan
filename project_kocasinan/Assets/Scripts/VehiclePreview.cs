@@ -51,7 +51,7 @@ namespace BusJam
         }
 
         /// <summary>Cached preview RT for this prefab (rendered on first request). Null if prefab is null.</summary>
-        public static RenderTexture Get(GameObject prefab)
+        public static RenderTexture Get(GameObject prefab, float yaw = 35f, bool cropBase = false, float fill = 1.02f)
         {
             if (prefab == null) return null;
             if (cache.TryGetValue(prefab, out var rt) && rt != null) return rt;
@@ -59,17 +59,22 @@ namespace BusJam
 
             var model = Object.Instantiate(prefab, stage);
             model.transform.localPosition = Vector3.zero;
-            model.transform.localRotation = Quaternion.Euler(0f, 215f, 0f); // turn the FRONT to a 3/4 angle toward the camera ("bize doğru çapraz"); flip 180 if it shows the back
+            // turn the vehicle to a 3/4 angle toward the camera. ALL types use the SAME yaw so cars + minivans + buses
+            // strike the identical pose (caller passes one value); add 180 if a whole class shows its back.
+            model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
             model.transform.localScale = Vector3.one;
             foreach (var rb in model.GetComponentsInChildren<Rigidbody>(true)) Object.Destroy(rb);
             foreach (var c in model.GetComponentsInChildren<Collider>(true)) Object.Destroy(c);
             foreach (var lod in model.GetComponentsInChildren<LODGroup>(true)) lod.ForceLOD(0); // show the full-detail mesh, never an LOD-culled blank
+            if (cropBase) // drop the flat "showroom" slab Meshy bakes under the .glb vans/buses
+                foreach (var mf in model.GetComponentsInChildren<MeshFilter>(true))
+                    if (mf.sharedMesh != null) mf.sharedMesh = TrimBase(mf.sharedMesh);
             SetLayer(model.transform, Layer);
 
             // Frame it: aim at the bounds centre from a front-right-above 3/4 angle, backed off to fit the bounding sphere.
             Bounds b = WorldBounds(model, stage.position);
             float radius = Mathf.Max(b.extents.magnitude, 0.05f);
-            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 1.02f;
+            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * fill; // fill < 1 = camera closer = vehicle bigger
             Vector3 dir = new Vector3(0.5f, 0.34f, -1f).normalized; // in front + slightly right + above -> a 3/4 hero shot facing the viewer
             cam.transform.position = b.center + dir * dist;
             cam.transform.LookAt(b.center);
@@ -82,10 +87,16 @@ namespace BusJam
             keyLight.enabled = false;
             cam.targetTexture = null;
 
-            Object.Destroy(model);
+            // DestroyImmediate (not Destroy): every garage card renders in the SAME frame, and a deferred Destroy would
+            // leave earlier models alive on the stage so the next card's shot captures them OVERLAPPING (minivans were
+            // showing the cars rendered just before them). Removing it now keeps exactly one model on the stage per shot.
+            Object.DestroyImmediate(model);
             cache[prefab] = rt;
             return rt;
         }
+
+        /// <summary>True if this prefab's preview is already rendered + cached (Get returns instantly, no render cost).</summary>
+        public static bool IsCached(GameObject prefab) => prefab != null && cache.TryGetValue(prefab, out var rt) && rt != null;
 
         // One-shot render that works under URP/HDRP (RenderPipeline request) AND the built-in pipeline (Camera.Render).
         static void Render(RenderTexture rt)
@@ -108,6 +119,36 @@ namespace BusJam
             var b = rends[0].bounds;
             for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
             return b;
+        }
+
+        // Strip a flat "showroom" base slab baked under a Meshy .glb: drop the horizontal triangles that sit in the
+        // bottom Y-band (the slab), keep the vehicle (wheels are round -> non-horizontal normals -> kept). Returns a
+        // trimmed COPY (cached) so the shared asset mesh is never mutated. Single-submesh only (the .glb vans are).
+        static readonly Dictionary<Mesh, Mesh> trimCache = new Dictionary<Mesh, Mesh>();
+        static Mesh TrimBase(Mesh src)
+        {
+            if (src == null) return null;
+            if (trimCache.TryGetValue(src, out var cached)) return cached;
+            if (src.subMeshCount != 1) { trimCache[src] = src; return src; }
+            var verts = src.vertices;
+            float minY = float.MaxValue, maxY = float.MinValue;
+            for (int i = 0; i < verts.Length; i++) { float y = verts[i].y; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+            float band = minY + (maxY - minY) * 0.10f;
+            var tris = src.triangles;
+            var keep = new List<int>(tris.Length);
+            for (int i = 0; i < tris.Length; i += 3)
+            {
+                Vector3 a = verts[tris[i]], b = verts[tris[i + 1]], c = verts[tris[i + 2]];
+                Vector3 n = Vector3.Cross(b - a, c - a).normalized;
+                if (a.y < band && b.y < band && c.y < band && Mathf.Abs(n.y) > 0.7f) continue; // drop slab triangle
+                keep.Add(tris[i]); keep.Add(tris[i + 1]); keep.Add(tris[i + 2]);
+            }
+            if (keep.Count == tris.Length) { trimCache[src] = src; return src; }
+            var trimmed = Object.Instantiate(src);
+            trimmed.triangles = keep.ToArray();
+            trimmed.RecalculateBounds();
+            trimCache[src] = trimmed;
+            return trimmed;
         }
     }
 }

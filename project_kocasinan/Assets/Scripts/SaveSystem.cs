@@ -216,8 +216,12 @@ namespace BusJam
         // A "set" is really ONE collectible car (+ the shared Connect/Bus). Cars are WON FROM CHESTS (OwnsSet =
         // collected); equip is PER TYPE and INDEPENDENT. Owned cars = a CSV of ids; the free starter is implicitly
         // owned, so a fresh save needs no migration. DefaultSetId MUST match the catalog's set 0 id (the builder
-        // makes set 0 = Rhino -> "set_rhino"); change both together if set 0 changes.
-        public const string DefaultSetId = "set_rhino";
+        // makes set 0 = Firenze -> "set_firenze"); change both together if set 0 changes.
+        public const string DefaultSetId     = "set_firenze"; // free starter CAR (catalog set 0)
+        public const string DefaultMinivanId = "mv_classic";  // free "Classic" minivan (Connect)
+        public const string DefaultBusId     = "bus_classic"; // free "Classic" bus
+        public static string DefaultFor(VehicleType t) =>
+            t == VehicleType.Car ? DefaultSetId : t == VehicleType.Minivan ? DefaultMinivanId : DefaultBusId;
         const string K_SetsOwned    = "bj_sets_owned";
         const string K_SetEquipCar  = "bj_set_car";
         const string K_SetEquipMini = "bj_set_mini";
@@ -229,9 +233,12 @@ namespace BusJam
             set { PlayerPrefs.SetString(K_SetsOwned, value ?? ""); PlayerPrefs.Save(); }
         }
 
+        public static bool DebugOwnAll = true; // TEST: unlock EVERY vehicle so you can equip + try them all. Set to false before release.
         public static bool OwnsSet(string id)
         {
-            if (string.IsNullOrEmpty(id) || id == DefaultSetId) return true; // free default always owned
+            if (DebugOwnAll) return true; // test mode — everything unlocked
+            // the free starter of EACH type (car / minivan "Classic" / bus "Classic") is always owned
+            if (string.IsNullOrEmpty(id) || id == DefaultSetId || id == DefaultMinivanId || id == DefaultBusId) return true;
             return ("," + SetsOwnedRaw + ",").Contains("," + id + ",");
         }
 
@@ -248,8 +255,8 @@ namespace BusJam
         // The set id equipped for a given vehicle type; self-heals a blank/unowned value to the free default.
         public static string EquippedSet(VehicleType t)
         {
-            string id = PlayerPrefs.GetString(EquipKey(t), DefaultSetId);
-            return OwnsSet(id) ? id : DefaultSetId;
+            string id = PlayerPrefs.GetString(EquipKey(t), DefaultFor(t));
+            return OwnsSet(id) ? id : DefaultFor(t);
         }
 
         public static void SetEquippedSet(VehicleType t, string id)

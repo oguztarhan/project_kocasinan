@@ -18,7 +18,8 @@ namespace BusJam
             public string id;            // stable key, e.g. "set_rhino" (set 0's id MUST equal SaveSystem.DefaultSetId)
             public string displayName;   // the CAR name shown on the card, e.g. "Chimera"
             public int price;            // (legacy) unused — cars are won from CHESTS now, not bought with coins
-            public int rarity;           // 0 = Common, 1 = Medium, 2 = Legendary (drives the chest draw + the card badge)
+            public int rarity;           // 0 Common, 1 Uncommon, 2 Epic, 3 Legendary (drives the chest draw + card badge)
+            public VehicleType type;     // which garage section this item belongs to — only ITS type's prefab below is set
             public GameObject carPrefab;
             public GameObject minivanPrefab;
             public GameObject busPrefab;

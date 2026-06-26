@@ -17,6 +17,11 @@ namespace BusJam
         Transform vehiclesContent;
         Text vehiclesGoldT;
 
+        // Lazy preview generation — cards are created empty, then filled ONE RENDER per frame so opening the panel
+        // doesn't render all ~30 vehicles in one frame (that caused the open-delay + FPS drop).
+        readonly List<(RawImage img, GameObject prefab, bool crop, float fill)> pendingPreviews = new List<(RawImage, GameObject, bool, float)>();
+        Coroutine previewCo;
+
         // Full-width entry row added at the top of the Garage scroll content (tap to open the wardrobe).
         void AddVehiclesEntry(Transform parent)
         {
@@ -28,7 +33,25 @@ namespace BusJam
         }
 
         // ---- build the (hidden) wardrobe panel — same scroll recipe as BuildGarage --------
+        // Adopt the baked panel (InGameGarage marker) if present; otherwise build the chrome in code. Content is built
+        // lazily on first ShowVehicles either way, so the game is unchanged until you bake.
         void BuildVehicles()
+        {
+            var g = InGameGarage.Instance;
+            Button close;
+            if (g != null && g.vehiclesRoot != null && g.vehiclesContent != null && g.vehiclesGold != null)
+            {
+                vehiclesPanel = g.vehiclesRoot; vehiclesContent = g.vehiclesContent; vehiclesGoldT = g.vehiclesGold; close = g.vehiclesClose;
+            }
+            else close = BuildVehiclesChrome();
+
+            if (close) close.onClick.AddListener(HideVehicles); // wired at runtime (onClick refs don't serialize)
+            if (vehiclesPanel) vehiclesPanel.SetActive(false);  // content (+ thumbnails) built lazily on first ShowVehicles
+        }
+
+        // Build ONLY the wardrobe window chrome; sets vehiclesPanel / vehiclesContent / vehiclesGoldT and returns the
+        // (unwired) close button. Shared by the runtime path above AND the editor baker (EditorBakeVehicles).
+        Button BuildVehiclesChrome()
         {
             vehiclesPanel = Panel("Vehicles", new Color(0, 0, 0, 0.62f));
             var cv = vehiclesPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 80; // above the garage
@@ -37,7 +60,7 @@ namespace BusJam
             var card = Img(vehiclesPanel.transform, UIKit.PanelTall(), new Color(0.20f, 0.22f, 0.33f));
             Center(card.rectTransform, new Vector2(980, 1560));
             Label(card.transform, Loc.T("VEHICLES"), title, new Vector2(0, 690), new Vector2(760, 120), 70, White);
-            RedClose(card.transform, HideVehicles);
+            var close = RedClose(card.transform, null);
 
             var goldChip = Img(card.transform, UIKit.CoinBar(), Dark); goldChip.raycastTarget = false;
             Place(goldChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -205), new Vector2(300, 88));
@@ -76,13 +99,24 @@ namespace BusJam
             fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             scroll.viewport = vpRt; scroll.content = ctRt;
             vehiclesContent = ctGo.transform;
-
-            vehiclesPanel.SetActive(false); // content (+ vehicle thumbnails) is built lazily on first ShowVehicles
+            return close;
         }
+
+#if UNITY_EDITOR
+        // Editor baker entry (BusJam ▸ Bake Garage Panels): build the wardrobe chrome under `canvas`, return its refs.
+        public (GameObject panel, Transform content, Text gold, Button close) EditorBakeVehicles(Transform canvas)
+        {
+            title = UIKit.Title(); num = UIKit.Num(); root = canvas;
+            var close = BuildVehiclesChrome();
+            return (vehiclesPanel, vehiclesContent, vehiclesGoldT, close);
+        }
+#endif
 
         // ---- (re)populate the three sections + coin counter --------------------------------
         void RefreshVehicles()
         {
+            if (previewCo != null) { StopCoroutine(previewCo); previewCo = null; } // cancel a half-finished preview pass
+            pendingPreviews.Clear();
             if (vehiclesGoldT) vehiclesGoldT.text = SaveSystem.Coins.ToString();
             if (vehiclesContent == null) return;
             for (int i = vehiclesContent.childCount - 1; i >= 0; i--)
@@ -99,6 +133,22 @@ namespace BusJam
             VehicleSectionCards(VehicleType.Car,     "CARS");
             VehicleSectionCards(VehicleType.Minivan, "MINIVANS");
             VehicleSectionCards(VehicleType.Bus,     "BUSES");
+            previewCo = StartCoroutine(FillPreviewsLazy(pendingPreviews.ToArray()));
+        }
+
+        // Fill the queued preview thumbnails one RENDER per frame (cached ones fill instantly) so the panel never
+        // stalls when opened. Snapshot the queue so a re-open (which rebuilds it) can't mutate a running pass.
+        System.Collections.IEnumerator FillPreviewsLazy((RawImage img, GameObject prefab, bool crop, float fill)[] items)
+        {
+            foreach (var p in items)
+            {
+                if (p.img == null) continue;
+                bool wasCached = VehiclePreview.IsCached(p.prefab);
+                var rt = VehiclePreview.Get(p.prefab, 35f, p.crop, p.fill);
+                if (p.img != null && rt != null) { p.img.texture = rt; p.img.color = Color.white; }
+                if (!wasCached) yield return null; // only spread the EXPENSIVE first-time renders across frames
+            }
+            previewCo = null;
         }
 
         // One section: a localized header + a card per DISTINCT model of this type across the sets (dedup by prefab,
@@ -107,12 +157,9 @@ namespace BusJam
         {
             SectionLabel(vehiclesContent, Loc.T(headerKey));
             var grid = GridRow(vehiclesContent, new Vector2(275, 320), 3);
-            var sets = VehicleWardrobe.Catalog.sets;
-            if (t == VehicleType.Car) // show the rarest cars first
-            {
-                sets = (VehicleSetCatalog.VehicleSet[])sets.Clone();
-                System.Array.Sort(sets, (a, b) => (b?.rarity ?? -1).CompareTo(a?.rarity ?? -1));
-            }
+            // rarest first (every section); clone so we never reorder the catalog asset itself
+            var sets = (VehicleSetCatalog.VehicleSet[])VehicleWardrobe.Catalog.sets.Clone();
+            System.Array.Sort(sets, (a, b) => (b?.rarity ?? -1).CompareTo(a?.rarity ?? -1));
             var seen = new HashSet<GameObject>();
             foreach (var s in sets)
             {
@@ -129,12 +176,11 @@ namespace BusJam
         {
             bool owned = SaveSystem.OwnsSet(set.id);
             bool equipped = owned && SaveSystem.EquippedSet(t) == set.id;
-            string label = t == VehicleType.Car ? set.displayName : (t == VehicleType.Minivan ? "Connect" : "Bus");
+            string label = set.displayName; // each item has its own name now (car / minivan / bus, incl. "Classic")
 
             var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(0.22f, 0.24f, 0.31f);
 
-            // rarity badge (cars only) — a tier-coloured pill at the top
-            if (t == VehicleType.Car)
+            // rarity badge (all types) — a tier-coloured pill at the top
             {
                 var pill = Img(card.transform, null, TierColor(set.rarity)); pill.raycastTarget = false;
                 Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(170, 36));
@@ -144,15 +190,14 @@ namespace BusJam
             var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
             Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 4), new Vector2(210, 140));
 
-            // live 3D thumbnail of this vehicle, fitted into the tile (rendered once + cached by VehiclePreview)
-            var preview = VehiclePreview.Get(set.PrefabFor(t));
-            if (preview != null)
-            {
-                var pv = new GameObject("Preview", typeof(RectTransform)).AddComponent<RawImage>();
-                pv.transform.SetParent(tile.transform, false);
-                pv.texture = preview; pv.raycastTarget = false;
-                var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
-            }
+            // live 3D thumbnail — created empty now, FILLED lazily (FillPreviewsLazy) so the panel opens without a hitch.
+            // fill < 1 = camera closer = bigger vehicle: cars were too small, minivans a touch bigger, bus unchanged.
+            var pv = new GameObject("Preview", typeof(RectTransform)).AddComponent<RawImage>();
+            pv.transform.SetParent(tile.transform, false);
+            pv.raycastTarget = false; pv.color = new Color(1, 1, 1, 0); // invisible until its texture is ready
+            var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
+            float fill = t == VehicleType.Car ? 0.7f : t == VehicleType.Minivan ? 0.85f : 1.0f; // <1 = bigger; tweak per type
+            pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill));
 
             Label(card.transform, label, num, new Vector2(0, -126), new Vector2(255, 50), 28, White);
 
@@ -170,27 +215,30 @@ namespace BusJam
             }
             else
             {
-                // Locked = not collected yet. Cars are won from CHESTS now (no coin unlock).
-                var lk = Img(card.transform, null, new Color(0, 0, 0, 0.62f)); lk.raycastTarget = false;
-                Place(lk.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 4), new Vector2(214, 144));
-                Label(lk.transform, Loc.T("LOCKED"), num, new Vector2(0, 22), new Vector2(200, 40), 22, new Color(0.9f, 0.9f, 0.96f));
-                Label(lk.transform, Loc.T("From chests"), num, new Vector2(0, -20), new Vector2(200, 34), 18, new Color(0.86f, 0.86f, 0.93f));
+                // Locked = not collected. Keep the car image at FULL brightness so its real colours read ("olduğu
+                // gibi", and locked cars don't all blur into the same dark blob) — only a small "from chests" banner
+                // along the bottom of the tile marks it locked. No heavy overlay.
+                var banner = Img(card.transform, null, new Color(0.04f, 0.04f, 0.06f, 0.80f)); banner.raycastTarget = false;
+                Place(banner.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -52), new Vector2(212, 34));
+                Label(banner.transform, Loc.T("From chests"), num, Vector2.zero, new Vector2(206, 30), 18, new Color(0.96f, 0.86f, 0.5f));
             }
         }
 
         // Car rarity-tier -> badge colour / label (0 Common, 1 Medium, 2 Legendary). Shared with the reveal modal.
         public static Color TierColor(int rarity) =>
-            rarity >= 2 ? new Color(0.95f, 0.66f, 0.20f)   // Legendary = gold
-          : rarity == 1 ? new Color(0.36f, 0.55f, 0.96f)   // Medium = blue
-          :               new Color(0.40f, 0.74f, 0.46f);  // Common = green
-        public static string TierName(int rarity) => rarity >= 2 ? "LEGENDARY" : rarity == 1 ? "MEDIUM" : "COMMON";
+            rarity >= 3 ? new Color(0.95f, 0.66f, 0.20f)   // Legendary = gold
+          : rarity == 2 ? new Color(0.69f, 0.30f, 0.95f)   // Epic = purple
+          : rarity == 1 ? new Color(0.32f, 0.78f, 0.42f)   // Uncommon = green
+          :               new Color(0.62f, 0.66f, 0.72f);  // Common = grey
+        public static string TierName(int rarity) => rarity >= 3 ? "LEGENDARY" : rarity == 2 ? "EPIC" : rarity == 1 ? "UNCOMMON" : "COMMON";
 
         // ---- actions ----------------------------------------------------------------------
         void EquipVehicle(VehicleType t, string setId)
         {
             SaveSystem.SetEquippedSet(t, setId);
             RefreshVehicles();
-            OnReskin?.Invoke(); // rebuild the live board so the newly-equipped model shows
+            OnReskin?.Invoke();         // rebuild the live board so the newly-equipped model shows
+            SetHudChromeVisible(false); // that rebuild re-shows the HUD (StartLevel -> ShowHud); re-hide it — a panel is open
         }
 
         void UnlockVehicle(string setId)
