@@ -452,9 +452,10 @@ namespace BusJam
             if (car == null || revealPanel == null) return;
             revealPanel.SetActive(true);
             if (revealCo != null) StopCoroutine(revealCo);
-            // same yaw + the same per-type framing as the wardrobe cards (cars closer/bigger, bus unchanged)
-            float fill = car.type == VehicleType.Car ? 0.7f : car.type == VehicleType.Minivan ? 0.85f : 1.0f;
-            Texture preview = VehiclePreview.Get(car.PrefabFor(car.type), 35f, car.type != VehicleType.Car, fill);
+            // same per-type framing + yaw as the wardrobe cards (sedans flipped 180 to match the vans/buses)
+            float fill = car.type == VehicleType.Car ? 0.6f : car.type == VehicleType.Minivan ? 0.72f : 0.85f;
+            float yaw  = car.type == VehicleType.Car ? 215f : 35f;
+            Texture preview = VehiclePreview.Get(car.PrefabFor(car.type), yaw, car.type != VehicleType.Car, fill);
             revealCo = StartCoroutine(RevealAnim(TierColor(car.rarity), Mathf.Clamp01(car.rarity / 3f), preview, car.displayName, sub, keyDropped, keyTier));
         }
 

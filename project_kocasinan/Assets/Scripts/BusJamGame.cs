@@ -2667,9 +2667,37 @@ namespace BusJam
             var m = rend.sharedMaterials;
             if (bodySlot < m.Length && origBody != null)
             {
-                m[bodySlot] = megapackAtlas ? RecoloredAtlasMat(origBody, color) : RecoloredVanMat(origBody, color);
+                // A DARK-bodied vehicle (black / near-black shell) can't be split into body vs windows — neither the
+                // luminance cut (value path) nor the swatch BAND (atlas path) finds the body, so the shell stays black
+                // and only trim/windows take the colour ("colours mixed up"). For those, paint the body submesh a clean
+                // FLAT palette colour instead — reliable for ANY model, whatever recolour path it would have used.
+                Material flat = bodyMats.TryGetValue(color, out var bm) ? bm : null;
+                bool darkBody = flat != null && BodyMeanLuminance(origBody) < 0.30f;
+                m[bodySlot] = darkBody              ? flat
+                            : megapackAtlas         ? RecoloredAtlasMat(origBody, color)
+                            :                         RecoloredVanMat(origBody, color);
                 rend.sharedMaterials = m; // cached per (material, colour) on the SHARED slot — same colour reuses, different colours don't bleed
             }
+        }
+
+        // Mean luminance (0..1) of a body material's albedo, cached per texture. Detects a DARK-bodied vehicle whose
+        // shell can't be cleanly separated from its windows — those are flat-filled (clean solid colour) instead of
+        // texture-recoloured. A tiny 128px sample is plenty for a mean (and bounds the GPU readback cost).
+        readonly Dictionary<Texture, float> bodyLumCache = new Dictionary<Texture, float>();
+        float BodyMeanLuminance(Material bodyMat)
+        {
+            var tex = GetAlbedo(bodyMat);
+            if (tex == null) return 1f; // untextured -> treat as light (use the normal recolour path)
+            if (bodyLumCache.TryGetValue(tex, out var cached)) return cached;
+            int w = tex.width, h = tex.height; const int Max = 128;
+            if (w > Max || h > Max) { float s = (float)Max / Mathf.Max(w, h); w = Mathf.Max(1, Mathf.RoundToInt(w * s)); h = Mathf.Max(1, Mathf.RoundToInt(h * s)); }
+            var px = ReadPixels32(tex, w, h);
+            if (px == null) { bodyLumCache[tex] = 1f; return 1f; }
+            double sum = 0;
+            for (int i = 0; i < px.Length; i++) sum += (0.299 * px[i].r + 0.587 * px[i].g + 0.114 * px[i].b) / 255.0;
+            float mean = (float)(sum / px.Length);
+            bodyLumCache[tex] = mean;
+            return mean;
         }
 
         // --- Mega Pack atlas recolour ---------------------------------------------------------------------
@@ -2737,14 +2765,32 @@ namespace BusJam
             Color32[] px = ReadPixels32(src, w, h);
             if (px == null) { vanRecolorCache[key] = null; return null; }
             Color32 c = PeopleColor(color);
-            int bodyCount = 0;
+
+            // Split body (recolour) from glass / tyres / headlights (keep dark) by luminance. A fixed cut leaves a
+            // BLACK / dark vehicle's body UNDER the line, so only its trim recolours and the body stays black ("colours
+            // mixed up"). Instead pick the cut by PERCENTILE: keep the darkest ~26% of pixels (windows + wheels +
+            // shadow) and recolour everything brighter, so the body recolours whatever its native darkness. Clamp the
+            // cut to [0.05, 0.34]: the max keeps a LIGHT vehicle's tinted windows dark, the min still recolours a
+            // near-black body. A 256-bin histogram keeps this O(n).
+            var lumA = new float[px.Length];
+            var hist = new int[256];
             for (int i = 0; i < px.Length; i++)
             {
                 float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
-                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
-                if (lum > 0.30f) { px[i] = c; bodyCount++; } // any non-dark pixel = body (recolour, any native colour); only DARK windows/tyres/shadow are kept
+                float l = 0.299f * r + 0.587f * g + 0.114f * b;
+                lumA[i] = l; hist[Mathf.Clamp((int)(l * 255f), 0, 255)]++;
             }
-            if (bodyCount < px.Length * 0.02f) { vanRecolorCache[key] = null; return null; } // not light-bodied -> caller falls back to a flat colour
+            int keepTarget = (int)(px.Length * 0.26f); // darkest ~quarter stays dark (glass / tyres / shadow)
+            int cum = 0, cutBin = 0;
+            for (int bI = 0; bI < 256; bI++) { cum += hist[bI]; if (cum >= keepTarget) { cutBin = bI; break; } }
+            float thr = Mathf.Clamp(cutBin / 255f, 0.05f, 0.34f);
+            int bodyCount = 0;
+            for (int i = 0; i < px.Length; i++)
+                if (lumA[i] > thr) { px[i] = c; bodyCount++; }
+
+            // Essentially everything is dark (even the body, indistinguishable from its glass) -> a detailed recolour
+            // would be patchy, so bail to the flat solid-colour material (clean, just window-less).
+            if (bodyCount < px.Length * 0.05f) { vanRecolorCache[key] = null; return null; }
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
             dst.SetPixels32(px); dst.Apply(false);
             vanRecolorCache[key] = dst;

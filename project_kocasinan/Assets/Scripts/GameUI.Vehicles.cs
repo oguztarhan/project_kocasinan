@@ -19,7 +19,7 @@ namespace BusJam
 
         // Lazy preview generation — cards are created empty, then filled ONE RENDER per frame so opening the panel
         // doesn't render all ~30 vehicles in one frame (that caused the open-delay + FPS drop).
-        readonly List<(RawImage img, GameObject prefab, bool crop, float fill)> pendingPreviews = new List<(RawImage, GameObject, bool, float)>();
+        readonly List<(RawImage img, GameObject prefab, bool crop, float fill, float yaw)> pendingPreviews = new List<(RawImage, GameObject, bool, float, float)>();
         Coroutine previewCo;
 
         // Full-width entry row added at the top of the Garage scroll content (tap to open the wardrobe).
@@ -138,13 +138,13 @@ namespace BusJam
 
         // Fill the queued preview thumbnails one RENDER per frame (cached ones fill instantly) so the panel never
         // stalls when opened. Snapshot the queue so a re-open (which rebuilds it) can't mutate a running pass.
-        System.Collections.IEnumerator FillPreviewsLazy((RawImage img, GameObject prefab, bool crop, float fill)[] items)
+        System.Collections.IEnumerator FillPreviewsLazy((RawImage img, GameObject prefab, bool crop, float fill, float yaw)[] items)
         {
             foreach (var p in items)
             {
                 if (p.img == null) continue;
                 bool wasCached = VehiclePreview.IsCached(p.prefab);
-                var rt = VehiclePreview.Get(p.prefab, 35f, p.crop, p.fill);
+                var rt = VehiclePreview.Get(p.prefab, p.yaw, p.crop, p.fill);
                 if (p.img != null && rt != null) { p.img.texture = rt; p.img.color = Color.white; }
                 if (!wasCached) yield return null; // only spread the EXPENSIVE first-time renders across frames
             }
@@ -196,8 +196,9 @@ namespace BusJam
             pv.transform.SetParent(tile.transform, false);
             pv.raycastTarget = false; pv.color = new Color(1, 1, 1, 0); // invisible until its texture is ready
             var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
-            float fill = t == VehicleType.Car ? 0.7f : t == VehicleType.Minivan ? 0.85f : 1.0f; // <1 = bigger; tweak per type
-            pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill));
+            float fill = t == VehicleType.Car ? 0.6f : t == VehicleType.Minivan ? 0.72f : 0.85f; // <1 = bigger; tweak per type
+            float yaw  = t == VehicleType.Car ? 215f : 35f; // sedans (FBX) face opposite the .glb vans/buses -> +180 to match
+            pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill, yaw));
 
             Label(card.transform, label, num, new Vector2(0, -126), new Vector2(255, 50), 28, White);
 
