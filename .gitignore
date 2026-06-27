@@ -104,3 +104,25 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Firebase Unity SDK — imported per-developer, NOT committed (keeps the 76MB+
+# native libs out of git; we don't use Git LFS). Each dev imports Firebase 13.13.0
+# (Analytics + Messaging + Remote Config) themselves. google-services.json IS kept
+# in the repo so the Firebase project config stays identical for everyone.
+# ─────────────────────────────────────────────────────────────────────────────
+**/Assets/FIREBASE/*
+!**/Assets/FIREBASE/google-services.json
+!**/Assets/FIREBASE/google-services.json.meta
+**/Assets/GeneratedLocalRepo/
+**/Assets/GeneratedLocalRepo.meta
+**/Assets/ExternalDependencyManager/
+**/Assets/ExternalDependencyManager.meta
+**/Assets/Editor Default Resources/Firebase/
+**/Assets/Editor Default Resources/Firebase.meta
+**/Assets/Plugins/iOS/Firebase/
+**/Assets/Plugins/iOS/Firebase.meta
+**/Assets/Plugins/tvOS/Firebase/
+**/Assets/Plugins/tvOS/Firebase.meta
+**/Assets/Plugins/Android/FirebaseApp.androidlib/
+**/Assets/Plugins/Android/FirebaseApp.androidlib.meta
