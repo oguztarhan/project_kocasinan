@@ -158,8 +158,7 @@ namespace BusJam
         void Start()
         {
             Screen.orientation = ScreenOrientation.Portrait;
-            QualitySettings.vSyncCount = 0;     // so targetFrameRate is honored (mobile otherwise caps at 30)
-            Application.targetFrameRate = 60;   // smooth 60 fps on capable devices
+            DeviceSetup.ApplyFrameRate();       // dynamic cap by device tier (high-end up to 120, others 60); re-assert after scene load
             lowEnd = Application.isMobilePlatform && SystemInfo.systemMemorySize < 3072; // <3GB phone → lighter paths (editor/desktop never lowEnd)
             cam = Camera.main;
             BuildMaterials();
@@ -1452,11 +1451,19 @@ namespace BusJam
             StartCoroutine(Juice.PunchScale(bus.transform, 0.16f));
         }
 
-        // Per-frame: any still-gray mystery vehicle whose exit lane is now fully clear (it could drive all the
-        // way out) reveals its color. Same clearance test the tap-to-exit path uses, so "revealed" == "tappable".
+        // Auto-reveal any still-gray mystery vehicle whose exit lane is now fully clear. Same clearance test the
+        // tap-to-exit path uses, so "revealed" == "tappable".
+        // PERF: throttled to ~6x/sec instead of every frame — VehicleLaneClear → BodySlideClear is an O(vehicles ×
+        // samples) geometry scan plus an `occ` walk per unrevealed diagonal mystery vehicle, and a clear lane is a
+        // human-timescale event (a 0.15 s reveal delay is invisible). Tapping stays instant: TryTapBus runs its own
+        // clearance test, independent of this.
+        float mysteryRevealTimer;
         void RevealReadyMysteryVehicles()
         {
             if (gridBuses == null) return;
+            mysteryRevealTimer += Time.deltaTime;
+            if (mysteryRevealTimer < 0.15f) return;
+            mysteryRevealTimer = 0f;
             for (int i = 0; i < gridBuses.Count; i++)
             {
                 var b = gridBuses[i];
@@ -2260,7 +2267,11 @@ namespace BusJam
             if (mystery) { GrayBus(bus); BuildMysteryMarker(bus, root.transform); }
             root.transform.localScale = Vector3.one * gameSettings.vehicleSize; // editable vehicle-size multiplier (both render paths)
             OutlineAll(root); // toon ink edge on the vehicle body + roof markers (before headlights so the glowing lenses stay clean)
-            if (nightMode) AttachHeadlights(root.transform, LowPolyBuilder.VehicleLength(type, CellSize) * 0.5f, false); // T4: night headlights (no real spot on the jam vehicles)
+            // Night headlights on the JAM vehicles (lens + glow + beam decals, no real light). HIGH-END only: a bonus
+            // board is night-mode with up to ~32 vehicles, so this is ~32× transparent overdraw on exactly the heaviest
+            // levels. Mid/low devices skip it (cleaner, much faster night/bonus board); the scene is still lit by the sun.
+            if (nightMode && DeviceSetup.HighEndDevice())
+                AttachHeadlights(root.transform, LowPolyBuilder.VehicleLength(type, CellSize) * 0.5f, false);
             return bus;
         }
 
@@ -2467,6 +2478,12 @@ namespace BusJam
             float target = Vehicles.CellLength(type) * CellSize * fitFactor;
 
             var rends = model.GetComponentsInChildren<Renderer>(true); // include inactive for first-frame consistency (matches the mesh queries)
+            // PERF: vehicles don't CAST real-time shadows. On dense/bonus boards (up to ~32 high-poly bodies) the
+            // directional soft-shadow pass would re-render every vehicle into the shadow map — roughly doubling the
+            // vertex load on exactly the heaviest levels. The ground + buildings still cast; vehicles only lose their
+            // own cast shadow (barely visible top-down). They still RECEIVE shadows. Single biggest GPU win here.
+            for (int ri = 0; ri < rends.Length; ri++)
+                if (rends[ri] != null) rends[ri].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             float span = target, wid = target * 0.5f, roofY = CellSize * 0.5f;
 
             // Measure the model in its OWN LOCAL frame (from mesh bounds), NOT a world AABB: a world AABB
@@ -2555,13 +2572,22 @@ namespace BusJam
         // True if the prefab exposes the LowPolyRoadVehicles pack's "_Color01" body slot. glTF/.glb imports (the
         // othercars Bus/Connect/Sedan) lack it -> they tint via the body-only path (ColorSkinModel) instead, so no
         // catalog flag is needed: drop a glb into busPrefab/carPrefab and it recolors correctly on its own.
+        readonly Dictionary<GameObject, bool> hasColor01Cache = new Dictionary<GameObject, bool>();
         bool ModelHasColor01(GameObject prefab)
         {
             if (prefab == null) return false;
+            // Memoized per prefab: this is a full renderer+material scan and it's called once per spawned vehicle —
+            // on a 32-vehicle board that's 32 identical scans of the SAME prefab. Cache -> one scan per prefab, ever.
+            if (hasColor01Cache.TryGetValue(prefab, out var cached)) return cached;
+            bool has = false;
             foreach (var r in prefab.GetComponentsInChildren<Renderer>(true))
+            {
                 foreach (var m in r.sharedMaterials)
-                    if (m != null && m.HasProperty("_Color01")) return true;
-            return false;
+                    if (m != null && m.HasProperty("_Color01")) { has = true; break; }
+                if (has) break;
+            }
+            hasColor01Cache[prefab] = has;
+            return has;
         }
 
         // Car-pack skin tinting: drive the BODY (the paint material — its name doesn't match a "detail" part) to the
@@ -4079,8 +4105,9 @@ namespace BusJam
                 }
             }
 
-            if (withSpot && !lowEnd) // ONE real shadowless spot (capable devices, moving cars only)
-            {
+            if (withSpot && DeviceSetup.HighEndDevice()) // ONE real shadowless spot — HIGH-END only; mid/low keep just the
+            {                                            // cheap beam mesh above (real-time lights are costly on mobile,
+                                                         // and bonus/night boards already stack many vehicles + overdraw)
                 var lgo = new GameObject("Spot");
                 lgo.transform.SetParent(grp.transform, false);
                 lgo.transform.localRotation = Quaternion.Euler(10f, 180f, 0f); // face the car's -Z nose, tilt down
