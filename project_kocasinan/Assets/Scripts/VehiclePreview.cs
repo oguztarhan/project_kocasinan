@@ -125,10 +125,11 @@ namespace BusJam
         // bottom Y-band (the slab), keep the vehicle (wheels are round -> non-horizontal normals -> kept). Returns a
         // trimmed COPY (cached) so the shared asset mesh is never mutated. Single-submesh only (the .glb vans are).
         static readonly Dictionary<Mesh, Mesh> trimCache = new Dictionary<Mesh, Mesh>();
-        static Mesh TrimBase(Mesh src)
+        public static Mesh TrimBase(Mesh src)
         {
             if (src == null) return null;
             if (trimCache.TryGetValue(src, out var cached)) return cached;
+            if (!src.isReadable) { trimCache[src] = src; return src; } // non-Read/Write mesh: CPU can't read verts -> skip (no crash)
             if (src.subMeshCount != 1) { trimCache[src] = src; return src; }
             var verts = src.vertices;
             float minY = float.MaxValue, maxY = float.MinValue;

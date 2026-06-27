@@ -1355,14 +1355,14 @@ namespace BusJam
             {
                 if (bus.skinModelPrefab != null) // skin / glb model: recolor ONLY the body (texture × color / largest solid part)
                 {
-                    ColorSkinModel(modelTf, bus.skinModelPrefab, newColor);
+                    ColorSkinModel(modelTf, bus.skinModelPrefab, newColor, bus.type);
                 }
                 else if (vehicleCatalog != null) // imported gameplay pack: re-tint each slot's _Color01 from the prefab base
                 {
                     var prefab = vehicleCatalog.PrefabFor(bus.type);
                     if (prefab != null && !ModelHasColor01(prefab)) // glb / no-_Color01 model: body-only recolor (matches build)
                     {
-                        ColorSkinModel(modelTf, prefab, newColor);
+                        ColorSkinModel(modelTf, prefab, newColor, bus.type);
                     }
                     else if (prefab != null)
                     {
@@ -2437,7 +2437,14 @@ namespace BusJam
             // .glb bus from othercars) — color ONLY their largest part (the body) to the gameplay color, leaving
             // glass/wheels/lights as-is; only the LowPolyRoadVehicles pack (which exposes _Color01) tints per-slot.
             if (bodyOnly || !ModelHasColor01(prefab))
-                ColorSkinModel(model.transform, prefab, color);
+            {
+                // .glb vans/buses ship a flat baked "showroom" floor under the model; it's part of the body mesh, so the
+                // body recolour paints it too -> a coloured ground slab under the vehicle. Strip those bottom horizontal
+                // triangles (same trim the garage preview uses) BEFORE recolouring so no slab remains to be painted.
+                foreach (var mf in model.GetComponentsInChildren<MeshFilter>(true))
+                    if (mf.sharedMesh != null) mf.sharedMesh = VehiclePreview.TrimBase(mf.sharedMesh);
+                ColorSkinModel(model.transform, prefab, color, type);
+            }
             else
                 foreach (var r in model.GetComponentsInChildren<Renderer>(true))
                 {
@@ -2635,12 +2642,12 @@ namespace BusJam
         // Recolour is best-effort: a texture read / Blit hiccup must NEVER abort the synchronous level build (that
         // would freeze / half-load the level — "bazısında yüklenmiyor"); on any exception we just leave the vehicle
         // its default texture and carry on.
-        void ColorSkinModel(Transform modelTf, GameObject srcPrefab, PieceColor color)
+        void ColorSkinModel(Transform modelTf, GameObject srcPrefab, PieceColor color, VehicleType type)
         {
-            try { ColorSkinModelCore(modelTf, srcPrefab, color); }
+            try { ColorSkinModelCore(modelTf, srcPrefab, color, type); }
             catch (System.Exception e) { Debug.LogWarning("[ColorSkinModel] recolour skipped: " + e.Message); }
         }
-        void ColorSkinModelCore(Transform modelTf, GameObject srcPrefab, PieceColor color)
+        void ColorSkinModelCore(Transform modelTf, GameObject srcPrefab, PieceColor color, VehicleType type)
         {
             GameObject matSrc = srcPrefab != null ? srcPrefab : modelTf.gameObject;
             var modelRends = modelTf.GetComponentsInChildren<Renderer>(true);
@@ -2656,48 +2663,24 @@ namespace BusJam
             if (bodyIdx < 0 || bodyIdx >= modelRends.Length) return;
             var rend = modelRends[bodyIdx];
 
-            // Route by the BODY material. glTF/.glb bodies (the bus, the minivans + buses) expose "baseColorFactor" ->
-            // recolour their textured shell BY VALUE: repaint every non-dark pixel to the EXACT palette colour (so the
-            // body matches the boarding people, whatever its native colour) and keep the dark windows/tyres. The Mega
-            // Pack's URP colour-ATLAS body does NOT have baseColorFactor -> recolour ONLY its swatch band (keeps glass +
-            // bumpers). Material count alone misrouted a multi-material .glb into the atlas path — this keys off the body.
+            // Route by VEHICLE TYPE, not a material heuristic (the old heuristic misrouted some .glb vans into the atlas
+            // path, leaving the shell its native colour with only the band painted = "colours mixed up"). SEDANS (Car)
+            // are Mega Pack FBX with a shared colour-ATLAS body -> recolour the swatch band (keeps glass + bumpers).
+            // MINIVANS + BUSES are .glb single-texture shells -> recolour BY VALUE (RecoloredVanTex): repaint the body
+            // pixels to the palette colour, keep the dark windows/wheels. So vans/buses now recolour exactly like the
+            // sedans look — clean body, windows intact. (A Car that is actually a .glb falls through to the value path.)
             var origMats = bodyRend.sharedMaterials;
             Material origBody = bodySlot < origMats.Length ? origMats[bodySlot] : null;
-            bool megapackAtlas = origBody != null && !origBody.HasProperty("baseColorFactor") && DistinctMaterialCount(matSrc) > 1;
+            bool atlasSedan = type == VehicleType.Car
+                              && origBody != null
+                              && !origBody.HasProperty("baseColorFactor")
+                              && !origBody.HasProperty("baseColorTexture");
             var m = rend.sharedMaterials;
             if (bodySlot < m.Length && origBody != null)
             {
-                // A DARK-bodied vehicle (black / near-black shell) can't be split into body vs windows — neither the
-                // luminance cut (value path) nor the swatch BAND (atlas path) finds the body, so the shell stays black
-                // and only trim/windows take the colour ("colours mixed up"). For those, paint the body submesh a clean
-                // FLAT palette colour instead — reliable for ANY model, whatever recolour path it would have used.
-                Material flat = bodyMats.TryGetValue(color, out var bm) ? bm : null;
-                bool darkBody = flat != null && BodyMeanLuminance(origBody) < 0.30f;
-                m[bodySlot] = darkBody              ? flat
-                            : megapackAtlas         ? RecoloredAtlasMat(origBody, color)
-                            :                         RecoloredVanMat(origBody, color);
+                m[bodySlot] = atlasSedan ? RecoloredAtlasMat(origBody, color) : RecoloredVanMat(origBody, color);
                 rend.sharedMaterials = m; // cached per (material, colour) on the SHARED slot — same colour reuses, different colours don't bleed
             }
-        }
-
-        // Mean luminance (0..1) of a body material's albedo, cached per texture. Detects a DARK-bodied vehicle whose
-        // shell can't be cleanly separated from its windows — those are flat-filled (clean solid colour) instead of
-        // texture-recoloured. A tiny 128px sample is plenty for a mean (and bounds the GPU readback cost).
-        readonly Dictionary<Texture, float> bodyLumCache = new Dictionary<Texture, float>();
-        float BodyMeanLuminance(Material bodyMat)
-        {
-            var tex = GetAlbedo(bodyMat);
-            if (tex == null) return 1f; // untextured -> treat as light (use the normal recolour path)
-            if (bodyLumCache.TryGetValue(tex, out var cached)) return cached;
-            int w = tex.width, h = tex.height; const int Max = 128;
-            if (w > Max || h > Max) { float s = (float)Max / Mathf.Max(w, h); w = Mathf.Max(1, Mathf.RoundToInt(w * s)); h = Mathf.Max(1, Mathf.RoundToInt(h * s)); }
-            var px = ReadPixels32(tex, w, h);
-            if (px == null) { bodyLumCache[tex] = 1f; return 1f; }
-            double sum = 0;
-            for (int i = 0; i < px.Length; i++) sum += (0.299 * px[i].r + 0.587 * px[i].g + 0.114 * px[i].b) / 255.0;
-            float mean = (float)(sum / px.Length);
-            bodyLumCache[tex] = mean;
-            return mean;
         }
 
         // --- Mega Pack atlas recolour ---------------------------------------------------------------------
@@ -2766,31 +2749,31 @@ namespace BusJam
             if (px == null) { vanRecolorCache[key] = null; return null; }
             Color32 c = PeopleColor(color);
 
-            // Split body (recolour) from glass / tyres / headlights (keep dark) by luminance. A fixed cut leaves a
-            // BLACK / dark vehicle's body UNDER the line, so only its trim recolours and the body stays black ("colours
-            // mixed up"). Instead pick the cut by PERCENTILE: keep the darkest ~26% of pixels (windows + wheels +
-            // shadow) and recolour everything brighter, so the body recolours whatever its native darkness. Clamp the
-            // cut to [0.05, 0.34]: the max keeps a LIGHT vehicle's tinted windows dark, the min still recolours a
-            // near-black body. A 256-bin histogram keeps this O(n).
-            var lumA = new float[px.Length];
-            var hist = new int[256];
+            // Identify the BODY = the most common colour (the largest painted region of the single-texture shell);
+            // windows, lights, wheels and trim are smaller, DIFFERENTLY-coloured regions. Recolour by DOMINANT COLOUR,
+            // not by luminance: a luminance "keep dark, paint light" cut leaves a BLACK body (a dark roof) untouched and
+            // paints only the lighter windows/interior -> black body + coloured trim ("colours mixed up"). Matching the
+            // body colour repaints the shell whatever its native shade (black, white, red) while the differently-
+            // coloured windows/lights survive. Quantise to 5 bits/channel (32^3 bins) for the histogram.
+            var bins = new int[32 * 32 * 32];
             for (int i = 0; i < px.Length; i++)
-            {
-                float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
-                float l = 0.299f * r + 0.587f * g + 0.114f * b;
-                lumA[i] = l; hist[Mathf.Clamp((int)(l * 255f), 0, 255)]++;
-            }
-            int keepTarget = (int)(px.Length * 0.26f); // darkest ~quarter stays dark (glass / tyres / shadow)
-            int cum = 0, cutBin = 0;
-            for (int bI = 0; bI < 256; bI++) { cum += hist[bI]; if (cum >= keepTarget) { cutBin = bI; break; } }
-            float thr = Mathf.Clamp(cutBin / 255f, 0.05f, 0.34f);
+                bins[((px[i].r >> 3) << 10) | ((px[i].g >> 3) << 5) | (px[i].b >> 3)]++;
+            int bestBin = 0, bestN = -1;
+            for (int b = 0; b < bins.Length; b++) if (bins[b] > bestN) { bestN = bins[b]; bestBin = b; }
+            int br = ((bestBin >> 10) & 31) << 3, bg = ((bestBin >> 5) & 31) << 3, bb = (bestBin & 31) << 3;
+
+            // Repaint every pixel within TOL of the body colour; keep the rest (windows / lights / wheels / trim). TOL
+            // covers the body's own shading + AO spread without reaching the differently-coloured details. A dark or
+            // desaturated body whose windows sit within TOL just merges them in -> a clean SOLID colour (no mix-up),
+            // which is exactly the wanted result for a black van.
+            const int Tol = 78;
             int bodyCount = 0;
             for (int i = 0; i < px.Length; i++)
-                if (lumA[i] > thr) { px[i] = c; bodyCount++; }
-
-            // Essentially everything is dark (even the body, indistinguishable from its glass) -> a detailed recolour
-            // would be patchy, so bail to the flat solid-colour material (clean, just window-less).
-            if (bodyCount < px.Length * 0.05f) { vanRecolorCache[key] = null; return null; }
+            {
+                int dr = px[i].r - br, dg = px[i].g - bg, db = px[i].b - bb;
+                if (dr * dr + dg * dg + db * db <= Tol * Tol) { px[i] = c; bodyCount++; }
+            }
+            if (bodyCount < px.Length * 0.04f) { vanRecolorCache[key] = null; return null; } // body not found -> flat fallback
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
             dst.SetPixels32(px); dst.Apply(false);
             vanRecolorCache[key] = dst;
