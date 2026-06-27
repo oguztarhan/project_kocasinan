@@ -1,0 +1,28 @@
+{
+  "conditions": [],
+  "parameters": {
+    "recolor_cost":            { "defaultValue": { "value": "75" },    "valueType": "NUMBER" },
+    "swap_cost":               { "defaultValue": { "value": "50" },    "valueType": "NUMBER" },
+    "heli_cost":               { "defaultValue": { "value": "100" },   "valueType": "NUMBER" },
+    "slot_unlock_cost":        { "defaultValue": { "value": "75" },    "valueType": "NUMBER" },
+    "continue_base_cost":      { "defaultValue": { "value": "150" },   "valueType": "NUMBER" },
+    "joker1_unlock":           { "defaultValue": { "value": "5" },     "valueType": "NUMBER" },
+    "joker2_unlock":           { "defaultValue": { "value": "10" },    "valueType": "NUMBER" },
+    "joker3_unlock":           { "defaultValue": { "value": "15" },    "valueType": "NUMBER" },
+    "level_reward":            { "defaultValue": { "value": "25" },    "valueType": "NUMBER" },
+    "bonus_reward":            { "defaultValue": { "value": "50" },    "valueType": "NUMBER" },
+    "chest_bronze_cost":       { "defaultValue": { "value": "100" },   "valueType": "NUMBER" },
+    "chest_silver_cost":       { "defaultValue": { "value": "250" },   "valueType": "NUMBER" },
+    "chest_gold_cost":         { "defaultValue": { "value": "600" },   "valueType": "NUMBER" },
+    "craft_t0":                { "defaultValue": { "value": "50" },    "valueType": "NUMBER" },
+    "craft_t1":                { "defaultValue": { "value": "125" },   "valueType": "NUMBER" },
+    "craft_t2":                { "defaultValue": { "value": "400" },   "valueType": "NUMBER" },
+    "craft_t3":                { "defaultValue": { "value": "1000" },  "valueType": "NUMBER" },
+    "free_chest_cooldown_sec": { "defaultValue": { "value": "28800" }, "valueType": "NUMBER" },
+    "notifications_enabled":   { "defaultValue": { "value": "true" },  "valueType": "BOOLEAN" },
+    "feature_diagonals":       { "defaultValue": { "value": "true" },  "valueType": "BOOLEAN" },
+    "feature_mystery":         { "defaultValue": { "value": "true" },  "valueType": "BOOLEAN" },
+    "feature_bonus_levels":    { "defaultValue": { "value": "true" },  "valueType": "BOOLEAN" }
+  },
+  "parameterGroups": {}
+}

@@ -15,7 +15,7 @@ namespace BusJam
     {
         // Shard cost to craft a guaranteed new car of `tier`. ~5× the dupe shard value of that tier
         // (ChestService melts dupes into 10 / 25 / 80 / 200 by tier), so roughly 5 duplicates == 1 craft.
-        public static int Cost(int tier) => tier >= 3 ? 1000 : tier == 2 ? 400 : tier == 1 ? 125 : 50;
+        public static int Cost(int tier) => tier >= 3 ? GameConfig.CraftT3 : tier == 2 ? GameConfig.CraftT2 : tier == 1 ? GameConfig.CraftT1 : GameConfig.CraftT0;
 
         /// <summary>Cars of this tier the player does NOT yet own (the craft pool).</summary>
         public static List<VehicleSetCatalog.VehicleSet> Craftable(int tier)

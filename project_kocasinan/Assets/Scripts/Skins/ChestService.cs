@@ -24,10 +24,10 @@ namespace BusJam
     /// </summary>
     public static class ChestService
     {
-        public const long FreeChestCooldownSec = 8 * 3600; // free Bronze every 8h
+        public static long FreeChestCooldownSec => GameConfig.FreeChestCooldownSec; // free Bronze cooldown (remote-tunable)
 
         public static int Cost(ChestTier t) =>
-            t == ChestTier.Bronze ? 100 : t == ChestTier.Silver ? 250 : t == ChestTier.Gold ? 600 : -1; // Legendary: -1 = key-only
+            t == ChestTier.Bronze ? GameConfig.ChestBronze : t == ChestTier.Silver ? GameConfig.ChestSilver : t == ChestTier.Gold ? GameConfig.ChestGold : -1; // Legendary: -1 = key-only
 
         // Rarity odds per tier, indexed [Common, Uncommon, Rare, Epic, Legendary].
         static float[] Odds(ChestTier t) =>

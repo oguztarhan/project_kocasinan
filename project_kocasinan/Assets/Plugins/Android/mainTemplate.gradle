@@ -9,7 +9,18 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4' // Assets/GoogleMobileAds/Editor/GoogleMobileAdsDependencies.xml:12
     implementation 'androidx.lifecycle:lifecycle-process:2.6.2' // Assets/GoogleMobileAds/Editor/GoogleMobileAdsDependencies.xml:17
     implementation 'com.google.android.gms:play-services-ads:25.3.0' // Assets/GoogleMobileAds/Editor/GoogleMobileAdsDependencies.xml:7
+    implementation 'com.google.android.gms:play-services-base:18.10.0' // Assets/FIREBASE/Editor/AppDependencies.xml:20
     implementation 'com.google.android.ump:user-messaging-platform:4.0.0' // Assets/GoogleMobileAds/Editor/GoogleUmpDependencies.xml:7
+    implementation 'com.google.firebase:firebase-analytics:23.2.0' // Assets/FIREBASE/Editor/RemoteConfigDependencies.xml:18
+    implementation 'com.google.firebase:firebase-analytics-unity:13.13.0' // Assets/FIREBASE/Editor/AnalyticsDependencies.xml:21
+    implementation 'com.google.firebase:firebase-app-unity:13.13.0' // Assets/FIREBASE/Editor/AppDependencies.xml:25
+    implementation 'com.google.firebase:firebase-common:22.1.0' // Assets/FIREBASE/Editor/AppDependencies.xml:16
+    implementation 'com.google.firebase:firebase-config:23.1.0' // Assets/FIREBASE/Editor/RemoteConfigDependencies.xml:16
+    implementation 'com.google.firebase:firebase-config-unity:13.13.0' // Assets/FIREBASE/Editor/RemoteConfigDependencies.xml:23
+    implementation 'com.google.firebase:firebase-iid:21.1.0' // Assets/FIREBASE/Editor/MessagingDependencies.xml:20
+    implementation 'com.google.firebase:firebase-messaging:25.1.0' // Assets/FIREBASE/Editor/MessagingDependencies.xml:16
+    implementation 'com.google.firebase:firebase-messaging-unity:13.13.0' // Assets/FIREBASE/Editor/MessagingDependencies.xml:27
+    implementation 'com.google.flatbuffers:flatbuffers-java:1.12.0' // Assets/FIREBASE/Editor/MessagingDependencies.xml:22
 // Android Resolver Dependencies End
 **DEPS**}
 

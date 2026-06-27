@@ -36,15 +36,20 @@ namespace BusJam
 
         public int CurrentLevel => currentLevel;
         public int Coins => SaveSystem.Coins;
-        public bool IsBonus => currentLevel % 10 == 0; // every 10th level = the night traffic-dodge bonus round
+        public bool IsBonus => currentLevel % 10 == 0 && GameConfig.FeatureBonusLevels; // every 10th level = the night traffic-dodge bonus round (remote flag off => those levels play as a normal round)
 
         // Joker prices tuned to the flat 25-gold/level economy (Swap = ~2 levels, Recolor = ~3, Heli = ~4).
-        const int RecolorCost = 75, SwapCost = 50, HeliCost = 100, SlotUnlockCost = 75;
+        static int RecolorCost => GameConfig.RecolorCost;
+        static int SwapCost => GameConfig.SwapCost;
+        static int HeliCost => GameConfig.HeliCost;
+        static int SlotUnlockCost => GameConfig.SlotUnlockCost;
         bool heliCarrying;   // a helicopter joker is mid-lift; blocks a 2nd heli tap until the 1st starts leaving the screen
-        const int ContinueBaseCost = 150;   // 1st continue costs this; doubles each further continue in the level
+        static int ContinueBaseCost => GameConfig.ContinueBaseCost;   // 1st continue costs this; doubles each further continue in the level
         int continueCount;                  // gold continues used this level (resets on StartLevel)
         int CurrentContinueCost => ContinueBaseCost << continueCount; // 150, 300, 600, 1200, ...
-        const int J1UnlockLevel = 5, J2UnlockLevel = 10, J3UnlockLevel = 15; // RECOLOR / SWAP / HELI
+        static int J1UnlockLevel => GameConfig.Joker1Unlock;
+        static int J2UnlockLevel => GameConfig.Joker2Unlock;
+        static int J3UnlockLevel => GameConfig.Joker3Unlock; // RECOLOR / SWAP / HELI
 
         // World Z grows AWAY from the camera (up the portrait screen). Bottom→top:
         // big bus grid (low Z) -> parking row -> thin people band (high Z).
@@ -265,7 +270,7 @@ namespace BusJam
         // bonus, no golden/passenger bonus (keeps the player from getting rich):
         //   normal level: 25 gold   |   bonus level: 50 gold.
         // CLAIM grants this; WATCH-AD grants 2x (see ClaimWinReward) -> 50 normal / 100 bonus.
-        int LevelReward(int stars, bool bonus) => bonus ? 50 : 25;
+        int LevelReward(int stars, bool bonus) => bonus ? GameConfig.BonusReward : GameConfig.LevelReward;
 
         public void ContinueLevel()
         {

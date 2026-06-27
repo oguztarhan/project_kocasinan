@@ -238,18 +238,18 @@ namespace BusJam
 
             // BuildQueue emits exactly `capacity` people per vehicle, so total people ==
             // total seats per color -> every vehicle fills exactly -> always winnable.
-            var groups    = BuildQueue(buses, rng, baseSlots, minRun, goldenP, mysteryP);
+            var groups    = BuildQueue(buses, rng, baseSlots, minRun, goldenP, GameConfig.FeatureMystery ? mysteryP : 0f);
 
             // Layout VARIETY + difficulty ramp (solvability unchanged): cycle a shape per level, pack
             // denser as levels rise, and let HARDER levels use diagonals (true 8-way) while easy levels
             // stay 4-way like the reference.
             var style = (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
             float pack = Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f)); // more slack early, denser later
-            bool allowDiagonals = levelNumber >= 6; // early high-count boards stay 4-way/readable; 6+ = 8-way
+            bool allowDiagonals = levelNumber >= 6 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 6+ = 8-way (remote flag off => 4-way everywhere)
             // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
             // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
             // level layouts are byte-for-byte unchanged.
-            float vehicleMysteryP = Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f);
+            float vehicleMysteryP = GameConfig.FeatureMystery ? Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f) : 0f;
             var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, vehicleMysteryP, out int gridW, out int gridH);
 
             return new LevelData

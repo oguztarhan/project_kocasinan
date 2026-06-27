@@ -409,6 +409,30 @@ namespace BusJam
             btn.onClick.AddListener(() => { st[0] = !st[0]; apply(); onChange?.Invoke(st[0]); });
         }
 
+        // Push-notification on/off. Flips SaveSystem.NotificationsEnabled and re-applies the FCM subscription. Added to
+        // whichever Settings panel is in use (baked or code-built); floats near the top so it never overlaps the card.
+        void AddNotificationsToggle(Transform panel)
+        {
+            if (panel == null) return;
+            bool[] st = { SaveSystem.NotificationsEnabled };
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(540, 96), null);
+            var lbl = Label(btn.transform, "", title, Vector2.zero, new Vector2(540, 60), 34, White);
+            System.Action apply = () =>
+            {
+                lbl.text = st[0] ? "NOTIFICATIONS: ON" : "NOTIFICATIONS: OFF";
+                var img = btn.GetComponent<Image>();
+                if (img) img.color = st[0] ? new Color(0.30f, 0.72f, 0.36f) : new Color(0.55f, 0.55f, 0.60f);
+            };
+            apply();
+            btn.onClick.AddListener(() =>
+            {
+                st[0] = !st[0];
+                SaveSystem.NotificationsEnabled = st[0];
+                FirebaseManager.Instance?.ApplyNotificationState();
+                apply();
+            });
+        }
+
         // ---- Settings / Continue / Failed setup -----------------------------
         // Prefer the Inspector-editable scene panels baked via
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Panels"; otherwise build them in code.
@@ -422,6 +446,7 @@ namespace BusJam
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback (code-built settings)
+            if (settingsPanel != null) AddNotificationsToggle(settingsPanel.transform); // push-notification on/off
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code

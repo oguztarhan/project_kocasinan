@@ -126,6 +126,14 @@ namespace BusJam
             set { PlayerPrefs.SetInt(K_Vib, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Player's push-notification opt-in. FirebaseManager subscribes/unsubscribes when this flips; the remote
+        // kill-switch GameConfig.NotificationsEnabled is ANDed on top.
+        public static bool NotificationsEnabled
+        {
+            get => PlayerPrefs.GetInt("bj_notifications", 1) == 1;
+            set { PlayerPrefs.SetInt("bj_notifications", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // Selected preset-avatar index and player name (Profile panel).
         public static int AvatarIndex
         {

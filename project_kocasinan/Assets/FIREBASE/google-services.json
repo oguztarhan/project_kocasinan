@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "10853485553",
+    "project_id": "busjamtrafficrush",
+    "storage_bucket": "busjamtrafficrush.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10853485553:android:a9fd8cc4feba4b7c53d250",
+        "android_client_info": {
+          "package_name": "com.intakeentertainment.busjamtrafficrush"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAda0owxkce2_rjTEGikjidQ6zykbo55BM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
