@@ -81,12 +81,43 @@ namespace BusJam
             set { PlayerPrefs.SetInt(K_Music, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
-        // Selected language (0 = Türkçe, 1 = English). Stored only for now; hooking it up
-        // to actual text translation is a separate (localization) task.
+        // Selected language index (0 Türkçe … 8 Bahasa Indonesia, see Loc). Auto-detected from the device region on
+        // the FIRST launch (see AutoDetectLanguage); after that the saved value — including the in-game language menu
+        // choice — always wins.
         public static int Language
         {
             get => Mathf.Max(0, PlayerPrefs.GetInt(K_Lang, 0));
             set { PlayerPrefs.SetInt(K_Lang, Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        // First launch only (no language saved yet): pick the language from the DEVICE REGION so a Turkish phone opens
+        // in Turkish, a German phone in German, etc. Maps the device language to one of the 9 supported, English for
+        // anything else. Runs before the first scene so the menu opens already localized; the saved choice wins after.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void AutoDetectLanguage()
+        {
+            if (PlayerPrefs.HasKey(K_Lang)) return; // already chosen by the player or a previous launch — respect it
+            PlayerPrefs.SetInt(K_Lang, SystemLanguageIndex());
+            PlayerPrefs.Save();
+        }
+
+        static int SystemLanguageIndex()
+        {
+            switch (Application.systemLanguage)
+            {
+                case SystemLanguage.Turkish:            return 0;
+                case SystemLanguage.English:            return 1;
+                case SystemLanguage.German:             return 2;
+                case SystemLanguage.Italian:            return 3;
+                case SystemLanguage.Spanish:            return 4;
+                case SystemLanguage.Chinese:
+                case SystemLanguage.ChineseSimplified:
+                case SystemLanguage.ChineseTraditional: return 5;
+                case SystemLanguage.French:             return 6;
+                case SystemLanguage.Portuguese:         return 7;
+                case SystemLanguage.Indonesian:         return 8;
+                default:                                return 1; // English
+            }
         }
 
         public static bool Vibration
@@ -233,7 +264,7 @@ namespace BusJam
             set { PlayerPrefs.SetString(K_SetsOwned, value ?? ""); PlayerPrefs.Save(); }
         }
 
-        public static bool DebugOwnAll = true; // TEST: unlock EVERY vehicle so you can equip + try them all. Set to false before release.
+        public static bool DebugOwnAll = false; // TEST flag: true = own EVERY car (then CRAFT/chests have nothing to give — every tier shows "0 left" and the buttons grey out). MUST stay false for the chest/shard/craft economy to work AND for release.
         public static bool OwnsSet(string id)
         {
             if (DebugOwnAll) return true; // test mode — everything unlocked

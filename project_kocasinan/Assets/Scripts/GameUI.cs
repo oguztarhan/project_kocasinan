@@ -16,7 +16,7 @@ namespace BusJam
     public partial class GameUI : MonoBehaviour
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
-        public System.Action OnHome, OnReplay, OnLevels, OnCycleSkin;
+        public System.Action OnHome, OnReplay, OnLevels;
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
         public System.Action<int> OnFreeCoins; // +coins rewarded button -> BusJamGame grants coins & fires CoinsChanged
@@ -379,11 +379,6 @@ namespace BusJam
             AudioToggle(card.transform, -160, UIKit.IconSpeaker(), SaveSystem.Sound, v => SaveSystem.Sound = v);
             AudioToggle(card.transform,  160, UIKit.IconNote(),    SaveSystem.Music, v => SaveSystem.Music = v);
 
-            // LEVELS: opens the level map (matches the HOME/REPLAY button style).
-            var levels = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(640, 115),
-                () => { HideSettings(); OnLevels?.Invoke(); });
-            Label(levels.transform, "LEVELS", title, Vector2.zero, new Vector2(640, 80), 44, White);
-
             // HOME + REPLAY: ALL settings buttons use atlas1_36.
             var home = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.4f, 0.8f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(-180, -250), new Vector2(310, 115),
                 () => { HideSettings(); OnHome?.Invoke(); });
@@ -424,11 +419,9 @@ namespace BusJam
                 settingsPanel = InGamePanels.Instance.settings;
                 WireSettings(settingsPanel.transform);
                 WireLanguageButton(settingsPanel.transform); // (#1/#2) open the language popup + fix its label font
-                AddLevelsDebugButton(settingsPanel.transform); // TEMP debug — remove later
-                AddSkinDebugButton(settingsPanel.transform);   // TEMP debug — cycle vehicle skins (Phase 1)
                 settingsPanel.SetActive(false);
             }
-            else BuildSettings(); // fallback already includes the LEVELS button
+            else BuildSettings(); // fallback (code-built settings)
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
@@ -464,26 +457,9 @@ namespace BusJam
             }
         }
 
-        // TEMP (debug): a LEVELS button injected into the BAKED settings panel so you can jump to any level.
-        // Floats at the top of the screen so it never collides with the baked card. Delete this method + its
-        // call above (and the LEVELS button in BuildSettings) to remove the debug level-jump UI later.
-        void AddLevelsDebugButton(Transform panel)
-        {
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.92f), new Vector2(0.5f, 1f), new Vector2(0, -230), new Vector2(440, 110),
-                () => { HideSettings(); OnLevels?.Invoke(); });
-            Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(440, 80), 42, White);
-        }
+        // (LEVELS debug button removed for release.)
 
-        // TEMP debug (Phase 1): cycle the equipped vehicle skin (owns + equips the next one, re-skins the board
-        // live) so skins can be eyeballed before the Garage UI exists. The label shows the current skin.
-        void AddSkinDebugButton(Transform panel)
-        {
-            Text lbl = null;
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.62f, 0.40f, 0.86f), new Vector2(0.5f, 1f), new Vector2(0, -350), new Vector2(440, 110),
-                () => { OnCycleSkin?.Invoke(); if (lbl != null) lbl.text = SkinDebugLabel(); });
-            lbl = Label(btn.transform, SkinDebugLabel(), title, Vector2.zero, new Vector2(440, 80), 36, White);
-        }
-        string SkinDebugLabel() => "SKIN: " + (SkinCatalog.ById(SaveSystem.EquippedVehicleSkin)?.displayName ?? "Classic");
+        // (Skin debug button removed — skins are deprecated; vehicles come from the garage chests + craft.)
 
         void WireSettings(Transform root)
         {

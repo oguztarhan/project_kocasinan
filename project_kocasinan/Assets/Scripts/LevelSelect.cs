@@ -138,9 +138,8 @@ namespace BusJam
             for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
-            // TEMP debug: unlock & show ALL levels so any level is enterable for testing.
-            // Set false (or delete this + restore the original two lines) before release — same as the LEVELS button.
-            bool debugUnlockAll = true;
+            // Release: normal progression — only levels up to the player's unlocked level are tappable.
+            bool debugUnlockAll = false;
             int total = debugUnlockAll ? 60 : Mathf.Max(unlocked + LockedPreview, MinShown);
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 

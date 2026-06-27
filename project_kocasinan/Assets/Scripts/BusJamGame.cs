@@ -187,7 +187,6 @@ namespace BusJam
             ui.OnRecolor = JokerRecolor;
             ui.OnSwap = JokerSwapPeople;
             ui.OnHeli = JokerHelicopter;
-            ui.OnCycleSkin = DebugCycleSkin;     // TEMP (Phase 1): settings debug button cycles vehicle skins
             ui.OnReskin = RetryLevel;            // Garage equip -> rebuild the board so the new skin MODEL is shown
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
@@ -1396,18 +1395,7 @@ namespace BusJam
                 }
         }
 
-        // TEMP debug (skins): own + equip the NEXT vehicle skin in the catalog, then rebuild the level so the new
-        // MODEL is built fresh (a model swap can't just re-tint). Wired to the settings "SKIN:" button.
-        void DebugCycleSkin()
-        {
-            var list = SkinCatalog.Vehicles;
-            int idx = 0;
-            for (int i = 0; i < list.Count; i++) if (list[i].id == SaveSystem.EquippedVehicleSkin) { idx = i; break; }
-            var next = list[(idx + 1) % list.Count];
-            SaveSystem.AddOwnedSkin(next.id);
-            SaveSystem.EquippedVehicleSkin = next.id;
-            RetryLevel(); // rebuild the current level so the new car MODEL is built fresh
-        }
+        // (DebugCycleSkin removed — skins are deprecated; the garage chests + craft drive vehicles now.)
 
         // GRAY a mystery vehicle's whole shell to the mystery material (mirror of RecolorBus, but to gray).
         // bus.color is left untouched — only the materials change, so reveal just re-tints from the prefab base.

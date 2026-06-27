@@ -6,7 +6,7 @@ namespace BusJam
 {
     /// <summary>
     /// Garage screen (partial of <see cref="GameUI"/>): browse vehicle skins (owned / locked), equip them, open the
-    /// gold gacha chests, spend rare chest KEYS, and craft skins from shards. Built in code on the same UICanvas +
+    /// gold gacha chests, spend rare chest KEYS, and craft cars from shards. Built in code on the same UICanvas +
     /// kit sprites + fonts (title/num) as the rest of GameUI. Economy lives in ChestService / CraftService / SaveSystem.
     ///
     /// NOTE: skin cards use rarity-coloured placeholders, NOT live 3D thumbnails — the vehicle models are being
@@ -27,18 +27,6 @@ namespace BusJam
         Button revealOk;
         Coroutine revealCo;
 
-        // Rarity -> frame colour (plan palette).
-        static Color RarityColor(SkinRarity r)
-        {
-            switch (r)
-            {
-                case SkinRarity.Uncommon:  return new Color(0.30f, 0.77f, 0.38f); // #4CC461
-                case SkinRarity.Rare:      return new Color(0.24f, 0.55f, 0.94f); // #3E8BF0
-                case SkinRarity.Epic:      return new Color(0.69f, 0.26f, 0.94f); // #B043F0
-                case SkinRarity.Legendary: return new Color(0.94f, 0.63f, 0.19f); // #F0A030
-                default:                   return new Color(0.69f, 0.72f, 0.75f); // Common #B0B7C0
-            }
-        }
         static Color ChestTint(ChestTier t)
         {
             switch (t)
@@ -92,12 +80,18 @@ namespace BusJam
             Label(card.transform, "GARAGE", title, new Vector2(0, 690), new Vector2(700, 120), 74, White);
             var close = RedClose(card.transform, null);
 
-            // gold counter only (gems/shards removed from the garage)
+            // gold + shard counters (shards are earned from duplicate cars and spent in the CRAFT section below)
             var goldChip = Img(card.transform, UIKit.CoinBar(), Dark); goldChip.raycastTarget = false;
-            Place(goldChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -205), new Vector2(300, 88));
+            Place(goldChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-175, -205), new Vector2(300, 88));
             var gci = Img(goldChip.transform, UIKit.Coin(), Gold); gci.raycastTarget = false;
             Place(gci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(60, 60));
             garageGoldT = Label(goldChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, White);
+
+            var shardChip = Img(card.transform, UIKit.CoinBar(), Dark); shardChip.raycastTarget = false;
+            Place(shardChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(175, -205), new Vector2(300, 88));
+            var sci = Img(shardChip.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sci.raycastTarget = false;
+            Place(sci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
+            garageShardT = Label(shardChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
 
             // scroll view (chests + skins grid + craft rows) — same recipe as BuildShop
             var svGo = new GameObject("ScrollView", typeof(RectTransform));
@@ -150,6 +144,7 @@ namespace BusJam
         {
             SetCoins(SaveSystem.Coins);
             if (garageGoldT)  garageGoldT.text  = SaveSystem.Coins.ToString();
+            if (garageShardT) garageShardT.text = SaveSystem.Shards.ToString();
             if (garageContent == null) return;
 
             for (int i = garageContent.childCount - 1; i >= 0; i--)
@@ -173,7 +168,14 @@ namespace BusJam
 
             // (Vehicle skins removed — the vehicle PACKAGES in the wardrobe, opened from the entry at the top, replace them.)
 
-            // (Shard CRAFT removed — gems are gone; vehicles now come from the chests above + the wardrobe entry.)
+            // 2) CRAFT — spend shards (duplicate cars melt into shards when a chest is opened) on a GUARANTEED new car
+            // of a chosen tier (never a dupe). CraftHeader shows the live shard balance — that is the visible shard
+            // counter on the baked garage panel, whose top chrome bakes a gold counter only.
+            CraftHeader(garageContent);
+            CraftRow(garageContent, 0); // Common
+            CraftRow(garageContent, 1); // Uncommon
+            CraftRow(garageContent, 2); // Epic
+            CraftRow(garageContent, 3); // Legendary
         }
 
         // A faint section header row (LayoutElement gives the vertical group a fixed height).
@@ -283,69 +285,37 @@ namespace BusJam
             }
         }
 
-        // One skin card in the grid: rarity tag + thumbnail placeholder + name; tap to equip (owned) or LOCKED overlay.
-        void SkinCard(Transform parent, SkinDef def)
+        // (SkinCard removed — vehicle skins are deprecated; the garage shows car packages + chests + craft.)
+
+        // CRAFT section header: the title + the player's LIVE shard balance on the right. On the baked garage panel
+        // the top chrome bakes a gold counter only, so THIS is the visible shard counter; it is rebuilt on every
+        // RefreshGarage so it always reads the current balance.
+        void CraftHeader(Transform parent)
         {
-            bool owned = SaveSystem.OwnsSkin(def.id);
-            bool equipped = owned && SaveSystem.EquippedVehicleSkin == def.id;
-            Color rc = RarityColor(def.rarity);
-            var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(rc.r * 0.42f, rc.g * 0.42f, rc.b * 0.42f);
-
-            // rarity PILL (top) — white on the rarity colour so it always reads, on any card
-            var pill = Img(card.transform, null, rc); pill.raycastTarget = false;
-            Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -34), new Vector2(212, 44));
-            Label(pill.transform, def.rarity.ToString().ToUpper(), num, Vector2.zero, new Vector2(206, 40), 22, White);
-
-            var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
-            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 6), new Vector2(182, 120));
-            if (def.HasPattern) // preview the actual generated pattern texture on the card
-            {
-                var patGo = new GameObject("Pat", typeof(RectTransform));
-                patGo.transform.SetParent(tile.transform, false);
-                var raw = patGo.AddComponent<RawImage>();
-                raw.texture = SkinTextureFactory.Get(def.pattern, def.accent);
-                raw.raycastTarget = false;
-                var prt = raw.rectTransform; prt.anchorMin = Vector2.zero; prt.anchorMax = Vector2.one; prt.offsetMin = Vector2.zero; prt.offsetMax = Vector2.zero;
-            }
-
-            Label(card.transform, def.displayName, num, new Vector2(0, -126), new Vector2(255, 50), 28, White);
-
-            if (owned)
-            {
-                var b = card.gameObject.AddComponent<Button>(); b.targetGraphic = card;
-                string id = def.id;
-                b.onClick.AddListener(() => EquipSkin(id));
-                if (equipped)
-                {
-                    var badge = Img(card.transform, null, new Color(0.20f, 0.72f, 0.32f)); badge.raycastTarget = false;
-                    Place(badge.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(190, 44));
-                    Label(badge.transform, "EQUIPPED", num, Vector2.zero, new Vector2(190, 40), 22, White);
-                }
-            }
-            else
-            {
-                // lock overlay ONLY over the thumbnail, so the rarity pill + name stay readable
-                var lk = Img(card.transform, null, new Color(0, 0, 0, 0.60f)); lk.raycastTarget = false;
-                Place(lk.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 6), new Vector2(186, 124));
-                Label(lk.transform, "LOCKED", num, Vector2.zero, new Vector2(180, 44), 24, new Color(0.90f, 0.90f, 0.96f));
-            }
+            var go = Img(parent, null, new Color(0.42f, 0.82f, 1f, 0.10f)); go.raycastTarget = false;
+            var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 72; le.minHeight = 72;
+            Label(go.transform, "CRAFT", title, new Vector2(-250, 0), new Vector2(360, 58), 40, White, TextAnchor.MiddleLeft);
+            var gem = Img(go.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); gem.raycastTarget = false;
+            Place(gem.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-200, 0), new Vector2(46, 46));
+            Label(go.transform, SaveSystem.Shards.ToString(), num, new Vector2(180, 0), new Vector2(300, 52), 34, new Color(0.78f, 0.93f, 1f), TextAnchor.MiddleRight);
         }
 
-        // One craft row: rarity + remaining-locked count + a shard-cost CRAFT button (greyed when unaffordable/empty).
-        void CraftRow(Transform parent, SkinRarity rar)
+        // One craft row: car TIER + remaining-locked count + a shard-cost CRAFT button (greyed when unaffordable or the
+        // tier is fully owned). Crafting grants a GUARANTEED new car of that tier — never a duplicate.
+        void CraftRow(Transform parent, int tier)
         {
-            int locked = CraftService.Craftable(rar).Count;
-            bool can = CraftService.CanCraft(rar);
-            Color rc = RarityColor(rar);
+            int locked = CraftService.Craftable(tier).Count;
+            bool can = CraftService.CanCraft(tier);
+            Color rc = TierColor(tier);
             var row = Img(parent, UIKit.ShopBoxA(), White); row.color = new Color(rc.r * 0.45f, rc.g * 0.45f, rc.b * 0.45f);
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
-            Label(row.transform, rar.ToString().ToUpper(), num, new Vector2(-262, 24), new Vector2(320, 46), 30, White, TextAnchor.MiddleLeft);
+            Label(row.transform, TierName(tier), num, new Vector2(-262, 24), new Vector2(320, 46), 30, White, TextAnchor.MiddleLeft);
             Label(row.transform, locked + " left", num, new Vector2(-262, -24), new Vector2(320, 34), 22, new Color(0.86f, 0.88f, 0.94f), TextAnchor.MiddleLeft);
             var craft = Btn(row.transform, UIKit.PriceBtnA(), can ? new Color(0.30f, 0.72f, 0.36f) : new Color(0.45f, 0.45f, 0.50f),
-                            new Vector2(1, 0.5f), new Vector2(-165, 0), new Vector2(290, 92), () => { if (can) CraftRarity(rar); });
+                            new Vector2(1, 0.5f), new Vector2(-165, 0), new Vector2(290, 92), () => { if (can) CraftTier(tier); });
             var sc = Img(craft.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sc.raycastTarget = false;
             Place(sc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(44, 44));
-            Label(craft.transform, CraftService.Cost(rar).ToString(), num, new Vector2(26, 0), new Vector2(290, 50), 30, White);
+            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(290, 50), 30, White);
         }
 
         // ---- actions --------------------------------------------------------
@@ -358,20 +328,13 @@ namespace BusJam
             ShowRevealCar(r.car, r.wasDupe ? ("DUPLICATE  +" + r.shardsGained + " shards") : "NEW!", r.keyDropped, r.keyTier);
             RefreshGarage();
         }
-        void CraftRarity(SkinRarity rar)
+        void CraftTier(int tier)
         {
-            var skin = CraftService.Craft(rar);
-            if (skin == null) return;
-            ShowReveal(skin, "CRAFTED!", false, ChestTier.Bronze);
+            var car = CraftService.Craft(tier);
+            if (car == null) return;
+            ShowRevealCar(car, "CRAFTED!", false, ChestTier.Bronze);
             RefreshGarage();
         }
-        void EquipSkin(string id)
-        {
-            SaveSystem.EquippedVehicleSkin = id;
-            RefreshGarage();
-            OnReskin?.Invoke(); // rebuild the live board so the equipped MODEL shows
-        }
-
         // ---- reveal modal + opening animation -------------------------------
         void BuildReveal()
         {
@@ -434,16 +397,6 @@ namespace BusJam
             Label(revealOk.transform, "OK", title, Vector2.zero, new Vector2(380, 80), 46, White);
 
             revealPanel.SetActive(false);
-        }
-
-        // Skin reveal (still used by the shard-craft path) — resolves the skin's look, then shares the reveal anim.
-        void ShowReveal(SkinDef skin, string sub, bool keyDropped, ChestTier keyTier)
-        {
-            if (skin == null || revealPanel == null) return;
-            revealPanel.SetActive(true);
-            if (revealCo != null) StopCoroutine(revealCo);
-            Texture preview = skin.HasPattern ? SkinTextureFactory.Get(skin.pattern, skin.accent) : null;
-            revealCo = StartCoroutine(RevealAnim(RarityColor(skin.rarity), (int)skin.rarity / 4f, preview, skin.displayName, sub, keyDropped, keyTier));
         }
 
         // Car reveal (chest path) — the won car's 3D thumbnail + name in its rarity-tier colour.

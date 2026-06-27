@@ -4,47 +4,43 @@ using UnityEngine;
 namespace BusJam
 {
     /// <summary>
-    /// Shard crafting: spend shards (duplicates melt into them via ChestService) to forge a guaranteed NEW skin of
-    /// a chosen rarity — never a duplicate. Pure economy logic over the catalog, independent of how skins render.
-    /// Costs are ~5× a single duplicate of that rarity, so duplicates always feel like progress toward a craft.
+    /// Car crafting: spend shards (duplicate cars melt into them when a chest is opened — see ChestService) to forge a
+    /// GUARANTEED NEW car of a chosen rarity tier — never a duplicate. Pure economy logic over the vehicle-set catalog
+    /// (ids + rarities), completely independent of HOW a car renders. Costs are ~5× the shards a single duplicate of
+    /// that tier melts into, so duplicates always feel like progress toward a craft.
+    ///
+    /// Tiers match the wardrobe / chest rarity scale: 0 Common, 1 Uncommon, 2 Epic, 3 Legendary.
     /// </summary>
     public static class CraftService
     {
-        public static int Cost(SkinRarity r)
-        {
-            switch (r)
-            {
-                case SkinRarity.Common:    return 25;
-                case SkinRarity.Uncommon:  return 60;
-                case SkinRarity.Rare:      return 150;
-                case SkinRarity.Epic:      return 400;
-                case SkinRarity.Legendary: return 1000;
-                default:                   return 25;
-            }
-        }
+        // Shard cost to craft a guaranteed new car of `tier`. ~5× the dupe shard value of that tier
+        // (ChestService melts dupes into 10 / 25 / 80 / 200 by tier), so roughly 5 duplicates == 1 craft.
+        public static int Cost(int tier) => tier >= 3 ? 1000 : tier == 2 ? 400 : tier == 1 ? 125 : 50;
 
-        /// <summary>Skins of this rarity the player does NOT yet own (the craft pool).</summary>
-        public static List<SkinDef> Craftable(SkinRarity r)
+        /// <summary>Cars of this tier the player does NOT yet own (the craft pool).</summary>
+        public static List<VehicleSetCatalog.VehicleSet> Craftable(int tier)
         {
-            var list = new List<SkinDef>();
-            foreach (var s in SkinCatalog.ByRarity(SkinCategory.Vehicle, r))
-                if (!SaveSystem.OwnsSkin(s.id)) list.Add(s);
+            var list = new List<VehicleSetCatalog.VehicleSet>();
+            var cat = VehicleWardrobe.Catalog;
+            if (cat == null || cat.sets == null) return list;
+            foreach (var s in cat.sets)
+                if (s != null && s.rarity == tier && !SaveSystem.OwnsSet(s.id)) list.Add(s);
             return list;
         }
 
-        /// <summary>True when the player can afford the craft AND there's still something of that rarity to win.</summary>
-        public static bool CanCraft(SkinRarity r) => SaveSystem.Shards >= Cost(r) && Craftable(r).Count > 0;
+        /// <summary>True when the player can afford the craft AND there's still an unowned car of that tier to win.</summary>
+        public static bool CanCraft(int tier) => SaveSystem.Shards >= Cost(tier) && Craftable(tier).Count > 0;
 
-        /// <summary>Spend shards and grant a random not-yet-owned skin of `r`. Returns the crafted skin, or null if
-        /// the rarity is fully owned or the player is short on shards (nothing is spent in that case).</summary>
-        public static SkinDef Craft(SkinRarity r)
+        /// <summary>Spend shards and grant a random not-yet-owned car of `tier`. Returns the crafted car, or null if
+        /// the tier is fully owned or the player is short on shards (nothing is spent in that case).</summary>
+        public static VehicleSetCatalog.VehicleSet Craft(int tier)
         {
-            var pool = Craftable(r);
+            var pool = Craftable(tier);
             if (pool.Count == 0) return null;
-            if (!SaveSystem.TrySpendShards(Cost(r))) return null;
-            var skin = pool[Random.Range(0, pool.Count)];
-            SaveSystem.AddOwnedSkin(skin.id);
-            return skin;
+            if (!SaveSystem.TrySpendShards(Cost(tier))) return null;
+            var car = pool[Random.Range(0, pool.Count)];
+            SaveSystem.AddOwnedSet(car.id);
+            return car;
         }
     }
 }
