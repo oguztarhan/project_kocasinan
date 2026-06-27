@@ -2749,13 +2749,15 @@ namespace BusJam
             if (px == null) { vanRecolorCache[key] = null; return null; }
             Color32 c = PeopleColor(color);
 
-            // The whole BODY (incl. any two-tone livery / stripes) must become ONE solid colour; only the glass, tyres
-            // and deep shadow stay. A "recolour the dominant colour" cut left a bus's secondary stripe its native colour
-            // (cream body + purple/yellow stripes = "colours mixed up"); a "paint light, keep dark" cut left a dark roof
-            // black. So: KEEP only pixels that are BOTH dark AND desaturated (that's glass/tyres/shadow); repaint
-            // everything else — light body, dark-but-saturated stripes, mid livery — to the solid colour.
-            // First decide if the whole shell is dark+grey (a black/grey van): then its body is indistinguishable from
-            // its own dark glass, so recolour EVERYTHING to a clean solid colour (windows merge — unavoidable, but no mix).
+            // REBUILD the in-game look from scratch (independent of the catalogue/garage texture, which still shows the
+            // native look in the menu). Output only TWO colours so nothing can ever look "mixed": the whole exterior
+            // (body + any livery / stripes) -> the solid palette colour; the glass / tyres / deep shadow -> a controlled
+            // dark "glass" colour. The original texture is used ONLY to locate the dark region.
+            const byte GR = 32, GG = 35, GB = 44; // controlled dark glass / tyre colour for ALL in-game vehicles
+            Color32 glass = new Color32(GR, GG, GB, 255);
+
+            // Is the whole shell dark + grey (a black/grey van)? Then its body is indistinguishable from its own dark
+            // glass, so paint the WHOLE thing the solid colour (windows merge — unavoidable, but never a mix-up).
             var bins = new int[32 * 32 * 32];
             for (int i = 0; i < px.Length; i++)
                 bins[((px[i].r >> 3) << 10) | ((px[i].g >> 3) << 5) | (px[i].b >> 3)]++;
@@ -2765,19 +2767,28 @@ namespace BusJam
             float domLum = 0.299f * dr0 + 0.587f * dg0 + 0.114f * db0;
             float domMax = Mathf.Max(dr0, Mathf.Max(dg0, db0)), domMin = Mathf.Min(dr0, Mathf.Min(dg0, db0));
             float domSat = domMax > 0.004f ? (domMax - domMin) / domMax : 0f;
-            bool darkShell = domLum < 0.22f && domSat < 0.25f;
 
-            int bodyCount = 0;
-            for (int i = 0; i < px.Length; i++)
+            if (domLum < 0.22f && domSat < 0.25f)
             {
-                float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
-                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
-                float mx = Mathf.Max(r, Mathf.Max(g, b)), mn = Mathf.Min(r, Mathf.Min(g, b));
-                float sat = mx > 0.004f ? (mx - mn) / mx : 0f;
-                bool keep = !darkShell && lum < 0.20f && sat < 0.45f; // dark + desaturated -> glass / tyres / shadow
-                if (!keep) { px[i] = c; bodyCount++; }
+                for (int i = 0; i < px.Length; i++) px[i] = c; // black/grey van -> one clean solid colour
             }
-            if (bodyCount < px.Length * 0.04f) { vanRecolorCache[key] = null; return null; } // body not found -> flat fallback
+            else
+            {
+                // Split body vs glass by an ADAPTIVE cut at ~the darkest 18% of the texture (glass + tyres + shadow),
+                // so even a LIGHT vehicle's mid-grey windows are caught. Clamp [0.05,0.34] so a light van never paints
+                // body as glass and a darker van still keeps a sliver of glass. 256-bin luminance histogram.
+                var lhist = new int[256];
+                var lumA = new float[px.Length];
+                for (int i = 0; i < px.Length; i++)
+                {
+                    float l = 0.299f * px[i].r / 255f + 0.587f * px[i].g / 255f + 0.114f * px[i].b / 255f;
+                    lumA[i] = l; lhist[Mathf.Clamp((int)(l * 255f), 0, 255)]++;
+                }
+                int targetN = (int)(px.Length * 0.30f), cum = 0, cutBin = 0;
+                for (int bI = 0; bI < 256; bI++) { cum += lhist[bI]; if (cum >= targetN) { cutBin = bI; break; } }
+                float thr = Mathf.Clamp(cutBin / 255f, 0.05f, 0.42f);
+                for (int i = 0; i < px.Length; i++) px[i] = lumA[i] < thr ? glass : c;
+            }
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
             dst.SetPixels32(px); dst.Apply(false);
             vanRecolorCache[key] = dst;
