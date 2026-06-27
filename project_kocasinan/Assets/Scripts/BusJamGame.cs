@@ -2749,29 +2749,33 @@ namespace BusJam
             if (px == null) { vanRecolorCache[key] = null; return null; }
             Color32 c = PeopleColor(color);
 
-            // Identify the BODY = the most common colour (the largest painted region of the single-texture shell);
-            // windows, lights, wheels and trim are smaller, DIFFERENTLY-coloured regions. Recolour by DOMINANT COLOUR,
-            // not by luminance: a luminance "keep dark, paint light" cut leaves a BLACK body (a dark roof) untouched and
-            // paints only the lighter windows/interior -> black body + coloured trim ("colours mixed up"). Matching the
-            // body colour repaints the shell whatever its native shade (black, white, red) while the differently-
-            // coloured windows/lights survive. Quantise to 5 bits/channel (32^3 bins) for the histogram.
+            // The whole BODY (incl. any two-tone livery / stripes) must become ONE solid colour; only the glass, tyres
+            // and deep shadow stay. A "recolour the dominant colour" cut left a bus's secondary stripe its native colour
+            // (cream body + purple/yellow stripes = "colours mixed up"); a "paint light, keep dark" cut left a dark roof
+            // black. So: KEEP only pixels that are BOTH dark AND desaturated (that's glass/tyres/shadow); repaint
+            // everything else — light body, dark-but-saturated stripes, mid livery — to the solid colour.
+            // First decide if the whole shell is dark+grey (a black/grey van): then its body is indistinguishable from
+            // its own dark glass, so recolour EVERYTHING to a clean solid colour (windows merge — unavoidable, but no mix).
             var bins = new int[32 * 32 * 32];
             for (int i = 0; i < px.Length; i++)
                 bins[((px[i].r >> 3) << 10) | ((px[i].g >> 3) << 5) | (px[i].b >> 3)]++;
             int bestBin = 0, bestN = -1;
             for (int b = 0; b < bins.Length; b++) if (bins[b] > bestN) { bestN = bins[b]; bestBin = b; }
-            int br = ((bestBin >> 10) & 31) << 3, bg = ((bestBin >> 5) & 31) << 3, bb = (bestBin & 31) << 3;
+            float dr0 = (((bestBin >> 10) & 31) << 3) / 255f, dg0 = (((bestBin >> 5) & 31) << 3) / 255f, db0 = ((bestBin & 31) << 3) / 255f;
+            float domLum = 0.299f * dr0 + 0.587f * dg0 + 0.114f * db0;
+            float domMax = Mathf.Max(dr0, Mathf.Max(dg0, db0)), domMin = Mathf.Min(dr0, Mathf.Min(dg0, db0));
+            float domSat = domMax > 0.004f ? (domMax - domMin) / domMax : 0f;
+            bool darkShell = domLum < 0.22f && domSat < 0.25f;
 
-            // Repaint every pixel within TOL of the body colour; keep the rest (windows / lights / wheels / trim). TOL
-            // covers the body's own shading + AO spread without reaching the differently-coloured details. A dark or
-            // desaturated body whose windows sit within TOL just merges them in -> a clean SOLID colour (no mix-up),
-            // which is exactly the wanted result for a black van.
-            const int Tol = 78;
             int bodyCount = 0;
             for (int i = 0; i < px.Length; i++)
             {
-                int dr = px[i].r - br, dg = px[i].g - bg, db = px[i].b - bb;
-                if (dr * dr + dg * dg + db * db <= Tol * Tol) { px[i] = c; bodyCount++; }
+                float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
+                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
+                float mx = Mathf.Max(r, Mathf.Max(g, b)), mn = Mathf.Min(r, Mathf.Min(g, b));
+                float sat = mx > 0.004f ? (mx - mn) / mx : 0f;
+                bool keep = !darkShell && lum < 0.20f && sat < 0.45f; // dark + desaturated -> glass / tyres / shadow
+                if (!keep) { px[i] = c; bodyCount++; }
             }
             if (bodyCount < px.Length * 0.04f) { vanRecolorCache[key] = null; return null; } // body not found -> flat fallback
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
