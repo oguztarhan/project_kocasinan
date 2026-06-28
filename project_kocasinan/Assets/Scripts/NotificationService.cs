@@ -59,7 +59,12 @@ namespace BusJam
                 Importance = Importance.Default,
                 Description = "BusJam reminders",
             });
-            // POST_NOTIFICATIONS (Android 13+) is requested by FirebaseManager — no need to ask twice.
+            // Android 13+ (API 33) needs a runtime POST_NOTIFICATIONS grant or EVERY notification is silently dropped.
+            // Request it HERE so local reminders work even when Firebase never initialises — do NOT rely on
+            // FirebaseManager for it (that only asks on a SUCCESSFUL Firebase init, which fails on a non-Firebase build).
+            const string perm = "android.permission.POST_NOTIFICATIONS";
+            if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(perm))
+                UnityEngine.Android.Permission.RequestUserPermission(perm);
 #elif UNITY_IOS
             StartCoroutine(RequestIosAuthorization());
 #endif

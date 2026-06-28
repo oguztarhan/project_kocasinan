@@ -433,6 +433,17 @@ namespace BusJam
             });
         }
 
+        // Restore Purchases: re-asserts the no-ads entitlement. Google replays owned non-consumables through
+        // ProcessPurchase on every launch, but a manual button is a Play-policy requirement + a safety net after a
+        // reinstall. Floats just below the notifications toggle so it never overlaps the card. Works on baked or code Settings.
+        void AddRestorePurchasesButton(Transform panel)
+        {
+            if (panel == null) return;
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -205), new Vector2(540, 96), null);
+            var lbl = Label(btn.transform, "RESTORE PURCHASES", title, Vector2.zero, new Vector2(540, 60), 32, White);
+            btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = "RESTORED"; });
+        }
+
         // ---- Settings / Continue / Failed setup -----------------------------
         // Prefer the Inspector-editable scene panels baked via
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Panels"; otherwise build them in code.
@@ -447,6 +458,7 @@ namespace BusJam
             }
             else BuildSettings(); // fallback (code-built settings)
             if (settingsPanel != null) AddNotificationsToggle(settingsPanel.transform); // push-notification on/off
+            if (settingsPanel != null) AddRestorePurchasesButton(settingsPanel.transform); // Play-policy: re-grant no-ads after reinstall
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
@@ -657,6 +669,7 @@ namespace BusJam
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Shop"; otherwise build the code shop.
         void SetupShop()
         {
+            IAPManager.OnChanged -= OnIapChanged; IAPManager.OnChanged += OnIapChanged; // repaint counters when a purchase resolves
             // (#5/#7) Use the BAKED scene shop even if its canvas was left INACTIVE in the Hierarchy. A disabled
             // InGameShop_Baked never runs Awake, so InGameShop.Instance stays null and the OLD code-built shop
             // (BuildShop) showed instead — that was the "old shop still showing". Find it inactive-inclusive + enable.
@@ -693,7 +706,7 @@ namespace BusJam
                 {
                     case InGameShopButton.Act.GrantCoins:
                         int amt = b.amount;
-                        btn.onClick.AddListener(() => { SaveSystem.AddCoins(amt); SetCoins(SaveSystem.Coins); });
+                        btn.onClick.AddListener(() => BuyCoins(amt)); // real IAP; coins granted by IAPManager on success
                         break;
                     case InGameShopButton.Act.SpendJoker:
                         btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) SetCoins(SaveSystem.Coins); });
@@ -705,19 +718,12 @@ namespace BusJam
             }
 
             // The two promo bars are baked as plain "RemoveAds" rows (no InGameShopButton tag
-            // and no Button of their own), so wire them here by name:
-            //   "RemoveAds"     ($5) -> remove ads only
-            //   "RemoveAds (1)" ($7) -> remove ads + 200 gold + a free Recolor joker
-            // The actual ad-removal is hooked up separately later (see RemoveAds()).
+            // and no Button of their own), so wire them here by name to the real IAP products:
+            //   "RemoveAds"     -> remove_ads      (ads off)
+            //   "RemoveAds (1)" -> remove_ads_plus (ads off + a one-time 200 gold + free Recolor joker)
+            // The bonus is granted inside IAPManager.Grant (flag-gated so a restore can't repeat it).
             WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
-            WirePromoBar(shopRoot, "RemoveAds (1)", () =>
-            {
-                RemoveAds();
-                SaveSystem.AddCoins(200);
-                SaveSystem.AddFreeJoker(0, 1); // 0 = Recolor joker
-                SetCoins(SaveSystem.Coins);
-                RefreshJokers();
-            });
+            WirePromoBar(shopRoot, "RemoveAds (1)", RemoveAdsPlus);
         }
 
         // Turn a baked, tag-less promo row into a real button: force its background to catch
@@ -742,12 +748,25 @@ namespace BusJam
             return null;
         }
 
-        // Remove ads. The real ad-SDK / no-ads IAP call is wired in later; for now this is
-        // just the hook the $5 and $7 shop bars trigger (intentionally a no-op).
-        void RemoveAds()
+        // The two no-ads shop bars -> real Google Play purchases. The entitlement (and the "plus" tier's one-time
+        // bonus) is applied in IAPManager.Grant after Google signs the receipt; OnIapChanged then refreshes the HUD.
+        void RemoveAds()     { IAPManager.Instance?.Buy(IAPManager.RemoveAds); }
+        void RemoveAdsPlus() { IAPManager.Instance?.Buy(IAPManager.RemoveAdsPlus); }
+
+        // A coin-pack button -> the matching consumable IAP. Coins are added by IAPManager on a verified purchase,
+        // never here, so a cancelled/failed purchase grants nothing.
+        void BuyCoins(int coins)
         {
-            // TODO: hook up real ad-removal here (configured later).
+            var id = IAPManager.ProductForCoins(coins);
+            if (id == null) { Debug.LogWarning("[Shop] no IAP product for " + coins + " coins"); return; }
+            if (IAPManager.Instance != null) IAPManager.Instance.Buy(id);
+            else Debug.LogWarning("[Shop] IAP not ready yet");
         }
+
+        // IAPManager fires OnChanged after a verified purchase / restore / first init -> repaint the live counters.
+        void OnIapChanged() { SetCoins(SaveSystem.Coins); RefreshJokers(); }
+
+        void OnDestroy() { IAPManager.OnChanged -= OnIapChanged; }
 
         // ---- In-game shop (coin tap) — identical to the main-menu shop -------
         // Code fallback used only when no baked shop exists. Mirrors the baker:
@@ -800,7 +819,10 @@ namespace BusJam
             Place(adsIco.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(95, 0), new Vector2(110, 110));
             var adsPrice = Img(adsRow.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = false;
             Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
-            Label(adsPrice.transform, "TRY 249,99", num, Vector2.zero, new Vector2(360, 60), 36, White);
+            var adsRealPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.RemoveAds) : null;
+            Label(adsPrice.transform, string.IsNullOrEmpty(adsRealPrice) ? "TRY 249,99" : adsRealPrice, num, Vector2.zero, new Vector2(360, 60), 36, White);
+            var adsBtn = adsRow.gameObject.AddComponent<Button>(); adsBtn.targetGraphic = adsRow; // whole bar buys remove_ads
+            adsBtn.onClick.AddListener(RemoveAds);
 
             // 2) Gold packs (3-column grid, icons 11,12,13,29,30,31).
             var gridGo = new GameObject("CoinGrid", typeof(RectTransform));
@@ -832,8 +854,10 @@ namespace BusJam
             Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(150, 150));
             Label(card.transform, amount, num, new Vector2(0, 132), new Vector2(255, 50), 34, White);
             var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(245, 92),
-                () => { SaveSystem.AddCoins(coins); SetCoins(SaveSystem.Coins); });
-            Label(buy.transform, price, num, Vector2.zero, new Vector2(245, 56), 32, White);
+                () => BuyCoins(coins)); // real IAP; coins granted by IAPManager on success
+            // Real localized store price when IAP is ready; the baked placeholder until then.
+            var realPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.ProductForCoins(coins)) : null;
+            Label(buy.transform, string.IsNullOrEmpty(realPrice) ? price : realPrice, num, Vector2.zero, new Vector2(245, 56), 32, White);
         }
 
         // A full-width joker bar: icon on the dark-orange left + a "100 gold" buy button.

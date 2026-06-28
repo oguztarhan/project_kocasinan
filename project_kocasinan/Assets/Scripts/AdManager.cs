@@ -45,7 +45,7 @@ public class AdManager : MonoBehaviour
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
-    bool _adsEnabled = ADS_ENABLED;
+    bool _adsEnabled = ADS_ENABLED && !SaveSystem.AdsRemoved; // off for good once the no-ads IAP is owned
 
     // ---- in-memory counters (reset per app session; deliberately NOT persisted) ----
     int   _wins, _losses;

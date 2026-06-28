@@ -371,7 +371,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &64494787
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -392,6 +392,15 @@ MonoBehaviour:
   vehiclesContent: {fileID: 1418354942}
   vehiclesGold: {fileID: 568033664}
   vehiclesClose: {fileID: 1343698381}
+  chestCellSize: {x: 275, y: 275}
+  chestSpacing: {x: 15, y: 18}
+  chestColumns: 3
+  shardOffset: {x: 0, y: -102}
+  revealSize: {x: 820, y: 980}
+  revealPos: {x: 0, y: 0}
+  chestArea: {fileID: 0}
+  revealCard: {fileID: 0}
+  shardSlot: {fileID: 0}
 --- !u!114 &64494788
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13417,7 +13426,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1344900728
 RectTransform:
   m_ObjectHideFlags: 0

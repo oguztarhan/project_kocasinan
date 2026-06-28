@@ -26,6 +26,14 @@ namespace BusJam
         static readonly Dictionary<string, Sprite> _cache = new Dictionary<string, Sprite>();
         static Font _title, _num;
 
+        // Build-safe sprite source: in a player build AssetDatabase is compiled out, so sprites come from this baked
+        // ScriptableObject (Resources/UIKitAtlas.asset, produced by "BusJam ▸ Bake UIKit Resources"). Loaded once.
+        static UIKitAtlas _atlas; static bool _atlasTried;
+        static UIKitAtlas Atlas
+        {
+            get { if (!_atlasTried) { _atlasTried = true; _atlas = Resources.Load<UIKitAtlas>("UIKitAtlas"); } return _atlas; }
+        }
+
         // Raw atlas access by index.
         public static Sprite A(int i) => Get(A1, "UI-pack_Sprite_1_" + i);
         public static Sprite B(int i) => Get(A2, "UI-pack_Sprite_2_" + i);
@@ -38,7 +46,8 @@ namespace BusJam
             foreach (var o in AssetDatabase.LoadAllAssetsAtPath(atlasPath))
                 if (o is Sprite sp && sp.name == name) { found = sp; break; }
 #endif
-            if (found == null) found = Resources.Load<Sprite>("UIKit/" + name); // build fallback
+            if (found == null && Atlas != null) found = Atlas.Find(name);       // build-safe (baked registry)
+            if (found == null) found = Resources.Load<Sprite>("UIKit/" + name); // legacy per-file fallback
             if (found == null) Debug.LogWarning($"[UIKit] sprite not found: {name}");
             _cache[name] = found;
             return found;
@@ -130,6 +139,7 @@ namespace BusJam
 #if UNITY_EDITOR
             found = AssetDatabase.LoadAssetAtPath<Sprite>(path);
 #endif
+            if (found == null && Atlas != null) found = Atlas.Find(resName);     // build-safe (baked registry)
             if (found == null) found = Resources.Load<Sprite>("UIKit/" + resName);
             if (found == null) Debug.LogWarning($"[UIKit] sprite not found: {resName}");
             _cache[resName] = found;

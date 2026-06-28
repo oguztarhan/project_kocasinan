@@ -60,6 +60,7 @@ public class MenuController : MonoBehaviour
         };
         CloseAll();
         Refresh();
+        WireShop();            // the baked menu shop's coin/joker buttons have NO listeners in this scene -> wire them now
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
@@ -223,8 +224,43 @@ public class MenuController : MonoBehaviour
     // Spend 100 gold (joker purchase). Returns silently if not enough.
     public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }
 
-    // Currency cheats / store buttons can call these directly from the Inspector.
-    public void AddCoins100()  { SaveSystem.AddCoins(100);  Refresh(); }
-    public void AddCoins500()  { SaveSystem.AddCoins(500);  Refresh(); }
-    public void AddCoins1000() { SaveSystem.AddCoins(1000); Refresh(); }
+    // The baked menu shop's coin / joker buttons carry InGameShopButton tags but — unlike the in-game shop, which
+    // GameUI.WireSceneShop hooks up — NOTHING wired them in this scene, so taps did nothing. Wire them to live
+    // actions here (coin packs -> real Google Play IAP; jokers -> spend 100 gold). Close buttons already carry a
+    // baked CloseAll listener, so we leave those alone to avoid firing it twice.
+    void WireShop()
+    {
+        if (shopPanel == null) return;
+        foreach (var b in shopPanel.GetComponentsInChildren<InGameShopButton>(true))
+        {
+            var btn = b.GetComponent<Button>();
+            if (btn == null) continue;
+            switch (b.action)
+            {
+                case InGameShopButton.Act.GrantCoins:
+                    int amt = b.amount;
+                    btn.onClick.AddListener(() => BuyCoinsPack(amt));
+                    break;
+                case InGameShopButton.Act.SpendJoker:
+                    btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) Refresh(); });
+                    break;
+            }
+        }
+    }
+
+    // A coin-pack button -> the matching consumable IAP. Coins are added by IAPManager on a verified purchase;
+    // Update()'s Refresh() repaints the counter next frame.
+    void BuyCoinsPack(int coins)
+    {
+        var id = IAPManager.ProductForCoins(coins);
+        if (id != null) IAPManager.Instance?.Buy(id);
+        else Debug.LogWarning("[Menu] no IAP product for " + coins + " coins");
+    }
+
+    // No-ads + restore for the menu's Remove-Ads panel — wire these to its buttons in the Inspector. The
+    // entitlement and the "plus" one-time bonus are applied inside IAPManager; Restore re-grants after a
+    // reinstall (a Google Play policy requirement).
+    public void BuyRemoveAds()     { IAPManager.Instance?.Buy(IAPManager.RemoveAds); }
+    public void BuyRemoveAdsPlus() { IAPManager.Instance?.Buy(IAPManager.RemoveAdsPlus); }
+    public void RestorePurchases() { IAPManager.Instance?.Restore(); }
 }

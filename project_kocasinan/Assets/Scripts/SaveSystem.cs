@@ -134,6 +134,14 @@ namespace BusJam
             set { PlayerPrefs.SetInt("bj_notifications", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Set once the player buys the no-ads IAP (remove_ads / remove_ads_plus). AdManager reads it on launch and
+        // keeps every ad off; IAPManager.ProcessPurchase sets it, and Restore Purchases re-sets it on a new device.
+        public static bool AdsRemoved
+        {
+            get => PlayerPrefs.GetInt("bj_ads_removed", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_ads_removed", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // Selected preset-avatar index and player name (Profile panel).
         public static int AvatarIndex
         {
