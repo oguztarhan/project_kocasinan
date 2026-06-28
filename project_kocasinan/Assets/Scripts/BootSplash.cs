@@ -67,11 +67,12 @@ namespace BusJam
             StartCoroutine(HardTimeout());
         }
 
-        // Safety net: tear the overlay down by 8s no matter what, so it can NEVER trap the player on the loading
-        // screen. (When Run() finishes it Destroys this GameObject, which also stops this coroutine.)
+        // Safety net: tear the overlay down after a hard cap no matter what, so it can NEVER trap the player on the
+        // loading screen. Raised because the bar now WAITS for the real gameplay-asset preload (GamePreload), which
+        // can take a while on a cold first launch. (When Run() finishes it Destroys this GameObject early.)
         IEnumerator HardTimeout()
         {
-            yield return Wait(8f);
+            yield return Wait(40f);
             Destroy(gameObject);
         }
 
@@ -117,16 +118,20 @@ namespace BusJam
 
             MusicManager.PlayMenu(); // start the menu music HERE — on the loading screen, NOT on the Intake splash
 
-            // ---- 2) loading bar 0..100 ----
-            float ld = 2.7f, prog = 0f;
-            while (prog < 100f)
+            // ---- 2) loading bar: tracks the REAL gameplay-asset preload (GamePreload) so the menu is revealed only
+            //         once everything is warm and the first PLAY is fast. Held a minimum time so it never just flashes. ----
+            float minT = 2.4f, t2 = 0f;
+            while (true)
             {
-                prog = Mathf.Min(100f, prog + (100f / ld) * Time.unscaledDeltaTime);
-                SetProgress(prog);
+                t2 += Time.unscaledDeltaTime;
+                float real = GamePreload.Done ? 1f : GamePreload.Progress;  // 0..1 (Done == warm, or nothing to warm)
+                float paced = Mathf.Clamp01(t2 / minT);                     // minimum on-screen pacing
+                SetProgress(Mathf.Min(real, paced) * 100f);                 // never outrun the real load OR the pacing
+                if (GamePreload.Done && t2 >= minT) break;
                 yield return null;
             }
             SetProgress(100f);
-            yield return Wait(0.4f);
+            yield return Wait(0.3f);
 
             // ---- 3) transition to the MainMenu underneath, then self-destruct ----
             load.blocksRaycasts = false;             // stop intercepting taps immediately so the menu is live

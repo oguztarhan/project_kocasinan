@@ -33,7 +33,7 @@ namespace BusJam
         public static void ApplyFrameRate()
         {
             QualitySettings.vSyncCount = 0; // targetFrameRate is ignored while vSync is on
-            int cap = HighEndDevice() ? 120 : 60;
+            int cap = HighEndDevice() ? 90 : 60; // 90 fps max on capable phones (60 floor on the rest)
             Application.targetFrameRate = Mathf.Min(cap, MaxPanelHz());
         }
 

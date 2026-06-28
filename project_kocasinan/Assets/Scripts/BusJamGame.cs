@@ -2761,9 +2761,9 @@ namespace BusJam
             var key = (src, color);
             if (vanRecolorCache.TryGetValue(key, out var cached)) return cached; // cached value may be null (un-recolourable)
             int w = src.width, h = src.height;
-            // Cap the working resolution so a large atlas can't STALL the synchronous level build (the body becomes a
-            // FLAT colour anyway, so the cap doesn't soften it — only the kept windows/wheels lose a touch of detail).
-            const int Max = 512;
+            // Cap the working resolution (256) so the recolour stays cheap on the synchronous level build AND on the
+            // mystery reveal — the body becomes a FLAT colour anyway, so the cap only softens the kept windows/wheels a touch.
+            const int Max = 256;
             if (w > Max || h > Max) { float s = (float)Max / Mathf.Max(w, h); w = Mathf.Max(1, Mathf.RoundToInt(w * s)); h = Mathf.Max(1, Mathf.RoundToInt(h * s)); }
             Color32[] px = ReadPixels32(src, w, h);
             if (px == null) { vanRecolorCache[key] = null; return null; }
