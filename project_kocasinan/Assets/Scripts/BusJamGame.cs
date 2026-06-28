@@ -1698,6 +1698,7 @@ namespace BusJam
         // ---- (#4) Level-1 tutorial: coach the tap -> park -> board loop -----------------------------------
         void StartTutorial(string step1, params string[] postSteps)
         {
+            if (SaveSystem.TutorialDone) { tutorialActive = false; if (coach != null) coach.Hide(); return; } // dismissed once -> never show again, whatever calls this (e.g. a reskin/RetryLevel rebuild)
             if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
             tutorialActive = true;
             tutorialStep = 1;
