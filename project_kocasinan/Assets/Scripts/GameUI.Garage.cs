@@ -59,6 +59,7 @@ namespace BusJam
             if (g != null && g.garageRoot != null && g.garageContent != null && g.garageGold != null)
             {
                 garagePanel = g.garageRoot; garageContent = g.garageContent; garageGoldT = g.garageGold; close = g.garageClose;
+                HideSlotBoxes(g);          // the baked slot tints are editor-only guides — don't render them in-game
                 EnsureBakedShardCounter(); // baked chrome has only a GOLD counter -> add a live SHARD counter beside it
             }
             else close = BuildGarageChrome();
@@ -76,16 +77,35 @@ namespace BusJam
         void EnsureBakedShardCounter()
         {
             if (garageShardT != null || garageGoldT == null) return;
+            var gg = InGameGarage.Instance;
+            if (gg != null && gg.shardSlot != null)
+            {
+                // place the shard counter INSIDE the baked, drag-positioned slot (fills it)
+                var chip = Img(gg.shardSlot, UIKit.CoinBar(), Dark); chip.raycastTarget = false;
+                var crt = chip.rectTransform; crt.anchorMin = Vector2.zero; crt.anchorMax = Vector2.one; crt.offsetMin = Vector2.zero; crt.offsetMax = Vector2.zero;
+                var g0 = Img(chip.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); g0.raycastTarget = false;
+                Place(g0.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
+                garageShardT = Label(chip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
+                return;
+            }
             var goldChip = garageGoldT.transform.parent as RectTransform; // the CoinBar chip holding the gold text
             if (goldChip == null) return;
             var shardChip = Img(goldChip.parent, UIKit.CoinBar(), Dark); shardChip.raycastTarget = false;
             var srt = shardChip.rectTransform;
             srt.anchorMin = goldChip.anchorMin; srt.anchorMax = goldChip.anchorMax; srt.pivot = goldChip.pivot;
             srt.sizeDelta = goldChip.sizeDelta;
-            srt.anchoredPosition = goldChip.anchoredPosition + (InGameGarage.Instance != null ? InGameGarage.Instance.shardOffset : new Vector2(0, -(goldChip.sizeDelta.y + 14)));
+            srt.anchoredPosition = goldChip.anchoredPosition + (gg != null ? gg.shardOffset : new Vector2(0, -(goldChip.sizeDelta.y + 14)));
             var sci = Img(shardChip.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sci.raycastTarget = false;
             Place(sci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
             garageShardT = Label(shardChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
+        }
+
+        // The "Bake Garage Cards" slots carry a faint Image so you can see + drag them in the editor; hide those tints
+        // at runtime (the slots still position the content).
+        static void HideSlotBoxes(InGameGarage g)
+        {
+            foreach (var rt in new[] { g.chestArea, g.revealCard, g.shardSlot })
+                if (rt != null) { var im = rt.GetComponent<Image>(); if (im) im.enabled = false; }
         }
 
         // Build ONLY the garage window chrome (window, title, close, gold counter, scroll area). Sets garagePanel /
@@ -177,9 +197,10 @@ namespace BusJam
             // 0) vehicle wardrobe ("dolap") entry — opens the 3-section Cars/Minivans/Buses panel
             AddVehiclesEntry(garageContent);
 
-            // 1) chests
-            SectionLabel(garageContent, "CHESTS");
+            // 1) chests — stay in the scroll list (a free-positioned chest box overlaps the scroll). Size / spacing /
+            //    columns are Inspector-tunable on InGameGarage.
             var gg = InGameGarage.Instance;
+            SectionLabel(garageContent, "CHESTS");
             var chestGrid = GridRow(garageContent, gg != null ? gg.chestCellSize : new Vector2(275, 275), gg != null ? Mathf.Max(1, gg.chestColumns) : 3);
             if (gg != null) { var glg = chestGrid.GetComponent<GridLayoutGroup>(); if (glg) glg.spacing = gg.chestSpacing; }
             ChestCard(chestGrid, ChestTier.Bronze, "BRONZE");
@@ -372,8 +393,8 @@ namespace BusJam
             revealPanel.AddComponent<GraphicRaycaster>();
             var card = Img(revealPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f));
             var gr = InGameGarage.Instance;
-            Center(card.rectTransform, gr != null ? gr.revealSize : new Vector2(820, 980));
-            if (gr != null) card.rectTransform.anchoredPosition = gr.revealPos;
+            if (gr != null && gr.revealCard != null) { Center(card.rectTransform, gr.revealCard.sizeDelta); card.rectTransform.anchoredPosition = gr.revealCard.anchoredPosition; }
+            else { Center(card.rectTransform, gr != null ? gr.revealSize : new Vector2(820, 980)); if (gr != null) card.rectTransform.anchoredPosition = gr.revealPos; }
 
             // rarity glow (a circle that flashes out during the burst)
             revealGlow = Img(card.transform, UIKit.CircleYellow(), White); revealGlow.raycastTarget = false;

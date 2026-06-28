@@ -67,5 +67,47 @@ namespace BusJam
                       "Organize them in the Hierarchy (tick a panel active to edit, untick when done), then SAVE the scene (Ctrl+S). " +
                       "GameUI adopts them automatically at runtime.");
         }
+
+        // "BusJam ▸ Bake Garage Cards" — adds 3 DRAGGABLE slot boxes on the garage panel (chest area, chest-open popup,
+        // shard counter). Position/resize them in the Hierarchy; at runtime the cards fill them. Run AFTER "Bake Garage
+        // Panels". Re-running only creates MISSING slots (keeps ones you already positioned). SAVE the scene afterwards.
+        [MenuItem("BusJam/Bake Garage Cards")]
+        static void BakeCards()
+        {
+            var marker = Object.FindFirstObjectByType<InGameGarage>(FindObjectsInactive.Include);
+            if (marker == null || marker.garageRoot == null)
+            {
+                EditorUtility.DisplayDialog("Bake Garage Cards", "Run 'BusJam ▸ Bake Garage Panels' first (no InGameGarage / garage panel found).", "OK");
+                return;
+            }
+            var parent = marker.garageRoot.transform; // slots live on the garage panel so they show/hide with it
+
+            // NOTE: no chest slot — a free-positioned chest box overlaps the scroll list. Chests stay in the scroll
+            // (tune size/spacing/columns on InGameGarage). Only the popup + shard counter get draggable slots.
+            if (marker.revealCard == null)
+                marker.revealCard = MakeSlot(parent, "Slot_RevealPopup", new Vector2(0, 120), new Vector2(820, 980), new Color(1f, 0.82f, 0.30f, 0.10f));
+            if (marker.shardSlot == null)
+                marker.shardSlot = MakeSlot(parent, "Slot_ShardCounter", new Vector2(175, 690), new Vector2(300, 88), new Color(0.42f, 0.92f, 1f, 0.16f));
+
+            EditorUtility.SetDirty(marker);
+            EditorSceneManager.MarkSceneDirty(marker.gameObject.scene);
+            Selection.activeGameObject = marker.revealCard.gameObject;
+            EditorGUIUtility.PingObject(marker.revealCard.gameObject);
+            Debug.Log("[GarageUIBaker] Baked draggable slots: Slot_RevealPopup (chest-open popup) + Slot_ShardCounter on the garage panel. " +
+                      "Tick the garage panel active in the Hierarchy, drag/resize them, untick, then SAVE the scene (Ctrl+S). " +
+                      "Chests stay in the scroll list (tune size/spacing/columns on InGameGarage). Press Play to check.");
+        }
+
+        static RectTransform MakeSlot(Transform parent, string name, Vector2 pos, Vector2 size, Color tint)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            Undo.RegisterCreatedObjectUndo(go, "Bake Garage Cards");
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos; rt.sizeDelta = size;
+            var img = go.GetComponent<Image>(); img.color = tint; img.raycastTarget = false; // faint editor guide; hidden at runtime
+            return rt;
+        }
     }
 }

@@ -108,7 +108,7 @@ namespace BusJam
         bool pumpRunning, pumpDirty;
 
         // (#4) Level-1 tutorial coach (self-contained overlay; created lazily; reused by #5/#6).
-        TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost;
+        TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost; bool tutorialTapSkip;
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
         const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
@@ -311,7 +311,7 @@ namespace BusJam
                 if (Physics.Raycast(ray, out RaycastHit hit, 400f))
                 {
                     var bus = hit.collider.GetComponentInParent<Bus>();
-                    if (bus != null) { TryTapBus(bus); return; }
+                    if (bus != null) { if (tutorialActive) { tutorialTapSkip = true; if (tutorialStep == 1) AdvanceTutorialOnFirstMove(); } TryTapBus(bus); return; } // tapping the coached vehicle advances/dismisses the tutorial (not only on a successful park)
                     var slot = hit.collider.GetComponentInParent<ParkingSlot>();
                     if (slot != null && slot.locked) TryUnlockSlot(slot);
                 }
@@ -1739,8 +1739,9 @@ namespace BusJam
                 {
                     if (!tutorialActive || state != GameState.Playing) yield break;
                     coach.ShowText(msg);
+                    tutorialTapSkip = false; // a fresh vehicle tap skips THIS info line (tap-to-advance)
                     float t = 0f;
-                    while (t < 3f && tutorialActive && state == GameState.Playing) { t += Time.unscaledDeltaTime; yield return null; }
+                    while (t < 3f && tutorialActive && state == GameState.Playing && !tutorialTapSkip) { t += Time.unscaledDeltaTime; yield return null; }
                 }
             EndTutorial();
         }
