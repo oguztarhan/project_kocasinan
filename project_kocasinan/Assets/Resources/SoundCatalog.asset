@@ -34,6 +34,11 @@ MonoBehaviour:
   levelFailedVolume: 1
   uiButtonClick: {fileID: 8300000, guid: ec80bd99efb6c8a488d1aac44cd46679, type: 3}
   uiButtonClickVolume: 0.7
+  chestCommon: {fileID: 0}
+  chestUncommon: {fileID: 0}
+  chestEpic: {fileID: 0}
+  chestLegendary: {fileID: 8300000, guid: 219869a02ea0eec44b9bf3a2953d8bae, type: 3}
+  chestVolume: 0.85
   menuMusic: {fileID: 8300000, guid: f8b3e92997768b542ac01071dd0c6118, type: 3}
   menuMusicVolume: 0.5
   themeMusic:

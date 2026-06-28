@@ -30,6 +30,16 @@ namespace BusJam
         public Text       vehiclesGold;
         public Button     vehiclesClose;
 
+        // ---- Garage layout: tweak these in the Inspector to reposition/resize without baking. The runtime reads them
+        //      each time the garage is built, so changes show on the next Play. Leave at default to keep the current look.
+        [Header("Garage layout (Inspector-tunable, no bake)")]
+        public Vector2 chestCellSize = new Vector2(275, 275); // size of each chest button
+        public Vector2 chestSpacing  = new Vector2(15, 18);   // gap between chest buttons
+        public int     chestColumns  = 3;                      // chests per row (1 = stack them vertically)
+        public Vector2 shardOffset   = new Vector2(0, -102);   // shard counter offset from the gold chip (+x right, +y up; default = just below gold)
+        public Vector2 revealSize    = new Vector2(820, 980); // chest-open popup size
+        public Vector2 revealPos     = Vector2.zero;           // chest-open popup offset from screen centre
+
         void Awake()
         {
             Instance = this;

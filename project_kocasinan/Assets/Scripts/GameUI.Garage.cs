@@ -59,6 +59,7 @@ namespace BusJam
             if (g != null && g.garageRoot != null && g.garageContent != null && g.garageGold != null)
             {
                 garagePanel = g.garageRoot; garageContent = g.garageContent; garageGoldT = g.garageGold; close = g.garageClose;
+                EnsureBakedShardCounter(); // baked chrome has only a GOLD counter -> add a live SHARD counter beside it
             }
             else close = BuildGarageChrome();
 
@@ -66,6 +67,25 @@ namespace BusJam
             BuildReveal();
             RefreshGarage();
             if (garagePanel) garagePanel.SetActive(false);
+        }
+
+        // The BAKED garage chrome bakes only a GOLD counter, so on the baked panel add a matching SHARD counter (same
+        // CoinBar look + gem icon) at runtime, placed just BELOW the gold chip — guaranteed on-panel + live (RefreshGarage
+        // drives garageShardT). Placed below to never overflow; move it exactly beside the coins when you bake the cards
+        // later. No-op if a shard counter already exists or the refs are missing.
+        void EnsureBakedShardCounter()
+        {
+            if (garageShardT != null || garageGoldT == null) return;
+            var goldChip = garageGoldT.transform.parent as RectTransform; // the CoinBar chip holding the gold text
+            if (goldChip == null) return;
+            var shardChip = Img(goldChip.parent, UIKit.CoinBar(), Dark); shardChip.raycastTarget = false;
+            var srt = shardChip.rectTransform;
+            srt.anchorMin = goldChip.anchorMin; srt.anchorMax = goldChip.anchorMax; srt.pivot = goldChip.pivot;
+            srt.sizeDelta = goldChip.sizeDelta;
+            srt.anchoredPosition = goldChip.anchoredPosition + (InGameGarage.Instance != null ? InGameGarage.Instance.shardOffset : new Vector2(0, -(goldChip.sizeDelta.y + 14)));
+            var sci = Img(shardChip.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sci.raycastTarget = false;
+            Place(sci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
+            garageShardT = Label(shardChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
         }
 
         // Build ONLY the garage window chrome (window, title, close, gold counter, scroll area). Sets garagePanel /
@@ -159,7 +179,9 @@ namespace BusJam
 
             // 1) chests
             SectionLabel(garageContent, "CHESTS");
-            var chestGrid = GridRow(garageContent, new Vector2(275, 275), 3);
+            var gg = InGameGarage.Instance;
+            var chestGrid = GridRow(garageContent, gg != null ? gg.chestCellSize : new Vector2(275, 275), gg != null ? Mathf.Max(1, gg.chestColumns) : 3);
+            if (gg != null) { var glg = chestGrid.GetComponent<GridLayoutGroup>(); if (glg) glg.spacing = gg.chestSpacing; }
             ChestCard(chestGrid, ChestTier.Bronze, "BRONZE");
             ChestCard(chestGrid, ChestTier.Silver, "SILVER");
             ChestCard(chestGrid, ChestTier.Gold,   "GOLD");
@@ -294,10 +316,11 @@ namespace BusJam
         {
             var go = Img(parent, null, new Color(0.42f, 0.82f, 1f, 0.10f)); go.raycastTarget = false;
             var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 72; le.minHeight = 72;
-            Label(go.transform, "CRAFT", title, new Vector2(-250, 0), new Vector2(360, 58), 40, White, TextAnchor.MiddleLeft);
+            // "CRAFT" pinned to the LEFT edge, shard balance pinned to the RIGHT edge -> stays inside ANY panel width.
+            AnchorLeft(Label(go.transform, "CRAFT", title, Vector2.zero, new Vector2(300, 58), 40, White, TextAnchor.MiddleLeft).rectTransform, 36, 0);
             var gem = Img(go.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); gem.raycastTarget = false;
-            Place(gem.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-200, 0), new Vector2(46, 46));
-            Label(go.transform, SaveSystem.Shards.ToString(), num, new Vector2(180, 0), new Vector2(300, 52), 34, new Color(0.78f, 0.93f, 1f), TextAnchor.MiddleRight);
+            Place(gem.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(46, 46));
+            AnchorRight(Label(go.transform, SaveSystem.Shards.ToString(), num, Vector2.zero, new Vector2(150, 52), 34, new Color(0.78f, 0.93f, 1f), TextAnchor.MiddleRight).rectTransform, 28, 0);
         }
 
         // One craft row: car TIER + remaining-locked count + a shard-cost CRAFT button (greyed when unaffordable or the
@@ -309,14 +332,20 @@ namespace BusJam
             Color rc = TierColor(tier);
             var row = Img(parent, UIKit.ShopBoxA(), White); row.color = new Color(rc.r * 0.45f, rc.g * 0.45f, rc.b * 0.45f);
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
-            Label(row.transform, TierName(tier), num, new Vector2(-262, 24), new Vector2(320, 46), 30, White, TextAnchor.MiddleLeft);
-            Label(row.transform, locked + " left", num, new Vector2(-262, -24), new Vector2(320, 34), 22, new Color(0.86f, 0.88f, 0.94f), TextAnchor.MiddleLeft);
+            // tier name + "N left" pinned LEFT, CRAFT button pinned RIGHT -> contained at any panel width (no overflow).
+            AnchorLeft(Label(row.transform, TierName(tier), num, Vector2.zero, new Vector2(320, 46), 30, White, TextAnchor.MiddleLeft).rectTransform, 40, 24);
+            AnchorLeft(Label(row.transform, locked + " left", num, Vector2.zero, new Vector2(320, 34), 22, new Color(0.86f, 0.88f, 0.94f), TextAnchor.MiddleLeft).rectTransform, 40, -24);
             var craft = Btn(row.transform, UIKit.PriceBtnA(), can ? new Color(0.30f, 0.72f, 0.36f) : new Color(0.45f, 0.45f, 0.50f),
-                            new Vector2(1, 0.5f), new Vector2(-165, 0), new Vector2(290, 92), () => { if (can) CraftTier(tier); });
+                            new Vector2(1, 0.5f), new Vector2(-160, 0), new Vector2(280, 92), () => { if (can) CraftTier(tier); });
             var sc = Img(craft.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sc.raycastTarget = false;
             Place(sc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(44, 44));
-            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(290, 50), 30, White);
+            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(280, 50), 30, White);
         }
+
+        // Pin a rect to the LEFT / RIGHT edge of its parent so craft rows fit ANY panel width (baked or code-built),
+        // never overflowing the sides. x = margin from that edge.
+        static void AnchorLeft(RectTransform rt, float x, float y)  { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0.5f); rt.anchoredPosition = new Vector2(x, y); }
+        static void AnchorRight(RectTransform rt, float x, float y) { rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 0.5f); rt.anchoredPosition = new Vector2(-x, y); }
 
         // ---- actions --------------------------------------------------------
         void OpenChest(ChestTier tier)        { var res = ChestService.BuyAndOpen(tier);  if (res == null) return; ShowChestResult(res.Value); }
@@ -342,7 +371,9 @@ namespace BusJam
             var cv = revealPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 85;
             revealPanel.AddComponent<GraphicRaycaster>();
             var card = Img(revealPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f));
-            Center(card.rectTransform, new Vector2(820, 980));
+            var gr = InGameGarage.Instance;
+            Center(card.rectTransform, gr != null ? gr.revealSize : new Vector2(820, 980));
+            if (gr != null) card.rectTransform.anchoredPosition = gr.revealPos;
 
             // rarity glow (a circle that flashes out during the burst)
             revealGlow = Img(card.transform, UIKit.CircleYellow(), White); revealGlow.raycastTarget = false;

@@ -272,7 +272,7 @@ namespace BusJam
             set { PlayerPrefs.SetString(K_SetsOwned, value ?? ""); PlayerPrefs.Save(); }
         }
 
-        public static bool DebugOwnAll = true; // TEMP TESTING (vehicle recolour check): true = own EVERY car so all skins are equippable in the garage. Chests/craft then show "0 left" (everything owned) but the chest REVEAL + rarity sound still fire on dupes. REVERT TO false before release / to restore the chest+shard+craft economy.
+        public static bool DebugOwnAll = false; // RELEASE: MUST stay false or the chest+shard+craft economy breaks (true = own every car -> craft shows "0 left", buttons grey out = "can't craft"). NOTE: teammate syncs keep flipping this back to true for recolour testing -> re-check it is false before EVERY build.
         public static bool OwnsSet(string id)
         {
             if (DebugOwnAll) return true; // test mode — everything unlocked
