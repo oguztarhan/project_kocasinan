@@ -185,6 +185,13 @@ namespace BusJam
             set { PlayerPrefs.SetInt("bj_freejoker_granted", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Level-1 tutorial: the coach text stays until the player taps ANY vehicle; once dismissed it NEVER shows again.
+        public static bool TutorialDone
+        {
+            get => PlayerPrefs.GetInt("bj_tutorial_done", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_tutorial_done", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // ===================== COSMETIC SKINS / GACHA ECONOMY =====================
         // Owned skins = a comma-separated list of ids in ONE key (bounded, <1KB). Classic is implicitly owned, so
         // a fresh save needs no migration: OwnsSkin(Classic)==true and the equipped value self-heals to Classic.

@@ -1618,9 +1618,8 @@ namespace BusJam
             // into Lv6 when jumping levels). Each branch below re-arms its own banner/pointer fresh.
             tutorialActive = false; tutorialStep = 0;
             if (coach != null) coach.HidePointer();
-            if (levelNumber == 1)
-                StartTutorial(Loc.T("Tap a car to send it to a parking spot!"),                          // Lv1 is CARS only (vehicleMix 2) -> never say "bus"
-                              Loc.T("Same-color passengers board automatically — small cars seat 4. Clear them all to win!"));
+            if (levelNumber == 1 && !SaveSystem.TutorialDone)
+                StartTutorial(Loc.T("Tap a car to send it to a parking spot!")); // stays until ANY vehicle tap, then never shown again (TutorialDone)
             else if (levelNumber == 5)
                 StartCoroutine(ShowBanner(Loc.T("Buses seat 10 people!"), 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
             else if (levelNumber == 6)
@@ -1727,9 +1726,8 @@ namespace BusJam
         void AdvanceTutorialOnFirstMove()
         {
             if (!tutorialActive || tutorialStep != 1) return;
-            tutorialStep = 2;
-            coach.HidePointer();
-            StartCoroutine(PostStepSequence());   // walk through the post-move info lines, then drop the coach
+            SaveSystem.TutorialDone = true; // tapped a vehicle -> dismiss the coach for good; it never shows again
+            EndTutorial();
         }
 
         IEnumerator PostStepSequence()
