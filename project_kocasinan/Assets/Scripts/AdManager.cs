@@ -45,7 +45,7 @@ public class AdManager : MonoBehaviour
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
-    bool _adsEnabled = ADS_ENABLED && !SaveSystem.AdsRemoved; // off for good once the no-ads IAP is owned
+    bool _adsEnabled = ADS_ENABLED;         // refined in Awake with SaveSystem.AdsRemoved (PlayerPrefs can't be read in a field initializer)
 
     // ---- in-memory counters (reset per app session; deliberately NOT persisted) ----
     int   _wins, _losses;
@@ -84,6 +84,7 @@ public class AdManager : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        _adsEnabled = ADS_ENABLED && !SaveSystem.AdsRemoved; // off for good once the no-ads IAP is owned (PlayerPrefs is safe in Awake, not in a field initializer)
     }
 
     bool _booted;
