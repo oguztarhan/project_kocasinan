@@ -111,7 +111,7 @@ namespace BusJam
         TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost; bool tutorialTapSkip;
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
-        const float BonusTime = 120f;       // bonus-only countdown length (2 minutes)
+        const float BonusTime = 60f;        // bonus-only countdown length (1 minute)
         const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
         const int BonusComboTarget = 3;     // crash-free bus sends IN A ROW that earn the time reward
@@ -209,7 +209,7 @@ namespace BusJam
                 else sfx.Error();
             };
             ui.OnContinueAd = () => ad.ShowRewarded("continue",
-                onReward: () => { ui.HideContinue(); ContinueLevel(); },          // revive ONLY on a completed rewarded ad
+                onReward: () => { ui.HideContinue(); ContinueLevel(true); },      // revive ONLY on a completed rewarded ad; open an AD pad (not a gold pad)
                 onClosedNoReward: () => sfx.Error());                              // skip / no-ad -> stay on the continue panel
             ui.OnContinueDeclined = () =>                                          // leaving the loss flow: loss-interstitial (if eligible) THEN Failed
             {
@@ -272,13 +272,18 @@ namespace BusJam
         // CLAIM grants this; WATCH-AD grants 2x (see ClaimWinReward) -> 50 normal / 100 bonus.
         int LevelReward(int stars, bool bonus) => bonus ? GameConfig.BonusReward : GameConfig.LevelReward;
 
-        public void ContinueLevel()
+        public void ContinueLevel(bool preferAdSlot = false)
         {
             if (state != GameState.Lose || slots == null) return;
             CancelInvoke();
-            // Revive by unlocking one locked slot (breaks the parking deadlock).
-            foreach (var s in slots)
-                if (s != null && s.locked) { s.Unlock(); break; }
+            // Revive by unlocking one locked slot (breaks the parking deadlock). When the revive was EARNED with a
+            // rewarded ad, open an AD-unlock pad first so watching the ad opens the AD parking — not a coin (gold) pad.
+            ParkingSlot target = null;
+            if (preferAdSlot)
+                foreach (var s in slots) if (s != null && s.locked && s.adUnlock) { target = s; break; }
+            if (target == null)
+                foreach (var s in slots) if (s != null && s.locked) { target = s; break; }
+            if (target != null) target.Unlock();
             state = GameState.Playing;
             StartCoroutine(LineLayoutLoop()); // restart queue re-spacing (it exited when state left Playing)
             ui.ShowHud();
@@ -622,7 +627,11 @@ namespace BusJam
 
             // RE-CLAIM (mirror-reverse of TryTapBus's claim). The occ re-add + corridor-free happen in the SAME frame
             // (no yield), so there is no window where the home cells are unheld. AssertNoOccOverlap catches a slip in-editor.
-            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ[c] = bus; // re-add the footprint
+            foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length))
+            {
+                occ[c] = bus;                                                                            // re-add the footprint (jam-occupied again)
+                if (reservedByMoving.TryGetValue(c, out var rb) && rb != bus) reservedByMoving.Remove(c); // occ is authoritative: a cell this crashed bus reclaimed can't ALSO stay another mover's reserved corridor (that was the bonus [OccOverlap]); occ now protects it for everyone
+            }
             if (!gridBuses.Contains(bus)) gridBuses.Add(bus);     // undo the gridBuses.Remove
             slot.occupant = null; bus.slotIndex = -1;             // release the stop it had claimed
             bus.state = BusState.Queued;                          // re-tappable

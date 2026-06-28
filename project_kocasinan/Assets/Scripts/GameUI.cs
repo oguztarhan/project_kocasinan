@@ -457,7 +457,9 @@ namespace BusJam
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback (code-built settings)
-            if (settingsPanel != null) AddNotificationsToggle(settingsPanel.transform); // push-notification on/off
+            // (Removed per request) The in-game settings push-notification on/off toggle was added here via
+            // AddNotificationsToggle(...). That call is intentionally gone so the button no longer appears in the
+            // in-game Settings panel. The method is left defined (unused) in case it's wanted again later.
             if (settingsPanel != null) AddRestorePurchasesButton(settingsPanel.transform); // Play-policy: re-grant no-ads after reinstall
         }
 
@@ -709,8 +711,15 @@ namespace BusJam
                         btn.onClick.AddListener(() => BuyCoins(amt)); // real IAP; coins granted by IAPManager on success
                         break;
                     case InGameShopButton.Act.SpendJoker:
-                        btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) SetCoins(SaveSystem.Coins); });
+                    {
+                        int jkind = JokerBarKind(b.transform.parent != null ? b.transform.parent.name : null);
+                        if (jkind < 0) jkind = 0;                                       // unknown row name -> default to Recolor
+                        int jcost = JokerShopCost(jkind);                               // Recolor 75 / Swap 50 / Heli 100 (GameConfig)
+                        var jp = btn.transform.Find("Price")?.GetComponent<Text>();
+                        if (jp != null) jp.text = jcost.ToString();                     // show the real per-joker price (baked label was a flat "100")
+                        btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(jcost)) { SaveSystem.AddFreeJoker(jkind, 1); SetCoins(SaveSystem.Coins); RefreshJokers(); } });
                         break;
+                    }
                     case InGameShopButton.Act.Close:
                         btn.onClick.AddListener(HideShop);
                         break;
@@ -724,20 +733,84 @@ namespace BusJam
             // The bonus is granted inside IAPManager.Grant (flag-gated so a restore can't repeat it).
             WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
             WirePromoBar(shopRoot, "RemoveAds (1)", RemoveAdsPlus);
+
+            // (Shop close) Only the empty black backdrop (and the red ✕) close the shop. Force every background/
+            // card/row image to catch taps so tapping a package (the red/orange cards) can't fall through to the
+            // close-backdrop. Buttons and the icons/labels parented under them are left alone so they still work.
+            BlockShopBackgroundTaps(shopRoot);
         }
 
-        // Turn a baked, tag-less promo row into a real button: force its background to catch
-        // taps and give it a Button, then run `onBuy` when pressed.
+        // (Shop close) Make every non-button background/card/row image inside the shop a raycast target, so a tap
+        // on a package can't pass through to the dim backdrop that closes the shop. A button graphic — and an
+        // icon/label parented DIRECTLY under a button — is skipped so its taps still reach the button.
+        void BlockShopBackgroundTaps(Transform shopRoot)
+        {
+            // Make cards/rows/backgrounds catch taps so a tap resolves to them, not the backdrop behind.
+            foreach (var img in shopRoot.GetComponentsInChildren<Image>(true))
+            {
+                if (img.transform == shopRoot) continue;                        // backdrop graphic: it closes on black-area taps
+                var p = img.transform.parent;
+                if (p != null && p != shopRoot && p.GetComponent<Button>() != null && img.GetComponent<Button>() == null)
+                    continue;                                                   // a button's icon/label -> keep non-blocking so its taps reach the button
+                img.raycastTarget = true;
+            }
+
+            // THE REAL FIX: the dim backdrop is an ANCESTOR of every card AND is the tap-to-close Button. In Unity
+            // UI a click on a card with NO click handler BUBBLES UP to the first ancestor that has one — the
+            // backdrop — so the shop closes (raycastTarget on the card does NOT stop this; the event still bubbles).
+            // Put a no-op click "consumer" on each scroll Viewport (covers the whole package list) and on the Card,
+            // so a tap inside the shop is swallowed there and never bubbles up to the backdrop. Drags still scroll —
+            // the ScrollRect handles those via a separate (drag) event path.
+            foreach (var sr in shopRoot.GetComponentsInChildren<ScrollRect>(true))
+            {
+                var vp = sr.viewport != null ? sr.viewport : sr.transform.Find("Viewport") as RectTransform;
+                if (vp != null) AddClickConsumer(vp.gameObject);
+            }
+            var cardT = FindDeep(shopRoot, "Card");
+            if (cardT != null) AddClickConsumer(cardT.gameObject);
+        }
+
+        // Swallow a click that bubbled up to this object so it can't reach the dim backdrop's close handler above
+        // it. A Button is an IPointerClickHandler; with no onClick listeners it consumes the click and does nothing
+        // else. A near-invisible raycast image is added if the object has no graphic (so empty gaps are caught too).
+        // Does NOT block ScrollRect dragging (drag is a separate event).
+        void AddClickConsumer(GameObject go)
+        {
+            if (go == null || go.GetComponent<Selectable>() != null) return;
+            var g = go.GetComponent<Graphic>();
+            if (g == null) { var img = go.AddComponent<Image>(); img.color = new Color(1f, 1f, 1f, 0.004f); g = img; }
+            g.raycastTarget = true;
+            var btn = go.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.targetGraphic = g;
+        }
+
+        // Wire a baked promo row to a real purchase, but make ONLY the green price button ("PriceBg")
+        // trigger the buy. The orange bar background is left as a plain tap-blocker so tapping it does
+        // nothing — it must NOT purchase, and must NOT fall through to the shop's close-backdrop.
         void WirePromoBar(Transform shopRoot, string rowName, System.Action onBuy)
         {
             var row = FindDeep(shopRoot, rowName);
             if (row == null) return;
-            var img = row.GetComponent<Image>();
-            if (img != null) img.raycastTarget = true; // the bar background receives the tap
-            var btn = row.GetComponent<Button>();
-            if (btn == null) btn = row.gameObject.AddComponent<Button>();
-            if (img != null) btn.targetGraphic = img;
-            btn.onClick.AddListener(() => onBuy());
+
+            // Orange bar background: keep catching taps (so they can't reach the close-backdrop behind
+            // the shop), but make sure it never BUYS — clear any whole-bar button listeners.
+            var rowImg = row.GetComponent<Image>();
+            if (rowImg != null) rowImg.raycastTarget = true;
+            var rowBtn = row.GetComponent<Button>();
+            if (rowBtn != null) rowBtn.onClick = new Button.ButtonClickedEvent();
+
+            // The purchase button = the green price child. Fall back to the whole row only if no price
+            // child is found (so buying still works on an unexpected layout).
+            var price = FindDeep(row, "PriceBg");
+            var target = price != null ? price : row;
+            var pImg = target.GetComponent<Image>();
+            if (pImg != null) pImg.raycastTarget = true;
+            var pBtn = target.GetComponent<Button>();
+            if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
+            if (pImg != null) pBtn.targetGraphic = pImg;
+            pBtn.onClick = new Button.ButtonClickedEvent();
+            pBtn.onClick.AddListener(() => onBuy());
         }
 
         // First descendant (inactive included) whose GameObject is named `name`, else null.
@@ -747,6 +820,19 @@ namespace BusJam
                 if (t.name == name) return t;
             return null;
         }
+
+        // A shop joker bar -> its joker kind by row name ("Bar_Shuffle"=Recolor 0, "Bar_Swap"=Swap 1, "Bar_Heli"=Heli 2).
+        static int JokerBarKind(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return -1;
+            var n = name.ToLowerInvariant();
+            if (n.Contains("heli")) return 2;
+            if (n.Contains("swap")) return 1;
+            if (n.Contains("shuffle") || n.Contains("recolor")) return 0;
+            return -1;
+        }
+        // Per-joker shop price from GameConfig (Recolor 75 / Swap 50 / Heli 100) — same source as the HUD joker buy panel.
+        static int JokerShopCost(int kind) => kind == 1 ? GameConfig.SwapCost : kind == 2 ? GameConfig.HeliCost : GameConfig.RecolorCost;
 
         // The two no-ads shop bars -> real Google Play purchases. The entitlement (and the "plus" tier's one-time
         // bonus) is applied in IAPManager.Grant after Google signs the receipt; OnIapChanged then refreshes the HUD.

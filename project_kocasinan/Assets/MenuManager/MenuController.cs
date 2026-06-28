@@ -61,6 +61,7 @@ public class MenuController : MonoBehaviour
         CloseAll();
         Refresh();
         WireShop();            // the baked menu shop's coin/joker buttons have NO listeners in this scene -> wire them now
+        WireRemoveAdsPanel();  // the dedicated Remove-Ads popup's offer graphics have NO listeners -> wire them to IAP
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
@@ -224,13 +225,18 @@ public class MenuController : MonoBehaviour
     // Spend 100 gold (joker purchase). Returns silently if not enough.
     public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }
 
-    // The baked menu shop's coin / joker buttons carry InGameShopButton tags but — unlike the in-game shop, which
-    // GameUI.WireSceneShop hooks up — NOTHING wired them in this scene, so taps did nothing. Wire them to live
-    // actions here (coin packs -> real Google Play IAP; jokers -> spend 100 gold). Close buttons already carry a
-    // baked CloseAll listener, so we leave those alone to avoid firing it twice.
+    // Wire the baked menu shop. Unlike the in-game shop (which GameUI.WireSceneShop hooks up), the menu baker
+    // leaves the coin packs and the no-ads price button WITHOUT any purchase listener, so taps did nothing
+    // ("purchases don't work in the main menu shop"). We wire them here:
+    //   • coin packs  -> real Google Play IAP (matched by the baked "Pack_<amount>" card name)
+    //   • no-ads bars -> ONLY the green price button buys; tapping the orange bar does nothing
+    // Joker bars already carry a baked BuyFor100 listener and Close carries CloseAll, so those are left alone.
+    // We also make the shop card block taps so tapping a package can't fall through to the dim backdrop (close).
     void WireShop()
     {
         if (shopPanel == null) return;
+
+        // (a) Any InGameShopButton-tagged buttons (kept for forward-compat; today's menu bake has none).
         foreach (var b in shopPanel.GetComponentsInChildren<InGameShopButton>(true))
         {
             var btn = b.GetComponent<Button>();
@@ -244,6 +250,153 @@ public class MenuController : MonoBehaviour
                 case InGameShopButton.Act.SpendJoker:
                     btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) Refresh(); });
                     break;
+            }
+        }
+
+        // (b) Coin packs by name: each card is "Pack_<amount>" with an unwired child "Buy" button.
+        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == null || !t.name.StartsWith("Pack_")) continue;
+            if (t.GetComponent<InGameShopButton>() != null) continue;            // already wired in (a)
+            if (!int.TryParse(t.name.Substring(5), out int coins)) continue;
+            var buyT = FindInPanel(t, "Buy");
+            var buy = buyT != null ? buyT.GetComponent<Button>() : null;
+            if (buy == null) continue;
+            buy.onClick.AddListener(() => BuyCoinsPack(coins));
+        }
+
+        // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
+        WireMenuPromo("RemoveAds", BuyRemoveAds);
+        WireMenuPromo("RemoveAds (1)", BuyRemoveAdsPlus);
+
+        // (c2) Joker bars: charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100) AND grant the joker.
+        // The baker wired all three to BuyFor100 (spend 100, grant nothing) -> override here. Handles duplicates.
+        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
+        {
+            int jkind = JokerBarKind(t.name);
+            if (jkind >= 0) WireMenuJoker(t, jkind);
+        }
+
+        // (d) Only the empty black backdrop (and the Home/Daily nav) close the shop. Force every background/card/
+        // row image to catch taps so tapping a package (the red/orange cards) can't fall through to the close-
+        // backdrop. Buttons and the icons/labels parented under them are left alone so they still work.
+        BlockShopBackgroundTaps(shopPanel.transform);
+    }
+
+    // (Shop close) Make every non-button background/card/row image in the shop a raycast target, so a tap on a
+    // package can't pass through to the dim backdrop that closes the shop. A button graphic — and an icon/label
+    // parented DIRECTLY under a button — is skipped so its taps still reach the button.
+    void BlockShopBackgroundTaps(Transform shopRoot)
+    {
+        foreach (var img in shopRoot.GetComponentsInChildren<Image>(true))
+        {
+            if (img.transform == shopRoot) continue;
+            var p = img.transform.parent;
+            if (p != null && p != shopRoot && p.GetComponent<Button>() != null && img.GetComponent<Button>() == null)
+                continue;
+            img.raycastTarget = true;
+        }
+
+        // THE REAL FIX: a click on a card with NO handler bubbles up to the first ancestor handler — the dim
+        // backdrop's CloseAll Button — closing the shop (raycastTarget on the card does NOT stop the bubble). Put a
+        // no-op click consumer on each scroll Viewport and on the Card so taps inside the shop are swallowed there
+        // and never bubble to the backdrop. Drags still scroll (the ScrollRect handles those separately).
+        foreach (var sr in shopRoot.GetComponentsInChildren<ScrollRect>(true))
+        {
+            var vp = sr.viewport != null ? sr.viewport : sr.transform.Find("Viewport") as RectTransform;
+            if (vp != null) AddClickConsumer(vp.gameObject);
+        }
+        var cardT = FindInPanel(shopRoot, "Card");
+        if (cardT != null) AddClickConsumer(cardT.gameObject);
+    }
+
+    // Swallow a click that bubbled up to this object so it can't reach the dim backdrop's CloseAll above it. A
+    // Button with no onClick listeners consumes the click and does nothing else; a near-invisible raycast image is
+    // added if the object has no graphic. Does NOT block ScrollRect dragging.
+    void AddClickConsumer(GameObject go)
+    {
+        if (go == null || go.GetComponent<Selectable>() != null) return;
+        var g = go.GetComponent<Graphic>();
+        if (g == null) { var img = go.AddComponent<Image>(); img.color = new Color(1f, 1f, 1f, 0.004f); g = img; }
+        g.raycastTarget = true;
+        var btn = go.AddComponent<Button>();
+        btn.transition = Selectable.Transition.None;
+        btn.targetGraphic = g;
+    }
+
+    // Wire ONLY the green price button ("PriceBg" child) of a no-ads bar to its purchase, leaving the orange bar
+    // background as a plain tap-blocker (so tapping it neither buys nor closes the shop). Safe if row/child absent.
+    void WireMenuPromo(string rowName, System.Action onBuy)
+    {
+        if (shopPanel == null) return;
+        var row = FindInPanel(shopPanel.transform, rowName);
+        if (row == null) return;
+        var rowImg = row.GetComponent<Image>();
+        if (rowImg != null) rowImg.raycastTarget = true;
+        var rowBtn = row.GetComponent<Button>();
+        if (rowBtn != null) rowBtn.onClick = new Button.ButtonClickedEvent();  // the whole bar must never buy
+        var priceT = FindInPanel(row, "PriceBg");
+        var target = priceT != null ? priceT : row;                           // fallback: keep buying working
+        var pImg = target.GetComponent<Image>();
+        if (pImg != null) pImg.raycastTarget = true;
+        var pBtn = target.GetComponent<Button>();
+        if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
+        if (pImg != null) pBtn.targetGraphic = pImg;
+        pBtn.onClick = new Button.ButtonClickedEvent();
+        pBtn.onClick.AddListener(() => onBuy());
+    }
+
+    // A shop joker bar -> joker kind by row name ("Bar_Shuffle"=Recolor 0, "Bar_Swap"=Swap 1, "Bar_Heli"=Heli 2).
+    static int JokerBarKind(string name)
+    {
+        if (string.IsNullOrEmpty(name) || !name.StartsWith("Bar_")) return -1;
+        var n = name.ToLowerInvariant();
+        if (n.Contains("heli")) return 2;
+        if (n.Contains("swap")) return 1;
+        if (n.Contains("shuffle") || n.Contains("recolor")) return 0;
+        return -1;
+    }
+
+    // Charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100 from GameConfig) and GRANT the joker. The
+    // menu baker had wired every joker bar to BuyFor100 (spend 100, grant nothing); this replaces that and updates
+    // the price label. The granted joker is stored in SaveSystem and shows on the in-game HUD.
+    void WireMenuJoker(Transform row, int kind)
+    {
+        var buyT = FindInPanel(row, "Buy");
+        var buy = buyT != null ? buyT.GetComponent<Button>() : null;
+        if (buy == null) return;
+        int cost = kind == 1 ? GameConfig.SwapCost : kind == 2 ? GameConfig.HeliCost : GameConfig.RecolorCost;
+        var priceT = FindInPanel(buy.transform, "Price");
+        var priceTxt = priceT != null ? priceT.GetComponent<Text>() : null;
+        if (priceTxt != null) priceTxt.text = cost.ToString();
+        buy.onClick = new Button.ButtonClickedEvent();                     // drop the baked BuyFor100
+        buy.onClick.AddListener(() => { if (SaveSystem.TrySpend(cost)) { SaveSystem.AddFreeJoker(kind, 1); Refresh(); } });
+    }
+
+    // The dedicated Remove-Ads popup (Panel_RemoveAds, opened by the top-right no-ads icon) shows its two offers as
+    // plain Image graphics ("Image" / "Image 2") with NO Button, so tapping them did nothing. Make each offer ONE
+    // clickable button and route it to the right Google Play product: the offer that advertises the "+200" gold
+    // bonus = remove_ads_plus (BuyRemoveAdsPlus); the other = remove_ads (BuyRemoveAds).
+    void WireRemoveAdsPanel()
+    {
+        if (removeAdsPanel == null) return;
+        foreach (var t in removeAdsPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name != "Image" && t.name != "Image 2") continue;
+
+            // Which product? the "+200" gold bonus marks the remove_ads_plus tier; the other is plain remove_ads.
+            bool isPlus = false;
+            foreach (var txt in t.GetComponentsInChildren<Text>(true))
+                if (txt.text != null && txt.text.Contains("200")) { isPlus = true; break; }
+            System.Action onBuy = isPlus ? (System.Action)BuyRemoveAdsPlus : BuyRemoveAds;
+
+            // Wire ONLY the small green Button(s) inside this offer to the purchase. Nothing else is touched — the
+            // big orange offer graphic has no Button so it stays non-clickable on its own.
+            foreach (var green in t.GetComponentsInChildren<Button>(true))
+            {
+                if (green.transform == t) continue;                 // never the big orange offer root itself
+                green.onClick = new Button.ButtonClickedEvent();
+                green.onClick.AddListener(() => onBuy());
             }
         }
     }

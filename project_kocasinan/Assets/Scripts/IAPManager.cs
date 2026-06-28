@@ -24,6 +24,7 @@ namespace BusJam
         public static readonly (string id, int coins)[] CoinPacks =
         {
             ("coins_100", 100), ("coins_500", 500), ("coins_1000", 1000),
+            ("coins_1300", 1300), // extra menu pack (the $4.99 "Pack_1300" card) — CREATE this product in Play Console before release
             ("coins_2000", 2000), ("coins_5000", 5000), ("coins_10000", 10000),
         };
         public const string RemoveAds     = "remove_ads";       // non-consumable: ads off
