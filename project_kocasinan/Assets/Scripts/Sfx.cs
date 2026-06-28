@@ -15,10 +15,11 @@ namespace BusJam
         AudioSource engine;  // SEPARATE looping voice for the "vehicle moving" vroom (a continuous layer)
         AudioSource heliSrc; // SEPARATE looping voice for the helicopter-joker rotor (owns the audio while flying)
         AudioClip board, coin, error, win, lose, click, crash, honk, screech, deploy, heli;
+        AudioClip[] chest; // 4 rarity-graded chest-open fanfares (index = won car rarity 0..3)
         int heliVoices;      // # of helicopters in flight; the rotor loop owns the move-audio while > 0 (one ending heli can't cut another's audio)
         float master = 1f;                                   // master multiplier (catalog)
         // per-clip volumes (catalog), each 0..1
-        float vBoard = 1f, vCoin = 1f, vError = 1f, vWin = 1f, vLose = 1f, vClick = 1f, vCrash = 1f, vHonk = 1f, vScreech = 1f, vDeploy = 1f, vHeli = 0.6f;
+        float vBoard = 1f, vCoin = 1f, vError = 1f, vWin = 1f, vLose = 1f, vClick = 1f, vCrash = 1f, vHonk = 1f, vScreech = 1f, vDeploy = 1f, vHeli = 0.6f, vChest = 0.85f;
 
         /// <summary>Get the single Sfx, creating it if no scene has made one yet.</summary>
         public static Sfx Ensure()
@@ -63,6 +64,7 @@ namespace BusJam
                 vScreech = Mathf.Clamp01(cat.fullBusDrivesAwayVolume);
                 vDeploy  = Mathf.Clamp01(cat.vehicleSlidesOutVolume);
                 vHeli    = Mathf.Clamp01(cat.helicopterVolume);
+                vChest   = Mathf.Clamp01(cat.chestVolume);
             }
 
             // If the catalog slot is empty we randomly pick one of the 3 generated helicopter_0N clips per flight
@@ -79,6 +81,10 @@ namespace BusJam
             honk    = Pick(cat ? cat.vehicleArrivesAtStop  : null, BuildHonk());
             screech = Pick(cat ? cat.fullBusDrivesAway     : null, BuildScreech());
             deploy  = cat ? cat.vehicleSlidesOutOfJam : null; // no built-in (the drum was removed) — silent unless you add a clip
+
+            // rarity-graded chest-open fanfares: a catalog clip per rarity OVERRIDES the built-in procedural one
+            chest = new AudioClip[4];
+            for (int r = 0; r < 4; r++) chest[r] = Pick(cat ? cat.ChestClip(r) : null, BuildChestFanfare(r));
         }
 
         static AudioClip Pick(AudioClip custom, AudioClip builtin) => custom != null ? custom : builtin;
@@ -92,6 +98,7 @@ namespace BusJam
         public void Crash()   => Play(crash,   vCrash);
         public void Honk()    => Play(honk,    vHonk);
         public void Screech() => Play(screech, vScreech); // bus drives away — volume via catalog
+        public void Chest(int rarity) => Play(chest != null ? chest[Mathf.Clamp(rarity, 0, 3)] : null, vChest); // rarity-graded chest open (0 Common .. 3 Legendary)
 
         /// <summary>Turn the looping engine (vroom) on/off. Called every frame from movement detection:
         /// on while ANY vehicle is moving, off the instant they all stop. Silent if no clip / sound is off.</summary>
@@ -253,6 +260,81 @@ namespace BusJam
                 data[i] = s * env * 0.3f;
             }
             return Clip("screech", data);
+        }
+
+        // CHEST OPEN fanfare, grander the rarer (0 Common .. 3 Legendary): a rising bell arpeggio that resolves into a
+        // held chord, with a sparkle shimmer on Epic+ and a low boom under the Legendary — so the player HEARS what
+        // they won the instant the chest pops open. Each rarity is a different length + voicing, so they're unmistakable.
+        AudioClip BuildChestFanfare(int rarity)
+        {
+            rarity = Mathf.Clamp(rarity, 0, 3);
+            float[] scale = { 523.25f, 659.25f, 783.99f, 1046.5f, 1318.5f, 1568.0f }; // C5 E5 G5 C6 E6 G6
+            int notes     = new[] { 2, 3, 4, 6 }[rarity];
+            float noteDur = new[] { 0.085f, 0.085f, 0.090f, 0.095f }[rarity];
+            float ringDur = new[] { 0.22f, 0.30f, 0.45f, 0.70f }[rarity];
+            int nArp = (int)(Rate * noteDur), nRing = (int)(Rate * ringDur);
+            int total = nArp * notes + nRing;
+            var data = new float[total];
+            const float vol = 0.42f;
+
+            // rising bell arpeggio (fundamental + octave + 12th harmonics -> a bright chime)
+            for (int k = 0; k < notes; k++)
+            {
+                float f = scale[k];
+                for (int i = 0; i < nArp; i++)
+                {
+                    float t = (float)i / nArp, tau = i / (float)Rate, env = Mathf.Exp(-3.2f * t);
+                    float s = Mathf.Sin(2f * Mathf.PI * f * tau)
+                            + 0.45f * Mathf.Sin(2f * Mathf.PI * f * 2f * tau)
+                            + 0.22f * Mathf.Sin(2f * Mathf.PI * f * 3f * tau);
+                    data[k * nArp + i] += (s / 1.7f) * env * vol;
+                }
+            }
+
+            // a resolved chord held under the ring-out (root + major third + fifth + octave)
+            int baseI = notes * nArp;
+            float root = scale[0];
+            float[] chord = { root, root * 1.26f, root * 1.5f, root * 2f };
+            for (int i = 0; i < nRing; i++)
+            {
+                float t = (float)i / nRing, tau = i / (float)Rate;
+                float env = Mathf.Exp(-2.0f * t) * Mathf.Min(1f, (1f - t) / 0.12f); // rings out, click-free tail
+                float s = 0f;
+                for (int c = 0; c < chord.Length; c++) s += Mathf.Sin(2f * Mathf.PI * chord[c] * tau);
+                data[baseI + i] += (s / chord.Length) * env * vol;
+            }
+
+            // sparkle shimmer over the ring-out (Epic+) — random high twinkles
+            if (rarity >= 2)
+            {
+                int sparkles = rarity == 3 ? 16 : 7;
+                for (int sp = 0; sp < sparkles; sp++)
+                {
+                    int start = baseI + (int)(nRing * (0.05f + 0.8f * Random.value));
+                    float sf = 2200f + 3200f * Random.value;
+                    int slen = (int)(Rate * 0.06f);
+                    for (int i = 0; i < slen && start + i < total; i++)
+                    {
+                        float t = (float)i / slen;
+                        data[start + i] += Mathf.Sin(2f * Mathf.PI * sf * (i / (float)Rate)) * Mathf.Exp(-7f * t) * 0.12f;
+                    }
+                }
+            }
+
+            // a low boom under the Legendary open for grandeur
+            if (rarity == 3)
+            {
+                int blen = (int)(Rate * 0.22f);
+                for (int i = 0; i < blen && i < total; i++)
+                {
+                    float t = (float)i / blen;
+                    float fb = Mathf.Lerp(120f, 55f, t);
+                    data[i] += Mathf.Sin(2f * Mathf.PI * fb * (i / (float)Rate)) * Mathf.Exp(-5f * t) * 0.35f;
+                }
+            }
+
+            for (int i = 0; i < total; i++) data[i] = Mathf.Clamp(data[i], -1f, 1f);
+            return Clip("chest" + rarity, data);
         }
     }
 }

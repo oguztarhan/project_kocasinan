@@ -46,7 +46,6 @@ namespace BusJam.EditorTools
             ("mv_transit",     "Transit",     0),
             ("mv_minibus",     "Minibus",     0),
             ("mv_transporter", "Transporter", 1),
-            ("mv_master",      "Master",      1),
             ("mv_sprinter",    "Sprinter",    2),
             ("mv_vclass",      "V-Class",     2),
             ("mv_amber",       "Amber",       3),
@@ -61,7 +60,6 @@ namespace BusJam.EditorTools
             ("bus_alpine", "Alpine",   1),
             ("bus_coach",  "Coach",    1),
             ("bus_voyage", "Voyage",   2),
-            ("bus_hydro",  "Hydro",    2),
             ("bus_azure",  "Azure",    3),
             ("bus_silver", "Silver",   3),
         };

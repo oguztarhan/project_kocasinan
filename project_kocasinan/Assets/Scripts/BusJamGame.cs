@@ -2749,10 +2749,11 @@ namespace BusJam
         }
 
         // --- .glb van/bus recolour (single-material model: one texture bakes in body + windows + wheels) -------------
-        // There's no swatch BAND to recolour like the Mega Pack atlas — the van is one textured shell. So recolour by
-        // VALUE: the body is the LIGHT / near-grey region; windows, tyres and shadows are DARK. Repaint the light pixels
-        // to the EXACT gameplay colour (the same flat colour the sedan body + boarding people use, so all three match)
-        // and keep the dark pixels so windows + wheels survive. Reads via a GPU copy (glb textures aren't CPU-readable).
+        // There's no swatch BAND to recolour like the Mega Pack atlas — the van is one textured shell, so find the body
+        // BY COLOUR: a model with a distinct paint HUE (azure/red/yellow) repaints just that hue; a neutral white/silver/
+        // grey model repaints its LIGHT shell. Either way windows, tyres and lights are KEPT at their original pixel so
+        // they survive untouched, and the body becomes the flat gameplay colour (sedan body + boarding people match it).
+        // Reads via a GPU copy (glb textures aren't CPU-readable).
         readonly Dictionary<(Texture, PieceColor), Texture2D> vanRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>();
         Texture2D RecoloredVanTex(Texture src, PieceColor color)
         {
@@ -2768,45 +2769,86 @@ namespace BusJam
             if (px == null) { vanRecolorCache[key] = null; return null; }
             Color32 c = PeopleColor(color);
 
-            // REBUILD the in-game look from scratch (independent of the catalogue/garage texture, which still shows the
-            // native look in the menu). Output only TWO colours so nothing can ever look "mixed": the whole exterior
-            // (body + any livery / stripes) -> the solid palette colour; the glass / tyres / deep shadow -> a controlled
-            // dark "glass" colour. The original texture is used ONLY to locate the dark region.
-            const byte GR = 32, GG = 35, GB = 44; // controlled dark glass / tyre colour for ALL in-game vehicles
-            Color32 glass = new Color32(GR, GG, GB, 255);
+            // These chaotic single-mesh .glb vehicles bake the WHOLE model (body + windows + tyres + lights) into ONE
+            // texture with no separable submesh, so "body only" is decided PER-PIXEL — and windows + tyres are always
+            // LEFT AT THEIR ORIGINAL pixel (never recoloured, never flattened to a fake grey). Two body cases:
+            //   • COLOURED body (azure / red / yellow bus): the body is a distinct HUE -> repaint ONLY that hue.
+            //   • NEUTRAL white / silver / grey body: no body hue -> the body is the LIGHT shell, split from the darker
+            //     windows/tyres by an Otsu threshold over the NON-near-black luminance (so the unused black UV-atlas
+            //     background + deep shadow can't drag the split onto the body). Adapts across white..silver.
+            // A truly BLACK-bodied van can't be told apart from its own black glass — it keeps its dark shell (the one
+            // case a single baked texture genuinely can't separate) rather than smearing colour across the windows.
 
-            // Is the whole shell dark + grey (a black/grey van)? Then its body is indistinguishable from its own dark
-            // glass, so paint the WHOLE thing the solid colour (windows merge — unavoidable, but never a mix-up).
-            var bins = new int[32 * 32 * 32];
+            // body paint hue = peak of a saturation-weighted hue histogram over the BRIGHT saturated pixels (value >= 0.35
+            // so DARK tinted glass — e.g. the Classic bus's navy windows — isn't mistaken for a coloured body and painted
+            // over); also tally the bright-WHITE pixels so a coloured bus with a big white roof can have that roof painted.
+            var hueHist = new float[36];
+            int satCount = 0, whiteCount = 0;
             for (int i = 0; i < px.Length; i++)
-                bins[((px[i].r >> 3) << 10) | ((px[i].g >> 3) << 5) | (px[i].b >> 3)]++;
-            int bestBin = 0, bestN = -1;
-            for (int b = 0; b < bins.Length; b++) if (bins[b] > bestN) { bestN = bins[b]; bestBin = b; }
-            float dr0 = (((bestBin >> 10) & 31) << 3) / 255f, dg0 = (((bestBin >> 5) & 31) << 3) / 255f, db0 = ((bestBin & 31) << 3) / 255f;
-            float domLum = 0.299f * dr0 + 0.587f * dg0 + 0.114f * db0;
-            float domMax = Mathf.Max(dr0, Mathf.Max(dg0, db0)), domMin = Mathf.Min(dr0, Mathf.Min(dg0, db0));
-            float domSat = domMax > 0.004f ? (domMax - domMin) / domMax : 0f;
-
-            if (domLum < 0.22f && domSat < 0.25f)
             {
-                for (int i = 0; i < px.Length; i++) px[i] = c; // black/grey van -> one clean solid colour
+                Color.RGBToHSV(new Color(px[i].r / 255f, px[i].g / 255f, px[i].b / 255f), out float ph, out float ps, out float pv);
+                if (ps >= 0.25f && pv >= 0.35f) { hueHist[Mathf.Clamp((int)(ph * 36f), 0, 35)] += ps; satCount++; }
+                if (pv >= 0.82f && ps <= 0.12f) whiteCount++;
             }
-            else
+            bool coloredBody = (float)satCount / px.Length >= 0.10f;
+            // A coloured bus often has a WHITE roof (Fleet, Classic) the hue test would leave white. If white is a BIG
+            // area (a roof — not just a few light bits / headlights) paint it the body colour too so the roof matches.
+            bool paintRoofWhite = coloredBody && (float)whiteCount / px.Length >= 0.04f;
+            float bodyHue = 0f;
+            if (coloredBody)
             {
-                // Split body vs glass by an ADAPTIVE cut at ~the darkest 18% of the texture (glass + tyres + shadow),
-                // so even a LIGHT vehicle's mid-grey windows are caught. Clamp [0.05,0.34] so a light van never paints
-                // body as glass and a darker van still keeps a sliver of glass. 256-bin luminance histogram.
+                int pk = 0; float pkv = -1f;
+                for (int k = 0; k < 36; k++) if (hueHist[k] > pkv) { pkv = hueHist[k]; pk = k; }
+                bodyHue = (pk + 0.5f) / 36f;
+            }
+
+            // neutral fallback: Otsu threshold over the luminance of the non-near-black pixels (skip < ~0.063)
+            float lumThr = 0.5f;
+            if (!coloredBody)
+            {
                 var lhist = new int[256];
-                var lumA = new float[px.Length];
+                int lcount = 0;
                 for (int i = 0; i < px.Length; i++)
                 {
                     float l = 0.299f * px[i].r / 255f + 0.587f * px[i].g / 255f + 0.114f * px[i].b / 255f;
-                    lumA[i] = l; lhist[Mathf.Clamp((int)(l * 255f), 0, 255)]++;
+                    int bI = Mathf.Clamp((int)(l * 255f), 0, 255);
+                    if (bI >= 16) { lhist[bI]++; lcount++; }
                 }
-                int targetN = (int)(px.Length * 0.30f), cum = 0, cutBin = 0;
-                for (int bI = 0; bI < 256; bI++) { cum += lhist[bI]; if (cum >= targetN) { cutBin = bI; break; } }
-                float thr = Mathf.Clamp(cutBin / 255f, 0.05f, 0.42f);
-                for (int i = 0; i < px.Length; i++) px[i] = lumA[i] < thr ? glass : c;
+                if (lcount > 0)
+                {
+                    float sum = 0f; for (int t = 16; t < 256; t++) sum += t * (float)lhist[t];
+                    float sumB = 0f, wB = 0f, maxVar = -1f; int best = 128;
+                    for (int t = 16; t < 256; t++)
+                    {
+                        wB += lhist[t]; if (wB == 0f) continue;
+                        float wF = lcount - wB; if (wF <= 0f) break;
+                        sumB += t * (float)lhist[t];
+                        float mB = sumB / wB, mF = (sum - sumB) / wF, diff = mB - mF;
+                        float between = wB * wF * diff * diff;
+                        if (between > maxVar) { maxVar = between; best = t; }
+                    }
+                    lumThr = best / 255f;
+                }
+            }
+
+            // paint ONLY the body; every other pixel (windows, tyres, lights, trim) is left ORIGINAL
+            for (int i = 0; i < px.Length; i++)
+            {
+                float r = px[i].r / 255f, g = px[i].g / 255f, b = px[i].b / 255f;
+                bool isBody;
+                if (coloredBody)
+                {
+                    Color.RGBToHSV(new Color(r, g, b), out float ph, out float ps, out float pv);
+                    float hd = Mathf.Abs(ph - bodyHue); if (hd > 0.5f) hd = 1f - hd;       // circular hue distance
+                    isBody = (ps >= 0.12f && pv >= 0.10f && hd < 0.075f)                    // same paint hue, any brightness
+                          || (paintRoofWhite && pv >= 0.82f && ps <= 0.12f);                // ...or the big white roof
+                }
+                else
+                {
+                    float l = 0.299f * r + 0.587f * g + 0.114f * b;
+                    isBody = l >= lumThr;                                            // light shell = body
+                }
+                if (isBody) px[i] = c;
             }
             var dst = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = src.name + "_van_" + color };
             dst.SetPixels32(px); dst.Apply(false);

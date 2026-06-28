@@ -133,14 +133,6 @@ MonoBehaviour:
     carPrefab: {fileID: 0}
     minivanPrefab: {fileID: -8098169881513260187, guid: dfbf24bf5e173ce48a465501b8c4388b, type: 3}
     busPrefab: {fileID: 0}
-  - id: mv_master
-    displayName: Master
-    price: 0
-    rarity: 1
-    type: 2
-    carPrefab: {fileID: 0}
-    minivanPrefab: {fileID: -8098169881513260187, guid: 04e869da9956af6418e6ea9e459c4353, type: 3}
-    busPrefab: {fileID: 0}
   - id: mv_sprinter
     displayName: Sprinter
     price: 0
@@ -229,14 +221,6 @@ MonoBehaviour:
     carPrefab: {fileID: 0}
     minivanPrefab: {fileID: 0}
     busPrefab: {fileID: -8098169881513260187, guid: e9fbcb16bb44ead4c913d1b7ef065beb, type: 3}
-  - id: bus_hydro
-    displayName: Hydro
-    price: 0
-    rarity: 2
-    type: 1
-    carPrefab: {fileID: 0}
-    minivanPrefab: {fileID: 0}
-    busPrefab: {fileID: -8098169881513260187, guid: 0b534f6b4b967994abdf29a48055e487, type: 3}
   - id: bus_azure
     displayName: Azure
     price: 0

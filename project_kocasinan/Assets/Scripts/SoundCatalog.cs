@@ -90,6 +90,19 @@ namespace BusJam
         public AudioClip uiButtonClick;
         [Range(0f, 1f)] public float uiButtonClickVolume = 0.7f;
 
+        [Header("CHESTS")]
+
+        [Tooltip("Plays when a chest pops open revealing a COMMON car. Empty -> built-in procedural fanfare.")]
+        public AudioClip chestCommon;
+        [Tooltip("Chest open — UNCOMMON car. Empty -> built-in fanfare.")]
+        public AudioClip chestUncommon;
+        [Tooltip("Chest open — EPIC car. Empty -> built-in fanfare.")]
+        public AudioClip chestEpic;
+        [Tooltip("Chest open — LEGENDARY car (the grail). Empty -> built-in fanfare.")]
+        public AudioClip chestLegendary;
+        [Tooltip("Volume for ALL chest-open sounds.")]
+        [Range(0f, 1f)] public float chestVolume = 0.85f;
+
         [Header("MUSIC")]
 
         [Tooltip("Main-menu background music — loops on the menu screen.")]
@@ -112,6 +125,18 @@ namespace BusJam
                     if (t != null && t.theme == theme) { clip = t.music; vol = t.volume; return true; }
             clip = null; vol = 0.5f;
             return false;
+        }
+
+        // Chest-open fanfare override for a won car's rarity (0 Common .. 3 Legendary); null -> Sfx uses its built-in.
+        public AudioClip ChestClip(int rarity)
+        {
+            switch (Mathf.Clamp(rarity, 0, 3))
+            {
+                case 1:  return chestUncommon;
+                case 2:  return chestEpic;
+                case 3:  return chestLegendary;
+                default: return chestCommon;
+            }
         }
 
         const string MusicPath = "Sounds/musics/";

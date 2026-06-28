@@ -409,10 +409,10 @@ namespace BusJam
             float fill = car.type == VehicleType.Car ? 0.6f : car.type == VehicleType.Minivan ? 0.72f : 0.85f;
             float yaw  = car.type == VehicleType.Car ? 215f : 35f;
             Texture preview = VehiclePreview.Get(car.PrefabFor(car.type), yaw, car.type != VehicleType.Car, fill);
-            revealCo = StartCoroutine(RevealAnim(TierColor(car.rarity), Mathf.Clamp01(car.rarity / 3f), preview, car.displayName, sub, keyDropped, keyTier));
+            revealCo = StartCoroutine(RevealAnim(TierColor(car.rarity), Mathf.Clamp01(car.rarity / 3f), preview, car.displayName, sub, keyDropped, keyTier, car.rarity));
         }
 
-        IEnumerator RevealAnim(Color rc, float inten, Texture preview, string nm, string sub, bool keyDropped, ChestTier keyTier)
+        IEnumerator RevealAnim(Color rc, float inten, Texture preview, string nm, string sub, bool keyDropped, ChestTier keyTier, int rarity)
         {
             if (revealFrame) revealFrame.color = rc;
             if (revealName)  revealName.text = nm;
@@ -439,6 +439,7 @@ namespace BusJam
             revealChestGroup.transform.localRotation = Quaternion.identity;
 
             // 2) burst: rarity glow + ray-burst flash out (bigger/brighter the rarer), chest pops + fades
+            Sfx.Ensure().Chest(rarity); // rarity-specific chest fanfare hits the instant the chest pops open
             t = 0f;
             float glowMax = 2.4f + 2.0f * inten, raysA = 0.20f + 0.55f * inten;
             while (t < 0.28f)
