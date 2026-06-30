@@ -37,11 +37,14 @@ public class AdManager : MonoBehaviour
     // ===== TEMP debug panel + hotkey (T6). Set false / delete before release. =====
     public const bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
 
-    // ===================== REAL ad unit IDs (AdMob — publisher ca-app-pub-2925766743577038) =====================
-    const string APP_ID          = "ca-app-pub-2925766743577038~9158222172"; // App ID — the LIVE copy the SDK uses is in Assets ▸ Google Mobile Ads ▸ Settings; this constant is just a reference
-    const string BANNER_ID       = "ca-app-pub-2925766743577038/7724947897"; // adaptive banner
-    const string INTERSTITIAL_ID = "ca-app-pub-2925766743577038/9067059546"; // interstitial (win/lose)
-    const string REWARDED_ID     = "ca-app-pub-2925766743577038/3803647663"; // rewarded
+    // ===================== TEST ad unit IDs (Google's universal test ids — publisher ca-app-pub-3940256099942544) =====================
+    // >>> TEST ADS ONLY — for CLOSED TESTING, so a tester tap can NEVER trigger an AdMob "invalid traffic" ban. <<<
+    // The REAL publisher's ids were swapped OUT (recoverable from git history / release notes). RESTORE them — here AND
+    // in Assets ▸ Google Mobile Ads ▸ Settings — before the PRODUCTION release, or real ads will never serve / earn.
+    const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // Google TEST App ID (mirror of the Google Mobile Ads Settings value)
+    const string BANNER_ID       = "ca-app-pub-3940256099942544/9214589741"; // Google TEST adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"; // Google TEST interstitial
+    const string REWARDED_ID     = "ca-app-pub-3940256099942544/5224354917"; // Google TEST rewarded
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene

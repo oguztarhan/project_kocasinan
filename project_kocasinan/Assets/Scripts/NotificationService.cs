@@ -88,7 +88,7 @@ namespace BusJam
         // TEST ONLY: fire the whole 13-message ladder within ~2 minutes (SECONDS, not days) so you can background the
         // app on a device and watch every one arrive — verifies wiring, icon, permission + the per-language text.
         // >>> SET TO false BEFORE RELEASE <<<  (false = the real day-based schedule below.)
-        static readonly bool TestSeconds = true;
+        static readonly bool TestSeconds = false;
 
         void ScheduleAll()
         {

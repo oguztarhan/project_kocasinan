@@ -244,26 +244,16 @@ public class MenuController : MonoBehaviour
             switch (b.action)
             {
                 case InGameShopButton.Act.GrantCoins:
-                    int amt = b.amount;
-                    btn.onClick.AddListener(() => BuyCoinsPack(amt));
-                    break;
+                    break; // coin packs are mapped to the real CoinPacks below via GameUI.MapShopCoinButtons
                 case InGameShopButton.Act.SpendJoker:
                     btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) Refresh(); });
                     break;
             }
         }
 
-        // (b) Coin packs by name: each card is "Pack_<amount>" with an unwired child "Buy" button.
-        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
-        {
-            if (t == null || !t.name.StartsWith("Pack_")) continue;
-            if (t.GetComponent<InGameShopButton>() != null) continue;            // already wired in (a)
-            if (!int.TryParse(t.name.Substring(5), out int coins)) continue;
-            var buyT = FindInPanel(t, "Buy");
-            var buy = buyT != null ? buyT.GetComponent<Button>() : null;
-            if (buy == null) continue;
-            buy.onClick.AddListener(() => BuyCoinsPack(coins));
-        }
+        // (b) Coin packs: map every "Pack_<amount>" card onto the REAL IAP products (relabels amount + price, wires the
+        // right product) — the SAME helper the in-game shop uses, so the two can never drift from IAPManager.CoinPacks.
+        GameUI.MapShopCoinButtons(shopPanel.transform, true);
 
         // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
         WireMenuPromo("RemoveAds", BuyRemoveAds);

@@ -4,21 +4,23 @@ using UnityEngine.UI;
 namespace BusJam
 {
     /// <summary>
-    /// TEMPORARY on-screen FPS counter. To REMOVE later: just delete this one file — it self-spawns
-    /// via [RuntimeInitializeOnLoadMethod] with no scene/Inspector wiring, and nothing references it.
+    /// On-screen FPS counter (DEV ONLY). HIDDEN by default — set <see cref="Show"/> = true to show the pill while
+    /// profiling on-device, false for player / closed-test / release builds. Self-spawns via
+    /// [RuntimeInitializeOnLoadMethod] with no scene/Inspector wiring, and nothing references it.
     ///
-    /// Shows smoothed FPS + frame time (ms) top-right, color-coded (green ≥50 / yellow ≥30 / red below),
-    /// on its OWN screen-overlay canvas above everything. Uses UNSCALED time so it reads correctly while
-    /// paused (Time.timeScale = 0), and doesn't block taps (no raycast targets).
-    ///
-    /// NOTE: under Unity Remote this shows the EDITOR's render rate (usually fine) while the phone screen
-    /// looks laggy — that gap IS the Remote video-stream cost, not your game. Real numbers need a build.
+    /// Shows smoothed FPS top-right, colour-coded (green ≥50 / yellow ≥30 / red below) on its OWN screen-overlay
+    /// canvas above everything. Uses UNSCALED time so it reads correctly while paused, and doesn't block taps.
     /// </summary>
     public class FpsCounter : MonoBehaviour
     {
+        // OFF for player / closed-test / release builds — the FPS pill must NOT show to testers. Flip to true only
+        // for your own on-device perf profiling, then back to false before building for testers.
+        const bool Show = false;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn()
         {
+            if (!Show) return; // hidden -> nothing spawned, nothing drawn on screen
             var go = new GameObject("FpsCounter");
             DontDestroyOnLoad(go);
             go.AddComponent<FpsCounter>();

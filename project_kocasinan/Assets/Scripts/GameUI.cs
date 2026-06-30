@@ -709,17 +709,8 @@ namespace BusJam
                 switch (b.action)
                 {
                     case InGameShopButton.Act.GrantCoins:
-                    {
-                        // (Option B) Grant EXACTLY what the card shows. The card is named "Pack_<amount>" with that same
-                        // number on it -> grant that (not the baked tag), so given gold == shown gold. IAPManager then
-                        // buys the matching coins_<amount> product.
-                        int amt = b.amount;
-                        var card = b.transform.parent;
-                        if (card != null && card.name.StartsWith("Pack_") && int.TryParse(card.name.Substring(5), out var named) && named > 0)
-                            amt = named;
-                        btn.onClick.AddListener(() => BuyCoins(amt)); // real IAP; coins granted by IAPManager on success
-                        break;
-                    }
+                        break; // coin packs are mapped to the real CoinPacks below (MapShopCoinButtons) so the shown amount,
+                               // the price, and the product purchased always agree — no re-bake needed.
                     case InGameShopButton.Act.SpendJoker:
                     {
                         int jkind = JokerBarKind(b.transform.parent != null ? b.transform.parent.name : null);
@@ -743,6 +734,10 @@ namespace BusJam
             // The bonus is granted inside IAPManager.Grant (flag-gated so a restore can't repeat it).
             WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
             WirePromoBar(shopRoot, "RemoveAds (1)", RemoveAdsPlus);
+
+            // Map the 6 baked coin packs onto the real IAP products (relabels each card's amount + price to match) so
+            // every coin button buys a valid product, whatever amounts the shop was baked with.
+            MapShopCoinButtons(shopRoot, true);
 
             // Restore Purchases (Google Play storefront requirement): append a row at the bottom of the shop's scroll list.
             var restoreScroll = shopRoot.GetComponentInChildren<ScrollRect>(true);
@@ -864,9 +859,61 @@ namespace BusJam
         }
 
         // IAPManager fires OnChanged after a verified purchase / restore / first init -> repaint the live counters.
-        void OnIapChanged() { SetCoins(SaveSystem.Coins); RefreshJokers(); }
+        void OnIapChanged()
+        {
+            SetCoins(SaveSystem.Coins);
+            RefreshJokers();
+            if (shopPanel != null) MapShopCoinButtons(shopPanel.transform, false); // refresh amounts/prices once IAP is ready (no re-wire)
+        }
 
         void OnDestroy() { IAPManager.OnChanged -= OnIapChanged; }
+
+        // Placeholder coin-pack prices shown until the REAL localized Play price loads (in the editor, before IAP
+        // initialises, or before the products are Active in Play Console — so the labels are never blank). Index =
+        // CoinPacks sorted ascending. On a device with active products, IAPManager.Price overrides these per-region.
+        static readonly string[] FallbackPrices = { "$0.99", "$1.99", "$4.99", "$8.99", "$12.00", "$17.99" };
+
+        // Map the baked coin-pack cards ("Pack_<amount>", used by BOTH the in-game and menu shop bakers) onto the REAL
+        // IAP CoinPacks, smallest->smallest, so the displayed amount, the price, and the product actually purchased always
+        // match IAPManager — whatever amounts the shop was baked with, and with NO re-bake. Change CoinPacks and the shops
+        // follow. Card layout (both bakers): a card named "Pack_N" -> child "Amount" (count) + child "Buy" -> child "Price".
+        // wireClicks=true on first setup (adds the Buy listener once); false to only refresh labels when IAP initialises.
+        public static void MapShopCoinButtons(Transform shopRoot, bool wireClicks)
+        {
+            if (shopRoot == null) return;
+            var cards = new System.Collections.Generic.List<(int baked, Transform card, Button buy)>();
+            foreach (var t in shopRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (t == null || !t.name.StartsWith("Pack_")) continue;
+                if (!int.TryParse(t.name.Substring(5), out int baked)) continue;
+                var buyT = t.Find("Buy");
+                var buy = buyT != null ? buyT.GetComponent<Button>() : null;
+                if (buy != null) cards.Add((baked, t, buy));
+            }
+            if (cards.Count == 0) return;
+            cards.Sort((a, b) => a.baked.CompareTo(b.baked));
+            var packs = new System.Collections.Generic.List<(string id, int coins)>(IAPManager.CoinPacks);
+            packs.Sort((a, b) => a.coins.CompareTo(b.coins));
+            for (int i = 0; i < cards.Count && i < packs.Count; i++)
+            {
+                var card = cards[i].card; var buy = cards[i].buy; var pack = packs[i];
+                var amtT = card.Find("Amount");
+                if (amtT != null) { var lt = amtT.GetComponent<Text>(); if (lt != null) lt.text = pack.coins.ToString(); }
+                var priceTf = buy.transform.Find("Price");
+                if (priceTf != null)
+                {
+                    var lt = priceTf.GetComponent<Text>();
+                    string pr = null;
+#if !UNITY_EDITOR
+                    pr = IAPManager.Instance != null ? IAPManager.Instance.Price(pack.id) : null; // real localized Play price (device only)
+#endif
+                    // Editor uses Unity's FAKE store ("$0.01" for everything) — ignore it and show the fixed placeholder.
+                    if (string.IsNullOrEmpty(pr) && i < FallbackPrices.Length) pr = FallbackPrices[i];
+                    if (lt != null && !string.IsNullOrEmpty(pr)) lt.text = pr;
+                }
+                if (wireClicks) { var id = pack.id; buy.onClick.AddListener(() => IAPManager.Instance?.Buy(id)); }
+            }
+        }
 
         // ---- In-game shop (coin tap) — identical to the main-menu shop -------
         // Code fallback used only when no baked shop exists. Mirrors the baker:
@@ -931,12 +978,12 @@ namespace BusJam
             gl.cellSize = new Vector2(275, 360); gl.spacing = new Vector2(15, 20);
             gl.childAlignment = TextAnchor.UpperCenter;
             gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount; gl.constraintCount = 3;
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinA(),     "100",   "$ 100",   100);
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinB(),     "500",   "$ 250",   500);
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinC(),     "1000",  "$ 500",   1000);
-            ShopCoinCard(gridGo.transform, UIKit.ShopGold(),      "2000",  "$ 800",   2000);
-            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "5000",  "$ 1200",  5000);
-            ShopCoinCard(gridGo.transform, UIKit.CoinPackBig(),   "10000", "$ 2100",  10000);
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinA(),     "200",   "$0.99",   200);
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinB(),     "500",   "$1.99",   500);
+            ShopCoinCard(gridGo.transform, UIKit.ShopCoinC(),     "1300",  "$4.99",   1300);
+            ShopCoinCard(gridGo.transform, UIKit.ShopGold(),      "2500",  "$8.99",   2500);
+            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "4000",  "$12.00",  4000);
+            ShopCoinCard(gridGo.transform, UIKit.CoinPackBig(),   "5500",  "$17.99",  5500);
 
             // 3) Joker bars (atlas1_44 bg, icon left, buy for 100 gold).
             ShopJokerBar(ctGo.transform, UIKit.JokerRecolor());
@@ -958,8 +1005,12 @@ namespace BusJam
             Label(card.transform, amount, num, new Vector2(0, 132), new Vector2(255, 50), 34, White);
             var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(245, 92),
                 () => BuyCoins(coins)); // real IAP; coins granted by IAPManager on success
-            // Real localized store price when IAP is ready; the baked placeholder until then.
-            var realPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.ProductForCoins(coins)) : null;
+            // Real localized Play price on a device; the editor's FAKE store returns "$0.01", so ignore it there and
+            // show the fixed `price` placeholder ($0.99 etc.).
+            string realPrice = null;
+#if !UNITY_EDITOR
+            realPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.ProductForCoins(coins)) : null;
+#endif
             Label(buy.transform, string.IsNullOrEmpty(realPrice) ? price : realPrice, num, Vector2.zero, new Vector2(245, 56), 32, White);
         }
 
