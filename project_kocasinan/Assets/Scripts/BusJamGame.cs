@@ -240,7 +240,39 @@ namespace BusJam
         IEnumerator AutoStartFirstLevel()
         {
             yield return null;
+            yield return WarmVanRecolor(); // pre-warm the .glb recolour readbacks so level 1 (the tutorial) builds without GPU-readback stalls
             LoadLevel(SaveSystem.Level);
+        }
+
+        // Pre-warm the .glb van/bus recolour BEFORE the first level builds, so the tutorial doesn't pay the synchronous
+        // GPU readback (RecoloredVanTex's Blit + ReadPixels) mid-board — the #1 cause of the level-1 frame drop. Uses the
+        // EXACT runtime path (RecoloredVanMat -> PeopleColor), so the cached textures are colour-identical to what the
+        // level build would compute (zero colour risk), and it fills the SAME instance cache the build reads. Bounded
+        // (the base catalog is a handful of prefabs); one (material,colour) per frame keeps the warm itself from spiking.
+        IEnumerator WarmVanRecolor()
+        {
+            if (vehicleCatalog == null) yield break;
+            var colors = (PieceColor[])System.Enum.GetValues(typeof(PieceColor));
+            var seen = new HashSet<Material>();
+            foreach (VehicleType vt in (VehicleType[])System.Enum.GetValues(typeof(VehicleType)))
+            {
+                var prefab = vehicleCatalog.PrefabFor(vt);
+                if (prefab == null) continue;
+                foreach (var rend in prefab.GetComponentsInChildren<Renderer>(true))
+                    foreach (var mat in rend.sharedMaterials)
+                    {
+                        if (mat == null || !seen.Add(mat)) continue;
+                        // Mirror the runtime routing (~line 2702): a Mega Pack Car body takes the CPU-atlas path (no GPU
+                        // readback) -> nothing to pre-warm there; only the .glb shells hit the readback path we care about.
+                        bool atlasSedan = vt == VehicleType.Car && !mat.HasProperty("baseColorFactor") && !mat.HasProperty("baseColorTexture");
+                        if (atlasSedan) continue;
+                        foreach (var col in colors)
+                        {
+                            RecoloredVanMat(mat, col); // builds + caches the recoloured texture exactly as the level build will
+                            yield return null;          // one readback per frame -> the warm itself never hitches
+                        }
+                    }
+            }
         }
 
         // ---- Public control ------------------------------------------------

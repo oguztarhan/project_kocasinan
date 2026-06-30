@@ -69,6 +69,11 @@ namespace BusJam
             StartCoroutine(RequestIosAuthorization());
 #endif
             CancelAll(); // foreground now — clear anything left over from a previous session
+#if UNITY_ANDROID
+            // TEST ONLY (TestSeconds): prove the pipeline works WITHOUT needing to background the app — post one visible
+            // ping a few seconds after the player grants permission. Auto-removed when TestSeconds is set false for release.
+            if (TestSeconds) StartCoroutine(TestPing());
+#endif
         }
 
         // OnApplicationPause(true) = went to background (the reliable mobile signal); (false) = came back.
@@ -127,6 +132,8 @@ namespace BusJam
                 Title = txt.title,
                 Text = txt.body,
                 FireTime = when,
+                SmallIcon = "busjam_notify", // white bus silhouette in the status bar — must match the Mobile Notifications icon Id
+                LargeIcon = "busjam_large",  // full-colour app icon shown inside the expanded notification (optional)
             }, AndroidChannel);
 #elif UNITY_IOS
             double secs = (when - DateTime.Now).TotalSeconds;
@@ -151,6 +158,25 @@ namespace BusJam
             iOSNotificationCenter.ApplicationBadge = 0;
 #endif
         }
+
+#if UNITY_ANDROID
+        // Waits for the POST_NOTIFICATIONS grant, then posts ONE visible notification ~5s later — so a tester can confirm
+        // the whole chain (permission -> channel -> icon -> delivery) from the FOREGROUND, with no backgrounding needed.
+        IEnumerator TestPing()
+        {
+            const string perm = "android.permission.POST_NOTIFICATIONS";
+            float waited = 0f;
+            while (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(perm) && waited < 30f)
+            {
+                waited += 0.5f;
+                yield return new WaitForSeconds(0.5f);
+            }
+            if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(perm)) yield break;     // never granted
+            if (!SaveSystem.NotificationsEnabled || !GameConfig.NotificationsEnabled) yield break;  // toggled off
+            yield return new WaitForSeconds(2f);
+            Schedule(0, DateTime.Now.AddSeconds(5)); // "Otobüsler seni bekliyor" ~5s out; Android shows it even in foreground
+        }
+#endif
 
 #if UNITY_IOS
         IEnumerator RequestIosAuthorization()

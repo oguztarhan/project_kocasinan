@@ -433,14 +433,16 @@ namespace BusJam
             });
         }
 
-        // Restore Purchases: re-asserts the no-ads entitlement. Google replays owned non-consumables through
-        // ProcessPurchase on every launch, but a manual button is a Play-policy requirement + a safety net after a
-        // reinstall. Floats just below the notifications toggle so it never overlaps the card. Works on baked or code Settings.
-        void AddRestorePurchasesButton(Transform panel)
+        // Restore Purchases (a Google Play storefront REQUIREMENT): re-asserts the no-ads entitlement after a reinstall
+        // (IAPManager.Restore replays owned non-consumables). Appended as a full-width row at the BOTTOM of the shop
+        // list, so it lives in the storefront next to the things it restores. Works for the baked shop AND the code shop.
+        void AddShopRestoreRow(Transform content)
         {
-            if (panel == null) return;
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -205), new Vector2(540, 96), null);
-            var lbl = Label(btn.transform, "RESTORE PURCHASES", title, Vector2.zero, new Vector2(540, 60), 32, White);
+            if (content == null) return;
+            var row = Img(content, UIKit.ShopBoxA(), new Color(0.30f, 0.55f, 0.85f));
+            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
+            var lbl = Label(row.transform, "RESTORE PURCHASES", title, Vector2.zero, new Vector2(640, 70), 36, White);
+            var btn = row.gameObject.AddComponent<Button>(); btn.targetGraphic = row;
             btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = "RESTORED"; });
         }
 
@@ -460,7 +462,7 @@ namespace BusJam
             // (Removed per request) The in-game settings push-notification on/off toggle was added here via
             // AddNotificationsToggle(...). That call is intentionally gone so the button no longer appears in the
             // in-game Settings panel. The method is left defined (unused) in case it's wanted again later.
-            if (settingsPanel != null) AddRestorePurchasesButton(settingsPanel.transform); // Play-policy: re-grant no-ads after reinstall
+            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings.
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
@@ -734,6 +736,10 @@ namespace BusJam
             WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
             WirePromoBar(shopRoot, "RemoveAds (1)", RemoveAdsPlus);
 
+            // Restore Purchases (Google Play storefront requirement): append a row at the bottom of the shop's scroll list.
+            var restoreScroll = shopRoot.GetComponentInChildren<ScrollRect>(true);
+            AddShopRestoreRow(restoreScroll != null && restoreScroll.content != null ? restoreScroll.content : shopRoot);
+
             // (Shop close) Only the empty black backdrop (and the red ✕) close the shop. Force every background/
             // card/row image to catch taps so tapping a package (the red/orange cards) can't fall through to the
             // close-backdrop. Buttons and the icons/labels parented under them are left alone so they still work.
@@ -928,6 +934,9 @@ namespace BusJam
             ShopJokerBar(ctGo.transform, UIKit.JokerRecolor());
             ShopJokerBar(ctGo.transform, UIKit.JokerSwap());
             ShopJokerBar(ctGo.transform, UIKit.JokerHeli());
+
+            // Restore Purchases (Google Play storefront requirement): last row in the list.
+            AddShopRestoreRow(ctGo.transform);
 
             shopPanel.SetActive(false);
         }
