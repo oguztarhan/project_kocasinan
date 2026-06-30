@@ -277,6 +277,19 @@ public class MenuController : MonoBehaviour
             if (jkind >= 0) WireMenuJoker(t, jkind);
         }
 
+        // (c3) The baked menu shop has TWO coin-pack sets (12 cards). Keep only the canonical 6 that match the in-game
+        // shop (200/500/1300/2500/4000/5500), once each; HIDE the extra standard set + duplicates. Non-destructive
+        // (SetActive false) — the cards stay in the scene, just hidden at runtime.
+        int[] keepPacks = { 200, 500, 1300, 2500, 4000, 5500 };
+        var seenPacks = new System.Collections.Generic.List<int>();
+        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == null || !t.name.StartsWith("Pack_") || !int.TryParse(t.name.Substring(5), out int packCoins)) continue;
+            bool showPack = System.Array.IndexOf(keepPacks, packCoins) >= 0 && !seenPacks.Contains(packCoins);
+            if (showPack) seenPacks.Add(packCoins);
+            t.gameObject.SetActive(showPack);
+        }
+
         // (d) Only the empty black backdrop (and the Home/Daily nav) close the shop. Force every background/card/
         // row image to catch taps so tapping a package (the red/orange cards) can't fall through to the close-
         // backdrop. Buttons and the icons/labels parented under them are left alone so they still work.

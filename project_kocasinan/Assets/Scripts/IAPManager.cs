@@ -21,11 +21,12 @@ namespace BusJam
         public static System.Action OnChanged; // shop subscribes -> refresh counters + localized prices
 
         // Consumable coin packs: store product id -> coins granted. IDs must match the Google Play Console products.
+        // Each card grants EXACTLY the amount it shows; the product id is coins_<amount>. BOTH shops now use the SAME
+        // six packs — CREATE these six products in Play Console (Consumable).
         public static readonly (string id, int coins)[] CoinPacks =
         {
-            ("coins_100", 100), ("coins_500", 500), ("coins_1000", 1000),
-            ("coins_1300", 1300), // extra menu pack (the $4.99 "Pack_1300" card) — CREATE this product in Play Console before release
-            ("coins_2000", 2000), ("coins_5000", 5000), ("coins_10000", 10000),
+            ("coins_200", 200), ("coins_500", 500), ("coins_1300", 1300),
+            ("coins_2500", 2500), ("coins_4000", 4000), ("coins_5500", 5500),
         };
         public const string RemoveAds     = "remove_ads";       // non-consumable: ads off
         public const string RemoveAdsPlus = "remove_ads_plus";  // non-consumable: ads off + one-time 200 gold + Recolor joker

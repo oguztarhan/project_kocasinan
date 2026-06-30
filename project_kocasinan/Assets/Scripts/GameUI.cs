@@ -709,9 +709,17 @@ namespace BusJam
                 switch (b.action)
                 {
                     case InGameShopButton.Act.GrantCoins:
+                    {
+                        // (Option B) Grant EXACTLY what the card shows. The card is named "Pack_<amount>" with that same
+                        // number on it -> grant that (not the baked tag), so given gold == shown gold. IAPManager then
+                        // buys the matching coins_<amount> product.
                         int amt = b.amount;
+                        var card = b.transform.parent;
+                        if (card != null && card.name.StartsWith("Pack_") && int.TryParse(card.name.Substring(5), out var named) && named > 0)
+                            amt = named;
                         btn.onClick.AddListener(() => BuyCoins(amt)); // real IAP; coins granted by IAPManager on success
                         break;
+                    }
                     case InGameShopButton.Act.SpendJoker:
                     {
                         int jkind = JokerBarKind(b.transform.parent != null ? b.transform.parent.name : null);

@@ -37,11 +37,11 @@ public class AdManager : MonoBehaviour
     // ===== TEMP debug panel + hotkey (T6). Set false / delete before release. =====
     public const bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
 
-    // ===================== TEST ad unit IDs — DO NOT SHIP =====================
-    const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // TODO: REPLACE WITH REAL ID BEFORE RELEASE (also set in Assets ▸ Google Mobile Ads ▸ Settings)
-    const string BANNER_ID       = "ca-app-pub-3940256099942544/9214589741"; // adaptive banner test id // TODO: REPLACE WITH REAL ID BEFORE RELEASE
-    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"; // TODO: REPLACE WITH REAL ID BEFORE RELEASE
-    const string REWARDED_ID     = "ca-app-pub-3940256099942544/5224354917"; // TODO: REPLACE WITH REAL ID BEFORE RELEASE
+    // ===================== REAL ad unit IDs (AdMob — publisher ca-app-pub-2925766743577038) =====================
+    const string APP_ID          = "ca-app-pub-2925766743577038~9158222172"; // App ID — the LIVE copy the SDK uses is in Assets ▸ Google Mobile Ads ▸ Settings; this constant is just a reference
+    const string BANNER_ID       = "ca-app-pub-2925766743577038/7724947897"; // adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-2925766743577038/9067059546"; // interstitial (win/lose)
+    const string REWARDED_ID     = "ca-app-pub-2925766743577038/3803647663"; // rewarded
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
@@ -102,7 +102,15 @@ public class AdManager : MonoBehaviour
         MobileAds.SetRequestConfiguration(new RequestConfiguration
         {
             // TODO: paste your device's test id (printed in logcat on first ad request) so YOUR device always gets test ads:
-            TestDeviceIds = new List<string>()
+            TestDeviceIds = new List<string>(),
+            // ===== ALL-AGES / FAMILY-SAFE ADS (required for an all-ages / Designed-for-Families game) =====
+            // G = only General-audience ad creatives are ever served (never PG / T / MA).
+            MaxAdContentRating = MaxAdContentRating.G,
+            // COPPA: treat every request as child-directed -> non-personalized, family-safe ad networks only.
+            // (If your app is NOT directed at children, change these to .Unspecified and use an age screen instead.)
+            TagForChildDirectedTreatment = TagForChildDirectedTreatment.True,
+            // GDPR (EEA): treat users as under the age of consent.
+            TagForUnderAgeOfConsent = TagForUnderAgeOfConsent.True,
         });
 
         var p = new ConsentRequestParameters();
