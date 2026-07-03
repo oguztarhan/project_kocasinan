@@ -1,10 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.intakeentertainment.busjamtrafficrush" android:versionCode="1" android:versionName="1.0">
+  <!-- Android 13+ (API 33): notifications are a RUNTIME permission; declaring it here is what makes the in-game
+       Permission.RequestUserPermission dialog possible (the notifications package also declares it — merger dedupes). -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application android:label="@string/app_name" android:icon="@drawable/app_icon">
     <!-- The MessagingUnityPlayerActivity is a class that extends
          UnityPlayerActivity to work around a known issue when receiving
-         notification data payloads in the background. -->
-    <activity android:name="com.google.firebase.MessagingUnityPlayerActivity" android:theme="@style/BaseUnityGameActivityTheme" android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen">
+         notification data payloads in the background.
+         android:exported MUST be explicit on any intent-filter activity since Android 12 (API 31). -->
+    <activity android:name="com.google.firebase.MessagingUnityPlayerActivity" android:exported="true" android:theme="@style/BaseUnityGameActivityTheme" android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
@@ -13,5 +17,11 @@
     </activity>
     <service android:name="com.google.firebase.messaging.MessageForwardingService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true">
     </service>
+    <!-- FCM notifications posted while the app is in BACKGROUND / KILLED are built by the Firebase SDK, not our code.
+         Without these it falls back to the tinted APP icon (renders as a blank/gray square) and its own generic
+         channel. busjam_notify is baked into res/ by the Mobile Notifications icon list; the channel id matches
+         the one NotificationService registers at startup. -->
+    <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/busjam_notify" />
+    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="busjam_reengage2" />
   </application>
 </manifest>

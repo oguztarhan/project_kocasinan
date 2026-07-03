@@ -35,12 +35,31 @@
                 "UnityNotificationAndroidCustomActivityString"
             ],
             "m_Values": [
-                "False",
+                "True",
                 "0",
                 "False",
                 "com.unity3d.player.UnityPlayerActivity"
             ]
         },
-        "DrawableResources": []
+        "DrawableResources": [
+            {
+                "Id": "busjam_notify",
+                "Type": 0,
+                "Asset": {
+                    "fileID": 2800000,
+                    "guid": "df9f3eafa43b22843b23cda686a88652",
+                    "type": 3
+                }
+            },
+            {
+                "Id": "busjam_large",
+                "Type": 1,
+                "Asset": {
+                    "fileID": 2800000,
+                    "guid": "7faba8bafc1825feb3834d5ea6cccd00",
+                    "type": 3
+                }
+            }
+        ]
     }
 }

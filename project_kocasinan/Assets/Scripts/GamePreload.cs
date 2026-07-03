@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -34,11 +35,49 @@ namespace BusJam
 
         IEnumerator Start()
         {
-            // Loading the catalog pulls in its whole serialized dependency tree: every vehicle prefab + their meshes
+            // 1) Loading the catalog pulls in its whole serialized dependency tree: every vehicle prefab + their meshes
             // and textures (the bulk of the first-Play cost). Async so the loading-screen animation keeps running.
             var req = Resources.LoadAsync<VehicleSetCatalog>("VehicleSetCatalog");
-            while (req != null && !req.isDone) { Progress = req.progress; yield return null; }
+            while (req != null && !req.isDone) { Progress = req.progress * 0.6f; yield return null; }
             pinned = req != null ? req.asset : null;   // hold it -> the LoadScene unload can't drop the warmed assets
+            Progress = 0.6f;
+
+            // 2) PRE-FILL the model pool while the splash is still up: pre-instantiate the vehicle + character models
+            // gameplay will spawn, a couple per frame (keeps the splash animating). StartLevel's board build and the
+            // MID-PLAY person streaming then POP from the pool instead of Instantiate'ing — that runtime Instantiate
+            // (high-poly meshes + skinned Animator init) was the vehicle-spawn hitch on weak phones.
+            bool tight = SystemInfo.systemMemorySize > 0 && SystemInfo.systemMemorySize < 3072; // low-RAM phone -> smaller pools
+            var jobs = new List<(GameObject prefab, int n)>();
+            var vcat = Resources.Load<VehicleCatalog>("VehicleCatalog");
+            void AddVehicle(VehicleType t, int n)
+            {
+                GameObject pf = VehicleWardrobe.EquippedModel(t);          // the model gameplay will actually use
+                if (pf == null && vcat != null) pf = vcat.PrefabFor(t);    // catalog default fallback (same rule as CreateBus)
+                if (pf != null) jobs.Add((pf, tight ? Mathf.Max(1, n / 2) : n));
+            }
+            AddVehicle(VehicleType.Car, 10);     // a board is mostly cars
+            AddVehicle(VehicleType.Minivan, 6);
+            AddVehicle(VehicleType.Bus, 6);
+            var pcat = Resources.Load<PeopleCatalog>("PeopleCatalog");
+            if (pcat != null && pcat.prefabs != null)
+                foreach (var pp in pcat.prefabs)
+                    if (pp != null) jobs.Add((pp, tight ? 1 : 2));         // queue + crowd characters
+
+            int target = 0, made = 0;
+            foreach (var j in jobs) target += j.n;
+            foreach (var (prefab, n) in jobs)
+                for (int i = 0; i < n; i++)
+                {
+                    ModelPool.Prewarm(prefab, 1);
+                    made++;
+                    Progress = 0.6f + 0.35f * (target > 0 ? made / (float)target : 1f);
+                    if ((made & 1) == 0) yield return null;                // 2 instantiates per frame -> no splash stutter
+                }
+
+            // 3) Warm the shaders so the FIRST render of each material doesn't stall to compile its GPU program
+            // (a classic "first new vehicle appears" hitch). Best-effort: never allowed to break loading.
+            yield return null;
+            try { Shader.WarmupAllShaders(); } catch (System.Exception) { /* warmup is optional */ }
             Progress = 1f; Done = true;
         }
     }

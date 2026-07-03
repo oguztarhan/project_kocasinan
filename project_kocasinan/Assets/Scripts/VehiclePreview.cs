@@ -149,6 +149,7 @@ namespace BusJam
             trimmed.triangles = keep.ToArray();
             trimmed.RecalculateBounds();
             trimCache[src] = trimmed;
+            trimCache[trimmed] = trimmed; // idempotent: TrimBase(trimmed) is a dict hit (pooled models re-run the trim on reuse)
             return trimmed;
         }
     }

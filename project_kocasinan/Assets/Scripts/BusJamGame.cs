@@ -85,6 +85,7 @@ namespace BusJam
         GameObject[] cityBuildings, cityTrees, cityRoads, cityProps;
         Material toonOutlineFx;
         Material smokeMat, hitMat;            // cached runtime URP particle mats (so the built-in-shader VFX aren't magenta)
+        static ParticleSystem.Particle[] particleBuf; // shared scratch for StopExhaust — avoids a per-call array alloc
         Font seatFont;
         Transform boardRoot;
 
@@ -153,7 +154,9 @@ namespace BusJam
         readonly List<Bus> gridBuses = new List<Bus>();
         readonly List<Bus> liveBuses = new List<Bus>(); // EVERY vehicle this level (jam + in-flight + parked) — scanned each frame to drive the engine sound
         // Per (pack material, color) instance with "Main Color 1" (_Color01) driven to the match color.
-        readonly Dictionary<(Material, PieceColor), Material> tintedVehicleMats = new Dictionary<(Material, PieceColor), Material>();
+        // STATIC: keyed by shared ASSETS (pack material/texture + color), so the expensive first-time recolours
+        // (full-texture repaints, GPU readbacks) are paid ONCE per app run — not again on every menu->game re-entry.
+        static readonly Dictionary<(Material, PieceColor), Material> tintedVehicleMats = new Dictionary<(Material, PieceColor), Material>();
 
         List<LineGroup> groups;
         int nextGroupIndex;
@@ -994,7 +997,7 @@ namespace BusJam
                 bus.LightSeat(seat);
                 StartCoroutine(Juice.PunchScale(bus.transform, 0.12f));
             }
-            if (u != null) Destroy(u.gameObject);
+            if (u != null) { ModelPool.ReleaseAllUnder(u.transform); Destroy(u.gameObject); } // recycle the character model; the tiny root still dies
             busy--;
             TryStartBoardingPump(); // this arrival may have made the bus ReadyToLeave
             CheckEnd();
@@ -1088,7 +1091,7 @@ namespace BusJam
             }, gameSettings.busLeaveSpeed, gameSettings.turnSmoothness);
 
             StopExhaust(exhaust, true); // T5: bus is about to be Destroyed -> detach the trail to boardRoot + self-destruct
-            if (bus != null) { Juice.StopPunch(bus.transform); Destroy(bus.gameObject); } // evict punch state, then destroy off-frame
+            if (bus != null) { Juice.StopPunch(bus.transform); ModelPool.ReleaseAllUnder(bus.transform); Destroy(bus.gameObject); } // evict punch state, recycle the model, then destroy off-frame
             busy--;
             CheckEnd();
         }
@@ -1683,6 +1686,10 @@ namespace BusJam
             traffic.Clear(); // T2: drop pooled traffic refs (the cars themselves die with boardRoot below)
             trafficRedLamps.Clear(); trafficGreenLamps.Clear(); // drop traffic-light lamp refs (poles die with boardRoot)
             peopleLeftSign = null; // destroyed with boardRoot below; drop the stale ref (no cross-level leak)
+            // Recycle EVERY pooled model (vehicles, characters, env decor, traffic, FX) BEFORE the board dies: the
+            // next level's build then pops them from the pool instead of Instantiate'ing ~50 prefabs in one frame —
+            // this was the level-transition freeze on weak phones.
+            if (boardRoot != null) ModelPool.ReleaseAllUnder(boardRoot);
             if (boardRoot != null) Destroy(boardRoot.gameObject);
             boardRoot = null;
         }
@@ -2136,7 +2143,7 @@ namespace BusJam
                 LowPolyBuilder.BuildPerson(root, bodyMats[color], skinMat, false, false, mysteryMat, goldMat, out _);
                 return;
             }
-            var model = Instantiate(prefab, root, false);
+            var model = ModelPool.Get(prefab, root); // pooled: skinned-character Instantiate+Animator init was a spawn hitch
             model.name = "Model";
             float s = peopleCatalog.modelScale * gameSettings.peopleSize;
             model.transform.localScale = new Vector3(s, s, s);
@@ -2211,7 +2218,7 @@ namespace BusJam
                 return;
             }
 
-            var model = Instantiate(prefab, root, false);
+            var model = ModelPool.Get(prefab, root); // pooled: this runs MID-PLAY for every streamed-in person (was the recurring spawn hitch)
             model.name = "Model";
             float s = peopleCatalog.modelScale * gameSettings.peopleSize;
             model.transform.localScale = new Vector3(s, s, s);
@@ -2467,7 +2474,7 @@ namespace BusJam
         void BuildModelVehicle(Bus bus, Transform root, GameObject prefab, PieceColor color, int capacity, VehicleType type,
                                float yaw, float fitFactor, float yOffset, bool bodyOnly, System.Func<Material, PieceColor, Material> tintMat)
         {
-            var model = Instantiate(prefab, root, false);
+            var model = ModelPool.Get(prefab, root); // pooled: the high-poly vehicle Instantiate was THE level-build spike
             model.name = "Model";
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(0, yaw, 0);
@@ -2606,7 +2613,7 @@ namespace BusJam
         // True if the prefab exposes the LowPolyRoadVehicles pack's "_Color01" body slot. glTF/.glb imports (the
         // othercars Bus/Connect/Sedan) lack it -> they tint via the body-only path (ColorSkinModel) instead, so no
         // catalog flag is needed: drop a glb into busPrefab/carPrefab and it recolors correctly on its own.
-        readonly Dictionary<GameObject, bool> hasColor01Cache = new Dictionary<GameObject, bool>();
+        static readonly Dictionary<GameObject, bool> hasColor01Cache = new Dictionary<GameObject, bool>(); // static: survives scene re-entry
         bool ModelHasColor01(GameObject prefab)
         {
             if (prefab == null) return false;
@@ -2667,7 +2674,7 @@ namespace BusJam
 
         // A URP/Lit material that keeps the model's texture but MULTIPLIES it by the match color. The texture's dark
         // windows/wheels stay dark (dark × color ≈ dark); only the light body takes the color. Cached per texture+color.
-        readonly Dictionary<(Texture, PieceColor), Material> texTintCache = new Dictionary<(Texture, PieceColor), Material>();
+        static readonly Dictionary<(Texture, PieceColor), Material> texTintCache = new Dictionary<(Texture, PieceColor), Material>(); // static: survives scene re-entry
         Material TexturedTint(Texture tex, PieceColor color)
         {
             var key = (tex, color);
@@ -2749,7 +2756,7 @@ namespace BusJam
         // touching the windows + bumpers, recolour ONLY that body band to the match colour and leave the rest. V0..V1
         // = the UV-y range of the swatch band (tune to the atlas; verified live). Cached per (texture, colour).
         const float AtlasBodyV0 = 0.22f, AtlasBodyV1 = 0.76f;
-        readonly Dictionary<(Texture, PieceColor), Texture2D> atlasRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>();
+        static readonly Dictionary<(Texture, PieceColor), Texture2D> atlasRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>(); // static: a full-texture repaint is paid once per app run
         Texture2D RecoloredAtlas(Texture2D src, PieceColor color)
         {
             if (src == null) return null;
@@ -2771,7 +2778,7 @@ namespace BusJam
 
         // A clone of the atlas body material whose texture has the body band recoloured to the match colour. If the
         // source texture isn't readable, falls back to the flat palette colour (paints the whole shell, but clean).
-        readonly Dictionary<(Material, PieceColor), Material> atlasMatCache = new Dictionary<(Material, PieceColor), Material>();
+        static readonly Dictionary<(Material, PieceColor), Material> atlasMatCache = new Dictionary<(Material, PieceColor), Material>(); // static: survives scene re-entry
         Material RecoloredAtlasMat(Material bodyMat, PieceColor color)
         {
             var key = (bodyMat, color);
@@ -2795,7 +2802,7 @@ namespace BusJam
         // grey model repaints its LIGHT shell. Either way windows, tyres and lights are KEPT at their original pixel so
         // they survive untouched, and the body becomes the flat gameplay colour (sedan body + boarding people match it).
         // Reads via a GPU copy (glb textures aren't CPU-readable).
-        readonly Dictionary<(Texture, PieceColor), Texture2D> vanRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>();
+        static readonly Dictionary<(Texture, PieceColor), Texture2D> vanRecolorCache = new Dictionary<(Texture, PieceColor), Texture2D>(); // static: the GPU-readback recolour is paid once per app run
         Texture2D RecoloredVanTex(Texture src, PieceColor color)
         {
             if (src == null) return null;
@@ -3751,7 +3758,7 @@ namespace BusJam
         {
             if (prefab == null) return null;
             if (prefab.name.Contains("Hydrant")) targetWidth *= 0.45f; // #3: the red fire hydrant was too big — scale it down
-            var go = Instantiate(prefab, boardRoot, false);
+            var go = ModelPool.Get(prefab, boardRoot); // pooled: ~15 env prefabs per level rebuild -> recycled across levels
             StripPhysics(go);
             MuteRenderers(go); // T2: quiet the city-pack prefab's OWN bright materials (per-INSTANCE; never the shared .mat)
             OutlineAll(go);    // toon ink edge on every env prefab (buildings, trees, road, stops, props) — AFTER mute so the outline stays black
@@ -4038,7 +4045,7 @@ namespace BusJam
             if (prefabs != null && prefabs.Length > 0)
             {
                 var src = prefabs[trafficSpawnIdx % prefabs.Length];
-                var model = Instantiate(src, pivot.transform, false);
+                var model = ModelPool.Get(src, pivot.transform); // pooled: a bonus board spawns a whole lane of these at once
                 model.name = "Model";
                 StripPhysics(model);
                 FitModelLocal(model, width);
@@ -4234,7 +4241,7 @@ namespace BusJam
         GameObject SpawnExhaust(Bus bus)
         {
             if (bus == null || smokeFx == null) return null;
-            var go = Instantiate(smokeFx, bus.transform, false);
+            var go = ModelPool.Get(smokeFx, bus.transform); // pooled one-shot FX: no Instantiate/Destroy churn per dispatch
             StripPhysics(go);
             float halfLen = LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f;
             go.transform.localPosition = new Vector3(0f, 0.15f, halfLen); // right behind the rear
@@ -4274,13 +4281,13 @@ namespace BusJam
                 ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                 int max = ps.particleCount;
                 if (max <= 0) continue;
-                var buf = new ParticleSystem.Particle[max];
-                int n = ps.GetParticles(buf);
+                if (particleBuf == null || particleBuf.Length < max) particleBuf = new ParticleSystem.Particle[Mathf.Max(max, 64)]; // shared scratch — no per-call alloc
+                int n = ps.GetParticles(particleBuf);
                 for (int i = 0; i < n; i++)
-                    if (buf[i].remainingLifetime > fade) buf[i].remainingLifetime = fade;
-                ps.SetParticles(buf, n);
+                    if (particleBuf[i].remainingLifetime > fade) particleBuf[i].remainingLifetime = fade;
+                ps.SetParticles(particleBuf, n);
             }
-            Destroy(smoke, fade + 0.25f);
+            ModelPool.ReleaseAfter(smoke, fade + 0.25f); // back to the pool once the trail has thinned out (was Destroy)
         }
 
         // T6: one-shot impact burst at a world pos. Returns false on lowEnd / missing prefab so the caller can use
@@ -4288,14 +4295,14 @@ namespace BusJam
         bool SpawnHit(Vector3 pos)
         {
             if (lowEnd || hitFx == null) return false;
-            var go = Instantiate(hitFx, boardRoot, false);
+            var go = ModelPool.Get(hitFx, boardRoot); // pooled one-shot FX: no Instantiate/Destroy churn per blocked tap
             StripPhysics(go);
             FixParticleMaterials(go, ref hitMat, new Color(0.82f, 0.72f, 0.55f, 1f));
             go.transform.position = pos;
             var ps = go.GetComponentInChildren<ParticleSystem>();
             if (ps != null) ps.Play();                                                    // ensure the one-shot fires
             float life = ps != null ? ps.main.duration + ps.main.startLifetime.constantMax + 0.2f : 0.4f;
-            Destroy(go, life);
+            ModelPool.ReleaseAfter(go, life); // back to the pool after the burst (was Destroy)
             return true;
         }
 
@@ -4351,11 +4358,16 @@ namespace BusJam
             }
         }
 
-        // All submesh slots point at the single shared outline material.
+        // All submesh slots point at the single shared outline material. Cached per slot-count: OutlineAll runs for
+        // every model part on every build (and pooled models re-outline on reuse), so don't allocate a fresh array each time.
+        readonly Dictionary<int, Material[]> outlineSlotCache = new Dictionary<int, Material[]>();
         Material[] OutlineSlots(int subMeshCount)
         {
-            var a = new Material[Mathf.Max(1, subMeshCount)];
+            int n = Mathf.Max(1, subMeshCount);
+            if (outlineSlotCache.TryGetValue(n, out var a) && a.Length == n && a[0] == toonOutlineFx) return a;
+            a = new Material[n];
             for (int i = 0; i < a.Length; i++) a[i] = toonOutlineFx;
+            outlineSlotCache[n] = a;
             return a;
         }
 

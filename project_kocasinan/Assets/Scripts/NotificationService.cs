@@ -20,7 +20,10 @@ namespace BusJam
     /// </summary>
     public class NotificationService : MonoBehaviour
     {
-        const string AndroidChannel = "busjam_reengage";
+        // v2: bumped from "busjam_reengage" — that channel was created with Importance.Default (SILENT delivery: no
+        // sound, no heads-up) and Android NEVER lets an app raise a channel's importance after creation. A NEW id
+        // gets created fresh with High on every device; the old channel is deleted in Start.
+        const string AndroidChannel = "busjam_reengage2";
 
         // Re-engagement ladder: (days from app close, local hour, NotificationContent index). Fired ONLY if the player
         // does not come back — every entry is cancelled the moment the app regains focus. Index 4 (free chest) is
@@ -52,12 +55,15 @@ namespace BusJam
         void Start()
         {
 #if UNITY_ANDROID
+            AndroidNotificationCenter.DeleteNotificationChannel("busjam_reengage"); // retire the old SILENT (Default) channel
             AndroidNotificationCenter.RegisterNotificationChannel(new AndroidNotificationChannel
             {
                 Id = AndroidChannel,
                 Name = "BusJam",
-                Importance = Importance.Default,
+                Importance = Importance.High, // High = sound + heads-up banner; Default delivered SILENTLY (testers never noticed)
                 Description = "BusJam reminders",
+                CanShowBadge = true,
+                EnableVibration = true,
             });
             // Android 13+ (API 33) needs a runtime POST_NOTIFICATIONS grant or EVERY notification is silently dropped.
             // Request it HERE so local reminders work even when Firebase never initialises — do NOT rely on
