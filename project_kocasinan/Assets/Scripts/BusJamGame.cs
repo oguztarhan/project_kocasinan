@@ -185,6 +185,10 @@ namespace BusJam
             gameSettings = Resources.Load<GameSettings>("GameSettings");       // tuning knobs (Inspector-editable)
             if (gameSettings == null) gameSettings = ScriptableObject.CreateInstance<GameSettings>(); // fall back to defaults
             seatFont = GameFont.UGUI; // roof seat-count number — now the global Matcha font
+            // Pre-warm the mystery "?" glyph into the dynamic-font atlas NOW, so the FIRST level's already-in-line gray
+            // passengers render it. "?" is otherwise a cold glyph (unlike digits, which the HUD already cached): the first
+            // batch of "?" texts triggers an atlas rebuild and stays BLANK, while later spawns work once it's cached.
+            GameFont.UGUI.RequestCharactersInTexture("?", 82, FontStyle.Bold);
             PlaceCamera();
             SetupPostFX();
 
@@ -2247,17 +2251,7 @@ namespace BusJam
 
             float mh = peopleCatalog.markerHeight;
             if (mystery)
-            {
-                var q = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(q.GetComponent<Collider>());
-                q.name = "Mystery";
-                q.transform.SetParent(root, false);
-                q.transform.localPosition = new Vector3(0, mh, 0);
-                q.transform.localScale = Vector3.one * 0.18f;
-                q.transform.localRotation = Quaternion.Euler(0, 45, 0);
-                q.GetComponent<Renderer>().sharedMaterial = mysteryMat;
-                u.mysteryCover = q;
-            }
+                u.mysteryCover = LowPolyBuilder.BuildMysteryMark(root, mysteryMat, mh * 0.9f, mh * 0.4f); // "?" on top of the head, like a hat
             if (golden)
             {
                 var crown = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -3298,7 +3292,11 @@ namespace BusJam
         // cross" bug.) Yielding ONLY to lower-seq peers means the earliest mover is never blocked -> never deadlocks.
         bool WouldOverlapPeer(Bus bus, Vector3 pos)
         {
-            const float halfW = 0.42f, buffer = 0.18f;
+            // Capsule width EXACTLY equals the rendered body: BuildVehicle makes it w = CellSize*0.52, so the half-width
+            // is CellSize*0.26. buffer = 0 => a vehicle is blocked ONLY when the real bodies actually overlap, never on a
+            // visible gap. (Was 0.42 + 0.18 padding, a ~1.5x-too-fat phantom that pinned a diagonal car whenever ANOTHER
+            // vehicle merely sat beside it, even with a clearly-open lane ahead. "If the mesh doesn't collide, let it pass.")
+            const float halfW = CellSize * 0.26f, buffer = 0f;
             Vector3 mf = bus.transform.forward; mf.y = 0f;
             mf = mf.sqrMagnitude < 1e-6f ? Vector3.forward : mf.normalized;
             float myHalf = Mathf.Max(0f, LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f - halfW); // capsule core half-length
@@ -3378,7 +3376,7 @@ namespace BusJam
             while (slideDist > CellSize && Mathf.Abs((sp + dn3 * slideDist).x) > VisHalfW((sp + dn3 * slideDist).z) - 1.0f) slideDist -= CellSize * 0.5f;
             if (slideDist < 1e-3f) return true;
             Vector2 wd = new Vector2(dn3.x, dn3.z); // the real 45° slide direction
-            const float halfW = 0.42f, buffer = 0.18f;
+            const float halfW = CellSize * 0.26f, buffer = 0f; // capsule == the real rendered body (w=CellSize*0.52); zero padding so a diagonal vehicle is blocked ONLY by an actual mesh overlap, never by a neighbour beside a clear lane (see WouldOverlapPeer)
             float rad2 = (halfW + halfW + buffer) * (halfW + halfW + buffer);
             Vector3 mf = bus.transform.forward; mf.y = 0f;
             mf = mf.sqrMagnitude < 1e-6f ? new Vector3(wd.x, 0f, wd.y) : mf.normalized;

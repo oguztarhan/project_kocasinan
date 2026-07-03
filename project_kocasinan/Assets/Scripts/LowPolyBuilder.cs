@@ -142,13 +142,7 @@ namespace BusJam
             head.transform.localPosition = new Vector3(0, 0.92f, 0);
 
             if (mystery)
-            {
-                var q = Prim(PrimitiveType.Cube, vis.transform, mysteryMat);
-                q.transform.localScale = Vector3.one * 0.17f;
-                q.transform.localPosition = new Vector3(0, 1.3f, 0);
-                q.transform.localRotation = Quaternion.Euler(0, 45, 0);
-                cover = q;
-            }
+                cover = BuildMysteryMark(vis.transform, mysteryMat, 1.2f, 0.42f); // "?" on top of the head, like a hat
             if (golden)
             {
                 var crown = Prim(PrimitiveType.Cube, vis.transform, goldMat);
@@ -159,6 +153,49 @@ namespace BusJam
                 spin.scalePulse = true; spin.scaleAmp = 0.2f; spin.speed = 5f; spin.amp = 0f;
             }
             return bodyR;
+        }
+
+        // Mystery marker: a camera-facing "?" badge placed ON the passenger's chest (not floating above the head), so the
+        // gray body clearly reads as "hidden colour". Same proven world-space setup as the special-vehicle badge; the badge
+        // is pushed toward the camera (BillboardUp aims local +Z at the cam) so it draws IN FRONT of the body, not inside it.
+        // Returned as ONE parent so Passenger/LineUnit.Reveal can Destroy() it (mysteryCover). chestY = chest height; badge = world size.
+        public static GameObject BuildMysteryMark(Transform parent, Material mysteryMat, float chestY, float badge)
+        {
+            var mark = new GameObject("Mystery");
+            mark.transform.SetParent(parent, false);
+            mark.transform.localPosition = new Vector3(0, chestY, 0);
+
+            var qGo = new GameObject("QMark", typeof(RectTransform), typeof(Canvas));
+            qGo.transform.SetParent(mark.transform, false);
+            qGo.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            ((RectTransform)qGo.transform).sizeDelta = new Vector2(100, 100);
+            qGo.transform.localScale = new Vector3(-1f, 1f, 1f) * (badge / 100f);
+            qGo.AddComponent<BillboardUp>();
+
+            // Push the badge toward the camera so it draws on the FRONT of the body (BillboardUp aims local +Z at the cam).
+            var c = new GameObject("C", typeof(RectTransform));
+            c.transform.SetParent(qGo.transform, false);
+            var crt = (RectTransform)c.transform;
+            crt.anchorMin = crt.anchorMax = crt.pivot = new Vector2(0.5f, 0.5f);
+            crt.sizeDelta = new Vector2(100, 100);
+            crt.localPosition = new Vector3(0, 0, 60f);
+
+            var tGo = new GameObject("T", typeof(RectTransform));
+            tGo.transform.SetParent(c.transform, false);
+            var t = tGo.AddComponent<UnityEngine.UI.Text>();
+            t.font = GameFont.UGUI;
+            t.text = "?";
+            t.fontSize = 82;
+            t.fontStyle = FontStyle.Bold;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = Color.white;
+            var rt = t.rectTransform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var outline = tGo.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = Color.black;
+            outline.effectDistance = new Vector2(3, -3);
+            tGo.AddComponent<FirstFrameTextRefresh>(); // so passengers ALREADY in line at level start show the "?" (cold-atlas fix)
+            return mark;
         }
 
         // ---- Theme props ----------------------------------------------------
