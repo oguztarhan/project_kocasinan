@@ -279,9 +279,9 @@ namespace BusJam
             const float V = 0.5f, V2 = 0.5f; // anchor shorthand (centre)
             // The CHEST is the SAME wood on every tier; only the ROPES (rim + strap) and the lock take `tint` (the tier
             // colour: brown / silver / gold / flaming-orange), so tiers read by their bands, not the box.
-            Color bodyCol = new Color(0.70f, 0.57f, 0.42f); // light wood
-            Color lidCol  = new Color(0.58f, 0.46f, 0.34f); // darker wood
-            Color footCol = new Color(0.46f, 0.36f, 0.27f); // darkest wood
+            Color bodyCol = new Color(0.38f, 0.31f, 0.24f); // DARK wood on every tier so the coloured ropes read clearly
+            Color lidCol  = new Color(0.30f, 0.24f, 0.19f); // darker
+            Color footCol = new Color(0.23f, 0.18f, 0.14f); // darkest
             Color lockCol = Color.Lerp(tint, Color.white, 0.28f); // the tier colour, lightened for a metallic lock
 
             // two little rounded feet at the bottom
@@ -315,7 +315,7 @@ namespace BusJam
         void ChestCard(Transform parent, ChestTier tier, string name)
         {
             Color tint = ChestTint(tier);
-            var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(tint.r * 0.55f, tint.g * 0.55f, tint.b * 0.55f);
+            var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(0.22f, 0.24f, 0.31f); // SAME neutral dark card on every tier (only the ropes differ) — no more vibrant-silver card
             Label(card.transform, name, num, new Vector2(0, 98), new Vector2(255, 48), 30, White);
             BuildChest(Holder(card.transform, new Vector2(0, 16), new Vector2(150, 110)), tint, 110);
             var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 16), new Vector2(250, 78), () => OpenChest(tier));
