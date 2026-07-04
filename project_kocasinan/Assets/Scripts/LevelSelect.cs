@@ -16,6 +16,7 @@ namespace BusJam
         BusJamGame game;
         Font font;
         GameObject panel;
+        GameObject jumpBtn;             // TEMP (level testing): always-visible button that opens this map; remove for release
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -50,6 +51,15 @@ namespace BusJam
 
             BuildPanel(canvasGo.transform);
             Close();
+
+            // TEMP (level testing): an always-visible button on the (always-active) canvas that opens this map, so ANY
+            // level can be jumped to directly — paired with debugUnlockAll in PopulateGrid. Lives on the canvas, NOT the
+            // toggled panel, so it shows during gameplay. Remove for release.
+            var jump = Button(canvasGo.transform, "LEVELS", new Color(0.55f, 0.42f, 0.86f), Open, 30);
+            var jrt = jump.GetComponent<RectTransform>();
+            jrt.anchorMin = jrt.anchorMax = jrt.pivot = new Vector2(0f, 0f); // bottom-left corner
+            jrt.anchoredPosition = new Vector2(20f, 20f); jrt.sizeDelta = new Vector2(210f, 92f);
+            jumpBtn = jump.gameObject;
         }
 
         // ---- Public API -----------------------------------------------------
@@ -57,6 +67,7 @@ namespace BusJam
         {
             PopulateGrid();
             if (panel) panel.SetActive(true);
+            if (jumpBtn) jumpBtn.SetActive(false); // TEMP: hide the open button while the map is up
             Time.timeScale = 0f;   // pause gameplay while browsing
             isOpen = true;
         }
@@ -64,6 +75,7 @@ namespace BusJam
         public void Close()
         {
             if (panel) panel.SetActive(false);
+            if (jumpBtn) jumpBtn.SetActive(true); // TEMP: re-show the open button
             Time.timeScale = 1f;
             isOpen = false;
         }
@@ -139,7 +151,7 @@ namespace BusJam
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
             // Release: normal progression — only levels up to the player's unlocked level are tappable.
-            bool debugUnlockAll = false;
+            bool debugUnlockAll = true; // TEMP: show/unlock ALL levels for testing (remove for release)
             int total = debugUnlockAll ? 60 : Mathf.Max(unlocked + LockedPreview, MinShown);
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 

@@ -19,7 +19,7 @@ namespace BusJam
 
         // Lazy preview generation — cards are created empty, then filled ONE RENDER per frame so opening the panel
         // doesn't render all ~30 vehicles in one frame (that caused the open-delay + FPS drop).
-        readonly List<(RawImage img, GameObject prefab, bool crop, float fill, float yaw)> pendingPreviews = new List<(RawImage, GameObject, bool, float, float)>();
+        readonly List<(RawImage img, GameObject prefab, bool crop, float fill, float yaw, Color tint)> pendingPreviews = new List<(RawImage, GameObject, bool, float, float, Color)>();
         Coroutine previewCo;
 
         // Full-width entry row added at the top of the Garage scroll content (tap to open the wardrobe).
@@ -134,18 +134,19 @@ namespace BusJam
             VehicleSectionCards(VehicleType.Minivan, "MINIVANS");
             VehicleSectionCards(VehicleType.Bus,     "BUSES");
             previewCo = StartCoroutine(FillPreviewsLazy(pendingPreviews.ToArray()));
+            PreserveAuthoredFontSizes(vehiclesContent); // keep these authored sizes through the global font applier (else an equip's rebuild shrinks them)
         }
 
         // Fill the queued preview thumbnails one RENDER per frame (cached ones fill instantly) so the panel never
         // stalls when opened. Snapshot the queue so a re-open (which rebuilds it) can't mutate a running pass.
-        System.Collections.IEnumerator FillPreviewsLazy((RawImage img, GameObject prefab, bool crop, float fill, float yaw)[] items)
+        System.Collections.IEnumerator FillPreviewsLazy((RawImage img, GameObject prefab, bool crop, float fill, float yaw, Color tint)[] items)
         {
             foreach (var p in items)
             {
                 if (p.img == null) continue;
                 bool wasCached = VehiclePreview.IsCached(p.prefab);
                 var rt = VehiclePreview.Get(p.prefab, p.yaw, p.crop, p.fill);
-                if (p.img != null && rt != null) { p.img.texture = rt; p.img.color = Color.white; }
+                if (p.img != null && rt != null) { p.img.texture = rt; p.img.color = p.tint; }
                 if (!wasCached) yield return null; // only spread the EXPENSIVE first-time renders across frames
             }
             previewCo = null;
@@ -156,7 +157,7 @@ namespace BusJam
         void VehicleSectionCards(VehicleType t, string headerKey)
         {
             SectionLabel(vehiclesContent, Loc.T(headerKey));
-            var grid = GridRow(vehiclesContent, new Vector2(275, 320), 3);
+            var grid = GridRow(vehiclesContent, new Vector2(280, 400), 3);
             // rarest first (every section); clone so we never reorder the catalog asset itself
             var sets = (VehicleSetCatalog.VehicleSet[])VehicleWardrobe.Catalog.sets.Clone();
             System.Array.Sort(sets, (a, b) => (b?.rarity ?? -1).CompareTo(a?.rarity ?? -1));
@@ -183,24 +184,26 @@ namespace BusJam
             // rarity badge (all types) — a tier-coloured pill at the top
             {
                 var pill = Img(card.transform, null, TierColor(set.rarity)); pill.raycastTarget = false;
-                Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(170, 36));
-                Label(pill.transform, TierName(set.rarity), num, Vector2.zero, new Vector2(166, 32), 19, White);
+                Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -28), new Vector2(196, 44));
+                Label(pill.transform, TierName(set.rarity), num, Vector2.zero, new Vector2(192, 40), 24, White);
             }
 
             var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
-            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 4), new Vector2(210, 140));
+            Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 34), new Vector2(258, 212));
 
             // live 3D thumbnail — created empty now, FILLED lazily (FillPreviewsLazy) so the panel opens without a hitch.
-            // fill < 1 = camera closer = bigger vehicle: cars were too small, minivans a touch bigger, bus unchanged.
+            // Locked vehicles render GREY (previewTint) so they clearly read as not-yet-collected; owned = full colour.
+            // fill < 1 = camera closer = bigger vehicle (cards were too small — pulled the camera in more per type).
             var pv = new GameObject("Preview", typeof(RectTransform)).AddComponent<RawImage>();
             pv.transform.SetParent(tile.transform, false);
             pv.raycastTarget = false; pv.color = new Color(1, 1, 1, 0); // invisible until its texture is ready
             var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
-            float fill = t == VehicleType.Car ? 0.6f : t == VehicleType.Minivan ? 0.72f : 0.85f; // <1 = bigger; tweak per type
+            float fill = t == VehicleType.Car ? 0.5f : t == VehicleType.Minivan ? 0.6f : 0.72f; // <1 = bigger; tweak per type
             float yaw  = t == VehicleType.Car ? 215f : 35f; // sedans (FBX) face opposite the .glb vans/buses -> +180 to match
-            pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill, yaw));
+            Color previewTint = owned ? Color.white : new Color(0.40f, 0.40f, 0.46f, 1f); // locked -> greyed out
+            pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill, yaw, previewTint));
 
-            Label(card.transform, label, num, new Vector2(0, -126), new Vector2(255, 50), 28, White);
+            Label(card.transform, label, num, new Vector2(0, -104), new Vector2(272, 54), 34, White);
 
             if (owned)
             {
@@ -210,18 +213,18 @@ namespace BusJam
                 if (equipped)
                 {
                     var badge = Img(card.transform, null, new Color(0.20f, 0.72f, 0.32f)); badge.raycastTarget = false;
-                    Place(badge.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(200, 44));
-                    Label(badge.transform, Loc.T("EQUIPPED"), num, Vector2.zero, new Vector2(200, 40), 22, White);
+                    Place(badge.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(224, 50));
+                    Label(badge.transform, Loc.T("EQUIPPED"), num, Vector2.zero, new Vector2(222, 46), 26, White);
                 }
             }
             else
             {
-                // Locked = not collected. Keep the car image at FULL brightness so its real colours read ("olduğu
-                // gibi", and locked cars don't all blur into the same dark blob) — only a small "from chests" banner
-                // along the bottom of the tile marks it locked. No heavy overlay.
-                var banner = Img(card.transform, null, new Color(0.04f, 0.04f, 0.06f, 0.80f)); banner.raycastTarget = false;
-                Place(banner.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -52), new Vector2(212, 34));
-                Label(banner.transform, Loc.T("From chests"), num, Vector2.zero, new Vector2(206, 30), 18, new Color(0.96f, 0.86f, 0.5f));
+                // Locked = not collected. The 3D preview is greyed (previewTint above) + a PADLOCK badge over the tile;
+                // a "from chests" tag along the bottom marks it locked without hiding the shape.
+                BuildLockBadge(tile.transform, Vector2.zero, 50f);
+                var banner = Img(card.transform, null, new Color(0.05f, 0.05f, 0.08f, 0.85f)); banner.raycastTarget = false;
+                Place(banner.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(232, 50));
+                Label(banner.transform, Loc.T("From chests"), num, Vector2.zero, new Vector2(226, 44), 22, new Color(0.96f, 0.86f, 0.5f));
             }
         }
 
@@ -232,6 +235,32 @@ namespace BusJam
           : rarity == 1 ? new Color(0.32f, 0.78f, 0.42f)   // Uncommon = green
           :               new Color(0.62f, 0.66f, 0.72f);  // Common = grey
         public static string TierName(int rarity) => rarity >= 3 ? "LEGENDARY" : rarity == 2 ? "EPIC" : rarity == 1 ? "UNCOMMON" : "COMMON";
+
+        // A small code-built PADLOCK on a round dark badge — marks a LOCKED vehicle, centred at `pos` in `parent`,
+        // body `w` wide. The gold shackle is a ring (gold disc + a hole matching the badge) whose lower half the body
+        // hides, so it reads as an upside-down U. Gold (not steel) because the kit's circle sprite is yellow and only
+        // tints warm; a steel tint would come out muddy.
+        void BuildLockBadge(Transform parent, Vector2 pos, float w)
+        {
+            Color gold   = new Color(1f, 0.80f, 0.28f);
+            Color goldHi = new Color(1f, 0.88f, 0.44f);
+            Color navy   = new Color(0.07f, 0.08f, 0.12f);
+
+            var bg = Img(parent, UIKit.CircleYellow(), White); bg.color = new Color(navy.r, navy.g, navy.b, 0.82f); bg.raycastTarget = false;
+            Place(bg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(w * 2.0f, w * 2.0f));
+
+            // gold shackle ring: outer disc + a navy hole; the body (below) hides the lower half -> upside-down U
+            var shackle = Img(parent, UIKit.CircleYellow(), White); shackle.color = gold; shackle.raycastTarget = false;
+            Place(shackle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos + new Vector2(0, w * 0.30f), new Vector2(w * 0.66f, w * 0.66f));
+            var shackleHole = Img(parent, UIKit.CircleYellow(), White); shackleHole.color = navy; shackleHole.raycastTarget = false;
+            Place(shackleHole.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos + new Vector2(0, w * 0.33f), new Vector2(w * 0.38f, w * 0.38f));
+
+            // rounded body (covers the shackle's lower half) + a dark keyhole
+            var body = Img(parent, UIKit.ShopIconBgA(), White); body.color = goldHi; body.raycastTarget = false;
+            Place(body.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos + new Vector2(0, -w * 0.16f), new Vector2(w, w * 0.74f));
+            var hole = Img(parent, null, new Color(0.30f, 0.20f, 0.08f)); hole.raycastTarget = false;
+            Place(hole.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos + new Vector2(0, -w * 0.14f), new Vector2(w * 0.16f, w * 0.26f));
+        }
 
         // ---- actions ----------------------------------------------------------------------
         void EquipVehicle(VehicleType t, string setId)

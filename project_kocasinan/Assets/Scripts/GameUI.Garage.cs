@@ -179,6 +179,23 @@ namespace BusJam
         }
 #endif
 
+        // The GlobalFontApplier multiplies EVERY Text by GameFont.UiScale on its passes (a level rebuild — which an
+        // equip triggers via OnReskin/RetryLevel — re-runs them), which SHRANK the garage/wardrobe text after equipping.
+        // Our cards are authored at the final on-screen sizes, so pre-seed each Text's FontScaleTag to CANCEL that
+        // multiply: baseSize = size/scale, so the applier's target (baseSize*scale) lands back exactly on the size we
+        // built. Call right after (re)building content, before any applier pass sees the new text.
+        static void PreserveAuthoredFontSizes(Transform root)
+        {
+            if (root == null) return;
+            float scale = GameFont.UiScale; if (scale <= 0f) scale = 1f;
+            foreach (var t in root.GetComponentsInChildren<Text>(true))
+            {
+                var tag = t.GetComponent<FontScaleTag>(); if (tag == null) tag = t.gameObject.AddComponent<FontScaleTag>();
+                tag.baseSize = t.fontSize / scale; // applier: fontSize = baseSize*scale = the size we authored (unchanged)
+                tag.captured = true;
+            }
+        }
+
         // ---- (Re)populate the scroll content + counters ---------------------
         void RefreshGarage()
         {
@@ -219,14 +236,16 @@ namespace BusJam
             CraftRow(garageContent, 1); // Uncommon
             CraftRow(garageContent, 2); // Epic
             CraftRow(garageContent, 3); // Legendary
+
+            PreserveAuthoredFontSizes(garageContent); // keep these authored sizes through the global font applier
         }
 
         // A faint section header row (LayoutElement gives the vertical group a fixed height).
         void SectionLabel(Transform parent, string text)
         {
             var go = Img(parent, null, new Color(1, 1, 1, 0.06f)); go.raycastTarget = false;
-            var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 64; le.minHeight = 64;
-            Label(go.transform, text, num, Vector2.zero, new Vector2(840, 50), 34, new Color(0.85f, 0.88f, 0.95f));
+            var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 74; le.minHeight = 74;
+            Label(go.transform, text, num, Vector2.zero, new Vector2(860, 60), 40, new Color(0.88f, 0.91f, 0.97f));
         }
 
         // A sub-object with a fixed-column grid; returns its transform so cards parent into it.
@@ -251,15 +270,42 @@ namespace BusJam
             return rt;
         }
 
-        // A simple code-built treasure chest (body + lid + gold lock), centred in `parent`, scaled by width `w`.
+        // A CUTE code-built treasure chest — chunky ROUNDED body + dome lid, gold straps, a big round lock with a
+        // keyhole, two little feet and a shine. Centred in `parent`, scaled by width `w`. Shared by the chest cards
+        // (small) and the reveal popup (large). Uses rounded kit sprites so nothing is a bare rectangle.
         void BuildChest(Transform parent, Color tint, float w)
         {
-            var body = Img(parent, null, tint); body.raycastTarget = false;
-            Place(body.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -w * 0.12f), new Vector2(w, w * 0.52f));
-            var lid = Img(parent, null, new Color(tint.r * 0.78f, tint.g * 0.78f, tint.b * 0.78f)); lid.raycastTarget = false;
-            Place(lid.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, w * 0.22f), new Vector2(w * 1.05f, w * 0.30f));
-            var lck = Img(parent, null, new Color(1f, 0.85f, 0.3f)); lck.raycastTarget = false;
-            Place(lck.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(w * 0.17f, w * 0.17f));
+            const float V = 0.5f, V2 = 0.5f; // anchor shorthand (centre)
+            Color lidCol  = new Color(tint.r * 0.70f, tint.g * 0.70f, tint.b * 0.70f);
+            Color footCol = new Color(tint.r * 0.48f, tint.g * 0.48f, tint.b * 0.48f);
+            Color gold     = new Color(1f, 0.82f, 0.30f);
+            Color goldHi   = new Color(1f, 0.90f, 0.46f);
+
+            // two little rounded feet at the bottom
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var foot = Img(parent, UIKit.ShopIconBgA(), White); foot.color = footCol; foot.raycastTarget = false;
+                Place(foot.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(s * w * 0.27f, -w * 0.42f), new Vector2(w * 0.24f, w * 0.18f));
+            }
+            // dome lid (rounded), poking up above the body
+            var lid = Img(parent, UIKit.ShopIconBgA(), White); lid.color = lidCol; lid.raycastTarget = false;
+            Place(lid.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.20f), new Vector2(w * 1.00f, w * 0.40f));
+            // rounded body — drawn after the lid so its front covers the lid's lower edge (reads as lid-on-box)
+            var body = Img(parent, UIKit.ShopIconBgA(), White); body.color = tint; body.raycastTarget = false;
+            Place(body.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, -w * 0.12f), new Vector2(w * 0.92f, w * 0.56f));
+            // gold rim along the lid/body seam + a vertical strap down the front
+            var rim = Img(parent, null, gold); rim.raycastTarget = false;
+            Place(rim.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.04f), new Vector2(w * 0.98f, w * 0.10f));
+            var strap = Img(parent, null, gold); strap.raycastTarget = false;
+            Place(strap.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, -w * 0.14f), new Vector2(w * 0.13f, w * 0.44f));
+            // big round lock + dark keyhole
+            var lok = Img(parent, UIKit.CircleYellow(), White); lok.color = goldHi; lok.raycastTarget = false;
+            Place(lok.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.02f), new Vector2(w * 0.26f, w * 0.26f));
+            var hole = Img(parent, null, new Color(0.30f, 0.20f, 0.10f)); hole.raycastTarget = false;
+            Place(hole.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.02f), new Vector2(w * 0.07f, w * 0.11f));
+            // soft shine on the lid
+            var shine = Img(parent, null, new Color(1f, 1f, 1f, 0.35f)); shine.raycastTarget = false;
+            Place(shine.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(-w * 0.24f, w * 0.28f), new Vector2(w * 0.22f, w * 0.09f));
         }
 
         // One gold chest card: chest art + gold-cost OPEN button + (if you hold keys) a key badge to open free.
@@ -267,12 +313,12 @@ namespace BusJam
         {
             Color tint = ChestTint(tier);
             var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(tint.r * 0.55f, tint.g * 0.55f, tint.b * 0.55f);
-            Label(card.transform, name, num, new Vector2(0, 96), new Vector2(255, 44), 26, White);
+            Label(card.transform, name, num, new Vector2(0, 98), new Vector2(255, 48), 30, White);
             BuildChest(Holder(card.transform, new Vector2(0, 16), new Vector2(150, 110)), tint, 110);
             var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 16), new Vector2(250, 78), () => OpenChest(tier));
             var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
             Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(46, 46));
-            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(250, 48), 30, White);
+            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(250, 52), 34, White);
 
             int keys = SaveSystem.Keys(tier.ToString());
             if (keys > 0) KeyBadge(card.transform, tier, keys);

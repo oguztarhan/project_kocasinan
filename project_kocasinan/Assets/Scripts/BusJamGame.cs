@@ -3578,6 +3578,109 @@ namespace BusJam
             return go;
         }
 
+        // A tileable low-poly GROUND texture: a grid of flat-shaded triangle facets with a subtle per-facet brightness
+        // variation. GREYSCALE, so the ground material's _BaseColor still supplies the THEME hue (texture x colour) ->
+        // the ground reads as low-poly terrain in each theme's own colour. Built once + cached (one small texture).
+        static Texture2D _lpGroundTex;
+        static Texture2D LowPolyGroundTex()
+        {
+            if (_lpGroundTex != null) return _lpGroundTex;
+            const int N = 128, cells = 8;                          // 8x8 cells x 2 triangles; the grid wraps -> tiles seamlessly
+            float cs = (float)N / cells;
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    int cx = (int)(x / cs), cy = (int)(y / cs);
+                    float fx = x / cs - cx, fy = y / cs - cy;
+                    bool flip = (((cx * 49157) ^ (cy * 98317)) & 1) == 1; // alternate the SPLIT diagonal per cell -> varied triangle orientations (not a uniform stripe)
+                    bool upper = flip ? (fx + fy > 1f) : (fx > fy);        // which of the cell's two triangles this pixel is in
+                    int h = (cx * 73856093) ^ (cy * 19349663) ^ (upper ? 83492791 : 26949127); // per-facet hash (wraps mod cells -> seamless)
+                    float b = 0.90f + 0.10f * ((h & 1023) / 1023f);                             // 0.90..1.0 facet brightness (x _BaseColor) — SUBTLE grain (bold contrast read as confusing)
+                    byte v = (byte)(b * 255f);
+                    px[y * N + x] = new Color32(v, v, v, 255);
+                }
+            _lpGroundTex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Point };
+            _lpGroundTex.SetPixels32(px);
+            _lpGroundTex.Apply(true);
+            return _lpGroundTex;
+        }
+
+        // Paint the facet texture onto a ground-band material, tiled so each facet is ~0.6 world units (square facets
+        // regardless of the band's depth). The material keeps its theme _BaseColor as the tint.
+        static void ApplyLowPolyGround(Material m, Vector3 size)
+        {
+            if (m == null) return;
+            const float repeat = 5f; // world units per texture tile (8 facets across a tile -> ~0.6-unit facets)
+            m.mainTexture = LowPolyGroundTex();
+            m.mainTextureScale = new Vector2(size.x / repeat, size.z / repeat);
+        }
+
+        // A 2D BACKDROP image for behind the buildings: a sunset-style sky gradient (warm at the horizon -> deeper theme
+        // sky up top) with a soft sun and a dark CITY SKYLINE silhouette (with lit windows). Themed via th.sky. Cached.
+        static readonly Dictionary<string, Texture2D> _skyTexCache = new Dictionary<string, Texture2D>();
+        static Texture2D LowPolySkyTex(Theme th)
+        {
+            if (_skyTexCache.TryGetValue(th.name, out var cached) && cached != null) return cached;
+            const int W = 256, H = 128;
+            Color mid  = MaterialLibrary.Mute(th.sky);
+            Color deep = new Color(mid.r * 0.55f, mid.g * 0.55f, mid.b * 0.64f, 1f);      // deeper sky up top
+            Color glow = Color.Lerp(mid, new Color(1f, 0.55f, 0.30f), 0.60f);            // warm sunset band at the horizon
+            Color sun  = new Color(1f, 0.86f, 0.58f);
+            Color bldg = new Color(0.10f, 0.10f, 0.15f);                                 // dark skyline silhouette
+            Color win  = new Color(1f, 0.80f, 0.42f);                                    // lit windows
+            const int slots = 18;
+            var bh = new float[slots];
+            for (int s = 0; s < slots; s++) { int hs = (s * 73856093) ^ 0x5bd1e995; bh[s] = 0.13f + 0.30f * (((hs >> 4) & 255) / 255f); } // per-building height
+            const float sunX = 0.52f, sunY = 0.30f, sunR = 0.12f;
+            var px = new Color32[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float tx = x / (float)(W - 1), ty = y / (float)(H - 1);
+                    Color c = ty < 0.42f ? Color.Lerp(glow, mid, ty / 0.42f) : Color.Lerp(mid, deep, (ty - 0.42f) / 0.58f); // sky gradient
+                    float dx = (tx - sunX) * 2f, dy = ty - sunY, sd = Mathf.Sqrt(dx * dx + dy * dy);
+                    if (sd < sunR) c = Color.Lerp(sun, c, Mathf.SmoothStep(0f, 1f, sd / sunR));                            // soft sun disc
+                    int sl = Mathf.Clamp((int)(tx * slots), 0, slots - 1);
+                    if (ty < bh[sl])                                                                                        // skyline silhouette (bottom of the image)
+                    {
+                        c = bldg;
+                        if (x % 9 < 3 && y % 11 < 4 && ty < bh[sl] - 0.02f) c = win;                                       // window dots
+                    }
+                    px[y * W + x] = new Color32((byte)(Mathf.Clamp01(c.r) * 255), (byte)(Mathf.Clamp01(c.g) * 255), (byte)(Mathf.Clamp01(c.b) * 255), 255);
+                }
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            _skyTexCache[th.name] = tex;
+            return tex;
+        }
+
+        // The 2D sky BACKDROP quad (city/sunset image), placed just behind the buildings and tilted to face the steep
+        // camera so it fills the background above/behind the building line. Parented to boardRoot -> rebuilt per level.
+        void BuildLowPolySky(Theme th)
+        {
+            if (cam == null) return;
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(go.GetComponent<Collider>());
+            go.name = "LowPolySky";
+            go.transform.SetParent(boardRoot, false);
+
+            var sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
+            var mat = new Material(sh);
+            mat.mainTexture = LowPolySkyTex(th);
+            if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 0f);          // double-sided -> which way the quad faces never matters
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+
+            // Steep ~60deg camera: only a LOW, near band of sky is on-screen, so sit the backdrop JUST behind the
+            // buildings (z~17) and low, not far+high (which lands above the frustum -> invisible). Big + tilted to face
+            // the camera so its visible lower band fills the sky behind/above the building line.
+            Vector3 p = new Vector3(0f, 5f, 17f);
+            go.transform.position = p;
+            go.transform.rotation = Quaternion.LookRotation((p - cam.transform.position).normalized, Vector3.up); // tilt to face the camera
+            go.transform.localScale = new Vector3(80f, 44f, 1f);
+        }
+
         void ApplyTheme(Theme th)
         {
             if (cam != null)
@@ -3643,11 +3746,17 @@ namespace BusJam
             // below the road (toward the camera) is gray; the PEOPLE area above the road is the themed ground. The
             // road slab at RoadZ hides the seam on-screen (it is off-screen at the far sides).
             const float gFront = -32f, gBack = 38f; // full ground z-extent (replaces the old field + central plaza)
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (gFront + RoadZ) * 0.5f), new Vector3(46f, 0.2f, RoadZ - gFront), vehicleZone);
-            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (RoadZ + gBack) * 0.5f), new Vector3(46f, 0.2f, gBack - RoadZ), ground);
+            var vzSize = new Vector3(46f, 0.2f, RoadZ - gFront);
+            var gdSize = new Vector3(46f, 0.2f, gBack - RoadZ);
+            ApplyLowPolyGround(vehicleZone, vzSize); // low-poly faceted texture on BOTH ground bands (each keeps its own theme tint)
+            ApplyLowPolyGround(ground, gdSize);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (gFront + RoadZ) * 0.5f), vzSize, vehicleZone);
+            LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.12f, (RoadZ + gBack) * 0.5f), gdSize, ground);
             // Distinct ROAD lane BELOW the parking stops (own band at RoadZ, between jam and stops) — full
             // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
+
+            BuildLowPolySky(th); // low-poly faceted sky backdrop BEHIND the buildings (fills the flat background sky)
 
             for (int i = -4; i <= 4; i++)
             {
@@ -3874,9 +3983,11 @@ namespace BusJam
         void BuildBoardingDoor(Theme th, Material frameMat)
         {
             float x = exitDoorX, z = DoorSpawnZ;
+            frameMat = MaterialLibrary.MakeRuntimeMuted(new Color(0.58f, 0.55f, 0.52f), 0.3f); // OUTSIDE frame/posts stay a FIXED neutral stone — only the INSIDE glow carries the theme colour
             var wallMat = MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f); // themed building face
-            var glowMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.94f, 0.80f), 0.5f, 2.6f);     // BRIGHT warm portal light (blooms)
-            var haloMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.86f, 0.62f), 0.6f, 1.3f);     // soft warm halo bleeding onto the wall
+            Color portalCol = Color.Lerp(th.accent, Color.white, 0.25f);                           // portal glow strongly tinted to the THEME accent (still bright enough to bloom)
+            var glowMat = MaterialLibrary.MakeRuntime(portalCol, 0.5f, 2.6f);                        // theme-COLOURED portal light (blooms)
+            var haloMat = MaterialLibrary.MakeRuntime(Color.Lerp(th.accent, Color.white, 0.15f), 0.6f, 1.3f); // theme-coloured halo bleeding onto the wall
 
             // Building-wall slab the portal is set into.
             MakeCube(boardRoot, wallMat, new Vector3(2.3f, 2.8f, 0.18f)).transform.position = new Vector3(x, 1.40f, z + 0.16f);
@@ -4244,6 +4355,8 @@ namespace BusJam
             float halfLen = LowPolyBuilder.VehicleLength(bus.type, CellSize) * 0.5f;
             go.transform.localPosition = new Vector3(0f, 0.15f, halfLen); // right behind the rear
             go.transform.localRotation = Quaternion.identity;
+            float smokeMul = bus.type == VehicleType.Bus ? 0.28f : 0.5f;  // buses are 2 cells long, so use a smaller multiplier -> their puff isn't ~2x the car's
+            go.transform.localScale = Vector3.one * (halfLen * smokeMul); // ~0.25 for cars/minivans, ~0.28 for buses (tune the two factors)
             // The Polygonal pack material is a built-in shader -> magenta/invisible under URP. Keep Smoke03's OWN
             // texture but on the URP-safe Sprites/Default shader so it's guaranteed visible (white, alpha-blended).
             if (smokeMat == null)
@@ -4259,7 +4372,14 @@ namespace BusJam
             }
             if (smokeMat != null)
                 foreach (var psr in go.GetComponentsInChildren<ParticleSystemRenderer>(true)) psr.sharedMaterial = smokeMat;
-            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) ps.Play(); // play it
+            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                var main = ps.main;
+                main.scalingMode = ParticleSystemScalingMode.Hierarchy; // so the localScale above actually scales the puff (sizes + speeds)
+                main.startLifetime = 0.8f;                              // shorter-lived puffs -> the smoke doesn't linger. SET (not *=) so pool reuse can't compound it away
+                main.startColor = Color.Lerp(PeopleColor(bus.color), Color.white, 0.25f); // tint the puff toward the vehicle's colour (lightened a touch so it stays smoke-like)
+                ps.Play();
+            }
             return go;
         }
 
@@ -4273,7 +4393,7 @@ namespace BusJam
             // particles' lifetime, cutting the live puff off mid-air -> a visible "pop". Instead: stop emitting and
             // cap each live particle's REMAINING life to `fade`s, so the trail thins out and dies on its own (its
             // alpha-over-lifetime fade plays out) within a short, fixed window. Destroy only after they're gone.
-            const float fade = 1.2f;
+            const float fade = 0.6f;
             foreach (var ps in smoke.GetComponentsInChildren<ParticleSystem>(true))
             {
                 ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
