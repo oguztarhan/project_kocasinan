@@ -55,10 +55,10 @@ namespace BusJam
             // TEMP (level testing): an always-visible button on the (always-active) canvas that opens this map, so ANY
             // level can be jumped to directly — paired with debugUnlockAll in PopulateGrid. Lives on the canvas, NOT the
             // toggled panel, so it shows during gameplay. Remove for release.
-            var jump = Button(canvasGo.transform, "LEVELS", new Color(0.55f, 0.42f, 0.86f), Open, 30);
+            var jump = Button(canvasGo.transform, "LEVELS", new Color(0.42f, 0.56f, 0.82f), Open, 24);
             var jrt = jump.GetComponent<RectTransform>();
-            jrt.anchorMin = jrt.anchorMax = jrt.pivot = new Vector2(0f, 0f); // bottom-left corner
-            jrt.anchoredPosition = new Vector2(20f, 20f); jrt.sizeDelta = new Vector2(210f, 92f);
+            jrt.anchorMin = jrt.anchorMax = jrt.pivot = new Vector2(1f, 1f);       // top-right, directly UNDER the GARAGE button (which sits at -95,-250, 132x132)
+            jrt.anchoredPosition = new Vector2(-95f, -392f); jrt.sizeDelta = new Vector2(132f, 132f);
             jumpBtn = jump.gameObject;
         }
 

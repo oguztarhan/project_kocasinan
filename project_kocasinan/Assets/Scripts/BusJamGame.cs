@@ -36,7 +36,19 @@ namespace BusJam
 
         public int CurrentLevel => currentLevel;
         public int Coins => SaveSystem.Coins;
-        public bool IsBonus => currentLevel % 10 == 0 && GameConfig.FeatureBonusLevels; // every 10th level = the night traffic-dodge bonus round (remote flag off => those levels play as a normal round)
+        public enum BonusKind { None, TrafficDodge, CoinRush, TimeAttack, MysteryRush }
+        BonusKind bonusKind = BonusKind.None;                          // this level's bonus type (set in StartLevel)
+        // Every 10th level = TrafficDodge (unchanged). 15,25,35... rotate the three new types. Remote flag off => None everywhere.
+        static BonusKind LevelBonusKind(int lvl)
+        {
+            if (!GameConfig.FeatureBonusLevels) return BonusKind.None;
+            if (lvl % 10 == 0) return BonusKind.TrafficDodge;
+            if (lvl >= 15 && lvl % 10 == 5)
+                switch (((lvl - 15) / 10) % 3) { case 0: return BonusKind.CoinRush; case 1: return BonusKind.TimeAttack; default: return BonusKind.MysteryRush; }
+            return BonusKind.None;
+        }
+        public bool IsBonus => bonusKind == BonusKind.TrafficDodge;    // the night traffic-dodge round (ALL existing bonus logic stays gated on this)
+        bool SpecialBonus => bonusKind == BonusKind.CoinRush || bonusKind == BonusKind.TimeAttack || bonusKind == BonusKind.MysteryRush;
 
         // Joker prices tuned to the flat 25-gold/level economy (Swap = ~2 levels, Recolor = ~3, Heli = ~4).
         static int RecolorCost => GameConfig.RecolorCost;
@@ -114,6 +126,7 @@ namespace BusJam
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
         const float BonusTime = 60f;        // bonus-only countdown length (1 minute)
         const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
+        const int CoinRushGold = 120;       // Coin Rush bonus: gold granted on clear (on top of the chest)
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
         const int BonusComboTarget = 3;     // crash-free bus sends IN A ROW that earn the time reward
         const float BonusComboReward = 3f;  // seconds added each time the combo target is hit
@@ -125,6 +138,7 @@ namespace BusJam
         float trafficPhaseLeft;             // seconds left in the current red/green phase
         float bonusTimeLeft;
         bool bonusStarted;                  // bonus countdown waits for the player's FIRST tap, then ticks (no auto-start at load)
+        float bonusElapsed;                 // TimeAttack: seconds since the first tap (faster clear -> better chest)
         int bonusCombo;                     // consecutive crash-free bonus sends; resets to 0 on any crash
         bool crashedThisBonus;              // set on a T3 crash -> disqualifies the perfect bonus
         bool nightMode;                     // cached in ApplyTheme (Night/Bonus) -> board + traffic headlights
@@ -342,6 +356,7 @@ namespace BusJam
             // The bonus timer may end the level THIS frame (FinishBonus -> NextLevel rebuilds + re-sets Playing),
             // so bail if the level changed or we left Playing — never run taps against a half-swapped board.
             if (IsBonus && bonusStarted) { int lv0 = currentLevel; TickBonusTimer(); if (currentLevel != lv0 || state != GameState.Playing) return; } // bonus clock starts on the player's FIRST tap (set in TryTapBus), not at level load
+            else if (bonusKind == BonusKind.TimeAttack && bonusStarted) { bonusElapsed += Time.deltaTime; ui.SetBonusStopwatch(bonusElapsed); } // count-UP stopwatch
 #if UNITY_EDITOR
             AssertNoOccOverlap(); // invariant watchdog: logs to the Console if two vehicles ever share a cell
 #endif
@@ -434,7 +449,7 @@ namespace BusJam
                 foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c);
                 gridBuses.Remove(bus);
                 slot.occupant = bus; bus.slotIndex = slot.index; bus.state = BusState.MovingToSlot; // claimed synchronously
-                if (IsBonus && !bonusStarted) { bonusStarted = true; if (coach != null) coach.Hide(); } // first vehicle sent -> start the bonus clock + drop the intro text
+                if ((IsBonus || SpecialBonus) && !bonusStarted) { bonusStarted = true; if (coach != null) coach.Hide(); } // first vehicle sent -> start the clock (traffic + time-attack) + drop the intro text
                 if (tutorialActive) AdvanceTutorialOnFirstMove(); // (#4) first successful park advances the coach
                 StartCoroutine(ExitRoutine(bus, slot)); // engine (vroom) starts automatically while it drives — see UpdateEngineSfx
                 return;
@@ -1123,7 +1138,7 @@ namespace BusJam
             // Defer ALL end-decisions until in-flight walks/drive-offs settle (busy brackets every async
             // boarder), so Win can't pop while the last passengers are still walking to their bus.
             if (busy > 0) return;
-            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { if (IsBonus) FinishBonus(true); else Win(); return; }
+            if (visible.Count == 0 && nextGroupIndex >= groups.Count) { if (bonusKind != BonusKind.None) BonusSuccess(); else Win(); return; }
             if (visible.Count == 0) return;
 
             // The front passenger can board one of the parked buses -> keep playing.
@@ -1615,11 +1630,28 @@ namespace BusJam
         void StartLevel(int levelNumber)
         {
             currentLevel = levelNumber;
+            bonusKind = LevelBonusKind(levelNumber);
             Teardown();
 
             // Load an authored level asset if one exists; otherwise generate procedurally.
             var def = Resources.Load<LevelDefinition>("Levels/Level" + levelNumber);
-            level = def != null ? LevelGenerator.Generate(def) : LevelGenerator.Generate(levelNumber);
+            // Bonus jams: Coin Rush = an easy jam shaped like a picture (heart/circle/…); Mystery Rush = every vehicle GRAY. Others authored-or-procedural.
+            if (bonusKind == BonusKind.CoinRush)
+            {
+                // A DIFFERENT shape each Coin Rush level (15,45,75,105,135... every 30): circle -> triangle -> plus -> X -> heart, repeat.
+                LayoutStyle shape;
+                switch (Mathf.Max(0, (levelNumber - 15) / 30) % 5)
+                {
+                    case 0:  shape = LayoutStyle.Circle;   break;
+                    case 1:  shape = LayoutStyle.Triangle; break;
+                    case 2:  shape = LayoutStyle.Plus;     break;
+                    case 3:  shape = LayoutStyle.XShape;   break;
+                    default: shape = LayoutStyle.Heart;    break;
+                }
+                level = LevelGenerator.Generate(Mathf.Clamp(levelNumber / 4, 3, 5), shape, shapeFill: true);
+            }
+            else if (bonusKind == BonusKind.MysteryRush) level = LevelGenerator.Generate(levelNumber, forceMysteryP: 1f);
+            else level = def != null ? LevelGenerator.Generate(def) : LevelGenerator.Generate(levelNumber);
             totalSlots = level.baseSlots + level.extraSlots;
             boardRoot = new GameObject("Board").transform;
 
@@ -1651,6 +1683,13 @@ namespace BusJam
                 BuildTrafficLights();                                        // real poles on both road sides; lit to match the phase
                 StartCoroutine(TrafficLoop());
             }
+            else if (SpecialBonus)
+            {
+                // New bonus types play as a normal jam with a twist; the reward is granted on clear (BonusSuccess).
+                bonusElapsed = 0f; bonusStarted = false;
+                if (bonusKind == BonusKind.TimeAttack) ui.SetBonusStopwatch(0f); // count-UP stopwatch, ticked in Update; starts on the first tap
+                else ui.HideBonusCountdown();
+            }
             else ui.HideBonusCountdown();
             ui.SetLevel(levelNumber);
             ui.SetTheme(theme.name);
@@ -1676,6 +1715,13 @@ namespace BusJam
             {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
                 coach.ShowText(Loc.T("Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!"));
+            }
+            else if (SpecialBonus)
+            {
+                if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
+                coach.ShowText(Loc.T(bonusKind == BonusKind.CoinRush ? "Coin Rush! Clear the heart jam for a chest — then stop the bar on GOLD!"
+                                   : bonusKind == BonusKind.TimeAttack ? "Time Attack! Clear the jam FAST — a quicker time = a better chest!"
+                                   : "Mystery Rush! Every car is GRAY — send them out to reveal their colour, then grab a chest!"));
             }
             else { tutorialActive = false; if (coach != null) coach.Hide(); }
         }
@@ -1906,6 +1952,31 @@ namespace BusJam
                 OnGameOver?.Invoke("Bonus failed");
                 ui.ShowFailed();
             }
+        }
+
+        // Unified SUCCESS path for ALL bonus kinds: lock progression + confetti, then hand off to the reward flow —
+        // TimeAttack grants a chest by finish time; the others run the stop-the-bar mini-game to pick the chest.
+        // (Bonus FAIL still goes through FinishBonus(false) / Lose. NextLevel advances once the reward is claimed.)
+        void BonusSuccess()
+        {
+            if (state != GameState.Playing) return;
+            state = GameState.Win;
+            ui.HideBonusCountdown();
+            EndTutorial();
+            SaveSystem.Level = Mathf.Max(SaveSystem.Level, currentLevel + 1);
+            SaveSystem.BestLevel = currentLevel;
+            sfx.Win();
+            ui.HideHud();
+            ConfettiFromCorners();
+            if (bonusKind == BonusKind.CoinRush) { SaveSystem.AddCoins(CoinRushGold); CoinsChanged?.Invoke(SaveSystem.Coins); } // the "rush" gold on top of the chest
+            LevelCompleted?.Invoke(0, 3); // win signal for the ad cadence (the reward itself is a chest, not coins)
+            if (bonusKind == BonusKind.TimeAttack)
+            {
+                ChestTier tier = bonusElapsed < 25f ? ChestTier.Gold : bonusElapsed < 45f ? ChestTier.Silver : ChestTier.Bronze;
+                ui.ShowBonusReward(false, tier, NextLevel);          // time picked the tier -> straight to the chest reveal
+            }
+            else
+                ui.ShowBonusReward(true, ChestTier.Bronze, NextLevel); // stop-the-bar decides Bronze/Silver/Gold
         }
 
         // ====================================================================

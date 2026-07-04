@@ -25,6 +25,8 @@ namespace BusJam
         RawImage revealPattern, revealRays;
         CanvasGroup revealChestGroup, revealItemGroup, revealKeyGroup;
         Button revealOk;
+        System.Action revealThenDo; // when set, the reveal's OK runs this (bonus reward -> advance the level) instead of only closing
+        Transform revealChestTf;    // the reveal's opening-chest holder (re-tinted per tier by SetRevealChestTier)
         Coroutine revealCo;
 
         static Color ChestTint(ChestTier t)
@@ -467,6 +469,7 @@ namespace BusJam
             Place(chestRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(360, 320));
             revealChestGroup = chestGo.AddComponent<CanvasGroup>();
             BuildChest(chestGo.transform, new Color(0.98f, 0.80f, 0.28f), 240); // generic gold-roped chest for the opening animation
+            revealChestTf = chestGo.transform;                                  // bonus rewards re-tint this to the won tier (SetRevealChestTier)
 
             // item group (frame + name + sub) — hidden until the chest pops open
             var itemGo = new GameObject("Item", typeof(RectTransform));
@@ -494,10 +497,19 @@ namespace BusJam
             Place(ki.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-160, 0), new Vector2(64, 64));
             revealKeyText = Label(keyGo.transform, "", title, new Vector2(40, 0), new Vector2(540, 70), 38, new Color(1f, 0.90f, 0.40f));
 
-            revealOk = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 60), new Vector2(380, 120), () => revealPanel.SetActive(false));
+            revealOk = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 60), new Vector2(380, 120), () => { revealPanel.SetActive(false); var cb = revealThenDo; revealThenDo = null; cb?.Invoke(); });
             Label(revealOk.transform, "OK", title, Vector2.zero, new Vector2(380, 80), 46, White);
 
             revealPanel.SetActive(false);
+        }
+
+        // Re-tint the reveal's opening chest to a tier — bonus rewards call this so the chest that "opens" matches the
+        // tier the player just won, rebuilding the chest art under the same animated group.
+        void SetRevealChestTier(ChestTier tier)
+        {
+            if (revealChestTf == null) return;
+            for (int i = revealChestTf.childCount - 1; i >= 0; i--) { var ch = revealChestTf.GetChild(i); ch.SetParent(null, false); Destroy(ch.gameObject); }
+            BuildChest(revealChestTf, ChestTint(tier), 240);
         }
 
         // Car reveal (chest path) — the won car's 3D thumbnail + name in its rarity-tier colour.

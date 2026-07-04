@@ -1197,6 +1197,19 @@ namespace BusJam
             // NOTE: the red/green traffic light is now a real in-world prop on both road sides (BusJamGame.BuildTrafficLights),
             // not a HUD widget — so the player reads stop/go straight off the road.
         }
+        // TimeAttack count-UP stopwatch (reuses the bonus label): shows elapsed m:ss coloured by PACE, so the player
+        // sees the chest they're earning — green (<25s = Gold) -> orange (<45s = Silver) -> red (Bronze).
+        public void SetBonusStopwatch(float elapsed)
+        {
+            if (!bonusCountdown) return;
+            if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
+            int s = Mathf.Max(0, Mathf.FloorToInt(elapsed));
+            bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
+            Color green = new Color(0.36f, 0.92f, 0.45f), orange = new Color(1f, 0.66f, 0.16f), red = new Color(1f, 0.32f, 0.28f);
+            bonusCountdown.color = elapsed < 25f ? green : elapsed < 45f ? Color.Lerp(green, orange, (elapsed - 25f) / 20f) : Color.Lerp(orange, red, Mathf.Clamp01((elapsed - 45f) / 20f));
+            bonusCountdown.transform.localScale = Vector3.one; // clear any leftover countdown pulse
+        }
+
         public void SetBonusCountdown(float seconds)
         {
             if (!bonusCountdown) return;

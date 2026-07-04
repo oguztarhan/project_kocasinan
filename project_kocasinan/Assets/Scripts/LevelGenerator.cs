@@ -42,7 +42,7 @@ namespace BusJam
     /// <summary>Per-level board shape. Biases ONLY the order BuildGrid tries anchor cells (richer
     /// look + more blocking); the BodyFree/SlideClear clearance rules are unchanged, so every level
     /// stays solvable-by-construction.</summary>
-    public enum LayoutStyle { Scatter, Ring, Cross, Diamond }
+    public enum LayoutStyle { Scatter, Ring, Cross, Diamond, Heart, Circle, Triangle, Plus, XShape }
 
     public static class LevelGenerator
     {
@@ -51,11 +51,20 @@ namespace BusJam
 
         /// <summary>Procedural levels (used for 6+ and as the fallback). Gets harder
         /// as the level rises: more colors, more buses, more specials.</summary>
-        public static LevelData Generate(int level)
+        public static LevelData Generate(int level, LayoutStyle? forceStyle = null, float forceMysteryP = -1f, bool shapeFill = false)
         {
             var rng = new System.Random(level * 9176 + 4242);
 
             if (level % 10 == 0) return GenerateBonus(level, rng); // every 10th = 2-color core-boxed-by-ring bonus
+
+            if (shapeFill && forceStyle.HasValue)
+            {
+                // Coin Rush: fill the EXACT shape silhouette with uniform cap-2 cars on the MAX grid (W6xH9) so it reads
+                // crisply. Car count == the shape's cell count, and the shape style fills those cells first.
+                int carCount = Mathf.Clamp(ShapeCount(6, 9, forceStyle.Value), 12, 26);
+                return Build(rng, level, 2, carCount, 6, 9, BaseSlots, ExtraSlots,
+                             0.10f, 0f, MixForLevel(level), 0f, 4, 4, forceStyle, forceMysteryP, forceAllCars: true);
+            }
 
             // MANY vehicles every level (easy-but-many at L1); difficulty rises via colors/specials/
             // diagonals/density, NOT count.
@@ -68,7 +77,7 @@ namespace BusJam
             float specialP = level < 10 ? 0f : Mathf.Min(0.20f, (level - 9) * 0.03f);
 
             return Build(rng, level, colorCount, busCount, 6, 0, BaseSlots, ExtraSlots,
-                         goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4);
+                         goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4, forceStyle, forceMysteryP);
         }
 
         // Gentle ramp across the THREE vehicle types: cap-4 cars only at first (easy + many + few people),
@@ -219,7 +228,8 @@ namespace BusJam
         static LevelData Build(System.Random rng, int levelNumber, int colorCount, int busCount,
             int gridWidth, int gridHeightHint, int baseSlots, int extraSlots,
             float goldenP, float mysteryP, VehicleMix mix,
-            float specialChance, int specialMaxAdvance, int minRun)
+            float specialChance, int specialMaxAdvance, int minRun,
+            LayoutStyle? forceStyle = null, float forceMysteryP = -1f, bool forceAllCars = false)
         {
             // FIXED slot layout for EVERY level (procedural + authored): exactly BaseSlots OPEN stops +
             // ExtraSlots locked = 7 pads. Overriding here (not trusting def.baseSlots) keeps it uniform; the
@@ -229,8 +239,8 @@ namespace BusJam
             var buses = new List<BusDef>(busCount);
             for (int i = 0; i < busCount; i++)
             {
-                var type = PickType(mix, rng);
-                int cap = CapacityFor(type, mix, rng);
+                var type = forceAllCars ? VehicleType.Car : PickType(mix, rng); // Coin Rush shapes: uniform 1-cell cars read crisply
+                int cap = forceAllCars ? 2 : CapacityFor(type, mix, rng);       // small capacity keeps the dense shape quick to clear
                 // advanceN is ORTHOGONAL to placement/capacity, so it never affects solvability.
                 int advanceN = (specialChance > 0f && rng.NextDouble() < specialChance) ? rng.Next(2, maxAdvance + 1) : 0;
                 buses.Add(new BusDef { color = (PieceColor)rng.Next(colorCount), type = type, capacity = cap, advanceN = advanceN });
@@ -243,13 +253,13 @@ namespace BusJam
             // Layout VARIETY + difficulty ramp (solvability unchanged): cycle a shape per level, pack
             // denser as levels rise, and let HARDER levels use diagonals (true 8-way) while easy levels
             // stay 4-way like the reference.
-            var style = (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
+            var style = forceStyle ?? (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
             float pack = Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f)); // more slack early, denser later
             bool allowDiagonals = levelNumber >= 6 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 6+ = 8-way (remote flag off => 4-way everywhere)
             // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
             // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
             // level layouts are byte-for-byte unchanged.
-            float vehicleMysteryP = GameConfig.FeatureMystery ? Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f) : 0f;
+            float vehicleMysteryP = forceMysteryP >= 0f ? forceMysteryP : (GameConfig.FeatureMystery ? Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f) : 0f);
             var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, vehicleMysteryP, out int gridW, out int gridH);
 
             return new LevelData
@@ -576,7 +586,9 @@ namespace BusJam
                         case LayoutStyle.Ring:    score = -Mathf.Max(dx, dy); break;  // outer ring first
                         case LayoutStyle.Cross:   score = Mathf.Min(dx, dy);  break;  // central row/column first
                         case LayoutStyle.Diamond: score = -(dx + dy);         break;  // diamond tips/edges first
-                        default:                  score = 0f;                 break;  // Scatter (fully random)
+                        case LayoutStyle.Scatter: score = 0f;                 break;  // fully random
+                        // filled SILHOUETTE shapes (Coin Rush): INSIDE cells fill first, centre-out (constructor-friendly), outside far back
+                        default:                  score = InShape(x, y, cx, cy, W, H, style) ? (dx + dy) : 40f + dx + dy; break;
                     }
                     keyed.Add((new Vector2Int(x, y), score + (float)rng.NextDouble() * 0.9f));
                 }
@@ -584,6 +596,39 @@ namespace BusJam
             var ordered = new List<Vector2Int>(keyed.Count);
             foreach (var kv in keyed) ordered.Add(kv.cell);
             return ordered;
+        }
+
+        // Hand-authored 6-wide silhouettes for the Coin Rush shape levels. Row 0 = FRONT (lowest y, nearest the
+        // camera / bottom of screen); '#' = a car cell, '.' = empty. Kept compact (~16-20 cells) so the whole shape
+        // fits W6xH9 centred, WITH exit lanes, and stays solvable-by-construction. Only these 5 non-analytic styles
+        // reach InShape's lookup; the normal-level styles (Scatter/Ring/Cross/Diamond) are handled before it.
+        static readonly Dictionary<LayoutStyle, string[]> ShapeArt = new Dictionary<LayoutStyle, string[]>
+        {
+            { LayoutStyle.Heart,    new[] { "..##..", ".####.", "######", "##..##" } }, // point at front, lobes+cleft at back
+            { LayoutStyle.Circle,   new[] { ".####.", "######", "######", ".####." } },
+            { LayoutStyle.Plus,     new[] { "..##..", "..##..", "######", "######", "..##..", "..##.." } },
+            { LayoutStyle.XShape,   new[] { "..##..", ".####.", "######", ".####.", "..##.." } }, // diamond
+            { LayoutStyle.Triangle, new[] { "######", "######", ".####.", "..##.." } }, // wide base at front, apex at back
+        };
+
+        // Is cell (x,y) inside the Coin Rush silhouette for this style? Centred in the grid. Non-shape styles => every cell.
+        static bool InShape(int x, int y, float cx, float cy, int W, int H, LayoutStyle style)
+        {
+            if (!ShapeArt.TryGetValue(style, out var art)) return true;
+            int bh = art.Length, bw = art[0].Length;
+            int ox = (W - bw) / 2, oy = (H - bh) / 2;                          // centre the silhouette in the grid
+            int rx = x - ox, ry = y - oy;
+            if (rx < 0 || rx >= bw || ry < 0 || ry >= bh) return false;
+            return art[ry][rx] == '#';                                         // art row 0 == lowest y (front)
+        }
+
+        // How many cells the shape silhouette covers on a WxH grid (Coin Rush sets its car count to this).
+        static int ShapeCount(int W, int H, LayoutStyle style)
+        {
+            float cx = (W - 1) * 0.5f, cy = (H - 1) * 0.5f;
+            int c = 0;
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (InShape(x, y, cx, cy, W, H, style)) c++;
+            return c;
         }
 
         static void Shuffle<T>(List<T> list, System.Random rng)
