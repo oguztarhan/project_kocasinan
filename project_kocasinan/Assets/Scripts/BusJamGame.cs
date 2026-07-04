@@ -3552,6 +3552,7 @@ namespace BusJam
             if (heliBodyMat == null)   heliBodyMat   = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.46f, 0.82f), 0.4f);  // sky-blue shell (built once, reused by every heli joker)
             if (heliAccentMat == null) heliAccentMat = MaterialLibrary.MakeRuntime(new Color(0.97f, 0.78f, 0.16f), 0.35f); // warm yellow accent (fin/hub/hook)
             roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
+            roadMat.mainTexture = FacetTex(8, 0.93f); roadMat.mainTextureScale = new Vector2(24f, 2f); // faint asphalt facets (runtime mat -> safe to set directly; slab is 28x1 so 24x2 keeps facets ~square)
             stripeMat    = MaterialLibrary.MakeRuntime(new Color(0.93f, 0.93f, 0.86f), 0.10f);       // white-cream paint for the parking-bay lane markings
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
             headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.97f, 0.86f), 0.5f, 1.6f);       // #5: warm emissive headlight lens — SOFTER glow (was 3.0, looked harsh/blown-out on bonus levels)
@@ -3581,12 +3582,16 @@ namespace BusJam
         // A tileable low-poly GROUND texture: a grid of flat-shaded triangle facets with a subtle per-facet brightness
         // variation. GREYSCALE, so the ground material's _BaseColor still supplies the THEME hue (texture x colour) ->
         // the ground reads as low-poly terrain in each theme's own colour. Built once + cached (one small texture).
-        static Texture2D _lpGroundTex;
-        static Texture2D LowPolyGroundTex()
+        // Shared LOW-POLY FACET texture factory: greyscale triangle facets (multiplies the material's _BaseColor
+        // tint), cached per look. cells = facets per tile edge; bMin..1 = facet brightness range (lower = bolder).
+        // The grid hash wraps -> tiles seamlessly. One 128² texture per distinct look, cached for the app run.
+        static readonly Dictionary<int, Texture2D> _facetTexCache = new Dictionary<int, Texture2D>();
+        static Texture2D FacetTex(int cells, float bMin)
         {
-            if (_lpGroundTex != null) return _lpGroundTex;
-            const int N = 128, cells = 8;                          // 8x8 cells x 2 triangles; the grid wraps -> tiles seamlessly
-            float cs = (float)N / cells;
+            int key = cells * 1000 + Mathf.RoundToInt(bMin * 100f);
+            if (_facetTexCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            const int N = 128;
+            float cs = (float)N / cells, range = 1f - bMin;
             var px = new Color32[N * N];
             for (int y = 0; y < N; y++)
                 for (int x = 0; x < N; x++)
@@ -3596,14 +3601,27 @@ namespace BusJam
                     bool flip = (((cx * 49157) ^ (cy * 98317)) & 1) == 1; // alternate the SPLIT diagonal per cell -> varied triangle orientations (not a uniform stripe)
                     bool upper = flip ? (fx + fy > 1f) : (fx > fy);        // which of the cell's two triangles this pixel is in
                     int h = (cx * 73856093) ^ (cy * 19349663) ^ (upper ? 83492791 : 26949127); // per-facet hash (wraps mod cells -> seamless)
-                    float b = 0.90f + 0.10f * ((h & 1023) / 1023f);                             // 0.90..1.0 facet brightness (x _BaseColor) — SUBTLE grain (bold contrast read as confusing)
-                    byte v = (byte)(b * 255f);
+                    byte v = (byte)((bMin + range * ((h & 1023) / 1023f)) * 255f);
                     px[y * N + x] = new Color32(v, v, v, 255);
                 }
-            _lpGroundTex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Point };
-            _lpGroundTex.SetPixels32(px);
-            _lpGroundTex.Apply(true);
-            return _lpGroundTex;
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Point };
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            _facetTexCache[key] = tex;
+            return tex;
+        }
+
+        static Texture2D LowPolyGroundTex() => FacetTex(8, 0.90f); // ground: SUBTLE grain (bolder read as confusing)
+
+        // A COPY of `src` with the facet grain applied — never mutates src (theme materials can be shared assets;
+        // a mutated asset would persist in the editor). tile = repeats across the mesh's 0..1 UVs (per cube face).
+        static Material Faceted(Material src, int cells, float bMin, float tile)
+        {
+            if (src == null) return null;
+            var m = new Material(src);
+            m.mainTexture = FacetTex(cells, bMin);
+            m.mainTextureScale = new Vector2(tile, tile);
+            return m;
         }
 
         // Paint the facet texture onto a ground-band material, tiled so each facet is ~0.6 world units (square facets
@@ -3616,69 +3634,114 @@ namespace BusJam
             m.mainTextureScale = new Vector2(size.x / repeat, size.z / repeat);
         }
 
-        // A 2D BACKDROP image for behind the buildings: a sunset-style sky gradient (warm at the horizon -> deeper theme
-        // sky up top) with a soft sun and a dark CITY SKYLINE silhouette (with lit windows). Themed via th.sky. Cached.
-        static readonly Dictionary<string, Texture2D> _skyTexCache = new Dictionary<string, Texture2D>();
-        static Texture2D LowPolySkyTex(Theme th)
+        // Pack prefabs whose name contains ANY key (lowercase match), e.g. ("fir") -> the fir tree. Null when the
+        // pool is missing or nothing matches, so callers fall back explicitly (whole pool / procedural props).
+        static GameObject[] FilterFx(GameObject[] pool, params string[] keys)
         {
-            if (_skyTexCache.TryGetValue(th.name, out var cached) && cached != null) return cached;
-            const int W = 256, H = 128;
-            Color mid  = MaterialLibrary.Mute(th.sky);
-            Color deep = new Color(mid.r * 0.55f, mid.g * 0.55f, mid.b * 0.64f, 1f);      // deeper sky up top
-            Color glow = Color.Lerp(mid, new Color(1f, 0.55f, 0.30f), 0.60f);            // warm sunset band at the horizon
-            Color sun  = new Color(1f, 0.86f, 0.58f);
-            Color bldg = new Color(0.10f, 0.10f, 0.15f);                                 // dark skyline silhouette
-            Color win  = new Color(1f, 0.80f, 0.42f);                                    // lit windows
-            const int slots = 18;
-            var bh = new float[slots];
-            for (int s = 0; s < slots; s++) { int hs = (s * 73856093) ^ 0x5bd1e995; bh[s] = 0.13f + 0.30f * (((hs >> 4) & 255) / 255f); } // per-building height
-            const float sunX = 0.52f, sunY = 0.30f, sunR = 0.12f;
-            var px = new Color32[W * H];
-            for (int y = 0; y < H; y++)
-                for (int x = 0; x < W; x++)
-                {
-                    float tx = x / (float)(W - 1), ty = y / (float)(H - 1);
-                    Color c = ty < 0.42f ? Color.Lerp(glow, mid, ty / 0.42f) : Color.Lerp(mid, deep, (ty - 0.42f) / 0.58f); // sky gradient
-                    float dx = (tx - sunX) * 2f, dy = ty - sunY, sd = Mathf.Sqrt(dx * dx + dy * dy);
-                    if (sd < sunR) c = Color.Lerp(sun, c, Mathf.SmoothStep(0f, 1f, sd / sunR));                            // soft sun disc
-                    int sl = Mathf.Clamp((int)(tx * slots), 0, slots - 1);
-                    if (ty < bh[sl])                                                                                        // skyline silhouette (bottom of the image)
-                    {
-                        c = bldg;
-                        if (x % 9 < 3 && y % 11 < 4 && ty < bh[sl] - 0.02f) c = win;                                       // window dots
-                    }
-                    px[y * W + x] = new Color32((byte)(Mathf.Clamp01(c.r) * 255), (byte)(Mathf.Clamp01(c.g) * 255), (byte)(Mathf.Clamp01(c.b) * 255), 255);
-                }
-            var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            tex.SetPixels32(px);
-            tex.Apply(true);
-            _skyTexCache[th.name] = tex;
-            return tex;
+            if (pool == null || pool.Length == 0) return null;
+            var list = new List<GameObject>();
+            foreach (var g in pool)
+            {
+                if (g == null) continue;
+                string n = g.name.ToLowerInvariant();
+                foreach (var k in keys)
+                    if (n.Contains(k)) { list.Add(g); break; }
+            }
+            return list.Count > 0 ? list.ToArray() : null;
         }
 
-        // The 2D sky BACKDROP quad (city/sunset image), placed just behind the buildings and tilted to face the steep
-        // camera so it fills the background above/behind the building line. Parented to boardRoot -> rebuilt per level.
-        void BuildLowPolySky(Theme th)
+        // THEME ENVIRONMENT — VISIBLE-ONLY dressing. The 2960x1440 portrait frustum (steep camera, FOV 52) shows
+        // ground only for z ≈ -7.3..22 and |x| < VisHalfW(z) (≈4.6 at the jam front, ≈7 at the people band). The
+        // old far rows (z 24/28.5) and the jam-side scatter (x ±6.8 at z < 8) were pure OFF-SCREEN cost — REMOVED.
+        // The theme's cast (firs/palms/cacti/lamps/trees) now stands in the two side strips between the road and
+        // the people band (z 9.6..13.8, x ±6.3..6.9) plus one accent in the open top-right corner — all ON screen,
+        // all clear of gameplay lanes (road z7.4, stops |x|<=4.2 + bus-stop decor ±5.5, exits stay inside
+        // VisHalfW-1). Fewer objects than the old scatter AND every one of them visible.
+        void BuildThemeEnvironment(Theme th, Material main, Material alt, Material foliage, Material trunk, Material window)
         {
-            if (cam == null) return;
-            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(go.GetComponent<Collider>());
-            go.name = "LowPolySky";
-            go.transform.SetParent(boardRoot, false);
+            // ---- cast the theme (what stands in the side strips) ---------------------------------------------
+            GameObject[] sideTrees = null;
+            bool sideProcedural = false, sideLamps = false, sideBench = false;
+            PropKind procKind = th.prop;
+            float sideSize = 1.5f;
+            switch (th.name)
+            {
+                case "City": case "Night": case "Bonus":
+                    sideTrees = FilterFx(cityTrees, "cube", "big");
+                    sideLamps = true;                                   // avenue: a street light in the middle slot
+                    break;
+                case "Park":
+                    sideTrees = FilterFx(cityTrees, "big tree", "cube");
+                    sideBench = true;                                   // a park bench in the middle slot
+                    break;
+                case "Forest":
+                    sideTrees = FilterFx(cityTrees, "fir", "big tree"); sideSize = 1.8f; // taller forest edge
+                    break;
+                case "Snow":
+                    sideTrees = FilterFx(cityTrees, "fir");
+                    break;
+                case "Candy":
+                    sideTrees = FilterFx(cityTrees, "cube");
+                    break;
+                case "Autumn":
+                    sideTrees = FilterFx(cityTrees, "big tree", "cube");
+                    break;
+                case "Beach": case "Sunset":
+                    sideProcedural = true; procKind = PropKind.Palm;    // no palms in the pack
+                    break;
+                case "Desert":
+                    sideProcedural = true; procKind = PropKind.Cactus;  // no cacti in the pack
+                    break;
+                default:
+                    sideTrees = cityTrees;
+                    break;
+            }
+            if (sideTrees == null) sideProcedural = true;               // pack missing -> procedural props
 
-            var sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
-            var mat = new Material(sh);
-            mat.mainTexture = LowPolySkyTex(th);
-            if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 0f);          // double-sided -> which way the quad faces never matters
-            go.GetComponent<Renderer>().sharedMaterial = mat;
+            // ---- the two visible side strips (between road and people band) ---------------------------------
+            var lamps   = FilterFx(cityProps, "light");
+            var benches = FilterFx(cityProps, "bench");
+            int slots = lowEnd ? 2 : (th.name == "Forest" ? 4 : 3);     // forest reads denser; low-end stays light
+            float step = th.name == "Forest" ? 1.4f : 1.6f;
+            for (int i = 0; i < slots; i++)
+            {
+                float z = 9.6f + i * step;                              // 9.6..13.8 — the strip the camera actually shows
+                float x = 6.3f + 0.2f * i;                              // follow the widening frustum (deeper = wider)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    if (sideLamps && i == 1 && lamps != null)
+                    { FitDecor(lamps[0], new Vector3(x * s, 0, z), 1.7f, Quaternion.Euler(0, s > 0 ? -90f : 90f, 0)); continue; }
+                    if (sideBench && i == 1 && benches != null)
+                    { FitDecor(benches[0], new Vector3(x * s, 0, z), 1.0f, Quaternion.Euler(0, s > 0 ? -90f : 90f, 0)); continue; }
+                    if (sideProcedural)
+                        LowPolyBuilder.BuildProp(boardRoot, (i % 2 == 0) ? procKind : th.prop2, new Vector3(x * s, 0, z), main, alt, foliage, trunk, window, 1f);
+                    else
+                        FitDecor(sideTrees[(i + (s > 0 ? 1 : 0)) % sideTrees.Length], new Vector3(x * s, 0, z), sideSize, Quaternion.Euler(0, i * 47f + (s > 0 ? 90f : 0f), 0));
+                }
+            }
 
-            // Steep ~60deg camera: only a LOW, near band of sky is on-screen, so sit the backdrop JUST behind the
-            // buildings (z~17) and low, not far+high (which lands above the frustum -> invisible). Big + tilted to face
-            // the camera so its visible lower band fills the sky behind/above the building line.
-            Vector3 p = new Vector3(0f, 5f, 17f);
-            go.transform.position = p;
-            go.transform.rotation = Quaternion.LookRotation((p - cam.transform.position).normalized, Vector3.up); // tilt to face the camera
-            go.transform.localScale = new Vector3(80f, 44f, 1f);
+            // ---- one themed accent in the OPEN top-right corner (right of the terminal, on-screen at z=15) ---
+            if (!lowEnd)
+            {
+                var spot = new Vector3(6.9f, 0, 15.0f);
+                switch (th.name)
+                {
+                    case "City": case "Night": case "Bonus":
+                        var towers = FilterFx(cityBuildings, "sky");
+                        if (towers != null) FitDecor(towers[ThemePick(th, towers.Length, 5)], spot, 4.5f, Quaternion.Euler(0, 180f, 0));
+                        break;
+                    case "Beach": case "Sunset":
+                        LowPolyBuilder.BuildProp(boardRoot, PropKind.Palm, spot, main, alt, foliage, trunk, window, 1.8f);
+                        break;
+                    case "Desert":
+                        LowPolyBuilder.BuildProp(boardRoot, PropKind.Cactus, spot, main, alt, foliage, trunk, window, 1.7f);
+                        break;
+                    default:
+                        if (!sideProcedural) FitDecor(sideTrees[0], spot, 2.2f, Quaternion.Euler(0, 130f, 0));
+                        else LowPolyBuilder.BuildProp(boardRoot, procKind, spot, main, alt, foliage, trunk, window, 1.6f);
+                        break;
+                }
+            }
         }
 
         void ApplyTheme(Theme th)
@@ -3732,12 +3795,22 @@ namespace BusJam
             Material ground      = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(gh, gs, darkTheme ? 0.34f : 0.60f), 0.35f, 0f);
             Color.RGBToHSV(th.field, out float vh, out float vs, out _);                                      // VEHICLE area (the jam)
             Material vehicleZone = MaterialLibrary.MakeRuntimeMuted(Color.HSVToRGB(vh, vs * (darkTheme ? 0.8f : 0.55f), darkTheme ? 0.30f : 0.52f), 0.32f, 0f);
-            Material accent = MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.45f, 0.06f);
-            Material main   = MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.45f, 0.05f);
-            Material alt    = MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.45f, 0.05f);
-            Material foliage= MaterialLibrary.GetTheme(th.name, "Foliage", th.foliage, 0.35f, 0.06f);
-            Material trunk  = MaterialLibrary.GetTheme(th.name, "Trunk", th.trunk, 0.25f);
-            Material grass  = MaterialLibrary.GetTheme(th.name, "Grass", th.grass, 0.30f, 0.06f);
+            if (th.name == "Forest")
+            {
+                // Forest floor is DIRT/MUD, not lawn: earthy people band + darker packed-mud jam band. (The low-poly
+                // ground texture below applies on top, so it reads as forest soil.)
+                ground      = MaterialLibrary.MakeRuntimeMuted(new Color(0.52f, 0.40f, 0.27f), 0.30f, 0f);
+                vehicleZone = MaterialLibrary.MakeRuntimeMuted(new Color(0.43f, 0.34f, 0.24f), 0.28f, 0f);
+            }
+            // Every env material below carries the low-poly FACET grain (a textured COPY per purpose — GetTheme can
+            // return shared assets, never mutate those). Chunkier facets on foliage (leafy), finer on built stuff.
+            // Windows/clouds stay CLEAN (glass + sky read better untextured). Same material count -> no extra batches.
+            Material accent = Faceted(MaterialLibrary.GetTheme(th.name, "Accent", th.accent, 0.45f, 0.06f), 5, 0.87f, 2f);
+            Material main   = Faceted(MaterialLibrary.GetTheme(th.name, "PropMain", th.propMain, 0.45f, 0.05f), 5, 0.87f, 2f);
+            Material alt    = Faceted(MaterialLibrary.GetTheme(th.name, "PropAlt", th.propAlt, 0.45f, 0.05f), 5, 0.87f, 2f);
+            Material foliage= Faceted(MaterialLibrary.GetTheme(th.name, "Foliage", th.foliage, 0.35f, 0.06f), 4, 0.82f, 2f);
+            Material trunk  = Faceted(MaterialLibrary.GetTheme(th.name, "Trunk", th.trunk, 0.25f), 4, 0.84f, 1f);
+            Material grass  = Faceted(MaterialLibrary.GetTheme(th.name, "Grass", th.grass, 0.30f, 0.06f), 4, 0.84f, 1f);
             Material window = MaterialLibrary.GetTheme(th.name, "Window", new Color(th.sky.r * 0.9f + 0.1f, th.sky.g * 0.9f + 0.1f, th.sky.b, 1f), 0.7f, 0.25f);
             Material cloud  = MaterialLibrary.GetTheme(th.name, "Cloud", new Color(1f, 1f, 1f), 0f, 0.18f);
             // slotMat is now a stable, editable asset set in BuildMaterials (no theme override).
@@ -3756,7 +3829,6 @@ namespace BusJam
             // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
 
-            BuildLowPolySky(th); // low-poly faceted sky backdrop BEHIND the buildings (fills the flat background sky)
 
             for (int i = -4; i <= 4; i++)
             {
@@ -3766,26 +3838,9 @@ namespace BusJam
                 bar.transform.position = new Vector3(i * 1.1f + 0.55f, 0.34f, FenceZ);
             }
 
-            // Side scatter — real SimplePoly trees/bushes down each side (fit-to-size); procedural props if the pack
-            // is missing. Halved on low-end.
-            int sideN = lowEnd ? 3 : 6;
-            bool useTrees = cityTrees != null && cityTrees.Length > 0;
-            for (int i = 0; i < sideN; i++)
-            {
-                float z = -1f + i * 2.6f;
-                if (Mathf.Abs(z - RoadZ) < 1.6f) continue; // #1: skip side decor that would land ON the drive-in road lane (a tree sitting in the road at its start/end)
-                if (useTrees)
-                {
-                    FitDecor(cityTrees[i % cityTrees.Length], new Vector3(-6.8f, 0, z), 1.5f, Quaternion.Euler(0, i * 47f, 0));
-                    FitDecor(cityTrees[(i + 2) % cityTrees.Length], new Vector3(6.8f, 0, z), 1.5f, Quaternion.Euler(0, i * 53f + 90f, 0));
-                }
-                else
-                {
-                    PropKind k = (i % 2 == 0) ? th.prop : th.prop2;
-                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(-6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
-                    LowPolyBuilder.BuildProp(boardRoot, k, new Vector3(6.8f, 0, z), main, alt, foliage, trunk, window, 1f);
-                }
-            }
+            // Per-theme world dressing: side scatter + far backdrop become what the theme IS (city avenue / park /
+            // forest / beach / desert...). Gameplay chrome (portal, people, bus stops, road, vehicles) untouched.
+            BuildThemeEnvironment(th, main, alt, foliage, trunk, window);
 
             // Behind the people band: a closed mall/terminal FACADE (people emerge from its doors), else
             // the legacy house centerpiece / prop row.
@@ -3794,7 +3849,7 @@ namespace BusJam
             bool cityOk = cityBuildings != null && cityBuildings.Length > 0;
             if (th.hasFacade)
             {
-                if (cityOk) BuildCityFacade(th);        // a real SimplePoly building people walk OUT of (sets doorXs/exitDoorX)
+                if (cityOk) BuildCityFacade(th, main, alt, foliage, trunk, window); // a real SimplePoly building people walk OUT of (sets doorXs/exitDoorX); flankers themed
                 else BuildFacade(th, accent, window);   // procedural fallback only if the pack is missing
             }
             else if (cityOk)
@@ -3923,15 +3978,48 @@ namespace BusJam
         // T3: a real SimplePoly building as the TERMINAL people walk out of. The boarding queue spawns at exitDoorX
         // (kept ~3.5), so the door building is centered on that x and faces the buses; flanked by MORE distinct
         // buildings for a per-theme city block. Sets doorXs/exitDoorX (the one gameplay-adjacent detail).
-        void BuildCityFacade(Theme th)
+        void BuildCityFacade(Theme th, Material main, Material alt, Material foliage, Material trunk, Material window)
         {
             float doorX = 3.5f;
             doorXs = new[] { doorX };
             exitDoorX = doorX;
-            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 0)], new Vector3(doorX, 0, FacadeZ + 2.2f), 4.5f, Quaternion.Euler(0, 180f, 0)); // pushed back (+1.0) so it sits higher in frame; FitDecor outlines it
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 0)], new Vector3(doorX, 0, FacadeZ + 2.2f), 4.5f, Quaternion.Euler(0, 180f, 0)); // the TERMINAL people exit — stays on every theme (portal untouched)
             if (lowEnd) return;
-            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 1)], new Vector3(doorX - 5.0f, 0, FacadeZ + 2.5f), 3.6f, Quaternion.Euler(0, 180f, 0));
-            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 2)], new Vector3(doorX - 9.0f, 0, FacadeZ + 2.3f), 3.4f, Quaternion.Euler(0, 180f, 0));
+            // The two FLANKERS follow the theme, so the back block reads as the theme's world instead of always
+            // being random city shops: cottages in Park/Candy/Autumn, firs at the Forest/Snow edge, palms on
+            // Beach/Sunset, cacti in the Desert. City/Night/Bonus keep the shop block.
+            Vector3 fa = new Vector3(doorX - 5.0f, 0, FacadeZ + 2.5f), fb = new Vector3(doorX - 9.0f, 0, FacadeZ + 2.3f);
+            switch (th.name)
+            {
+                case "Park": case "Candy": case "Autumn":
+                    var houses = FilterFx(cityBuildings, "house");
+                    if (houses != null)
+                    {
+                        FitDecor(houses[0], fa, 3.2f, Quaternion.Euler(0, 180f, 0));
+                        FitDecor(houses[houses.Length > 1 ? 1 : 0], fb, 3.0f, Quaternion.Euler(0, 180f, 0));
+                        return;
+                    }
+                    break; // no houses in the pack -> shop block fallback below
+                case "Forest": case "Snow":
+                    var firs = FilterFx(cityTrees, "fir", "big tree");
+                    if (firs != null)
+                    {
+                        FitDecor(firs[0], fa, 3.0f, Quaternion.Euler(0, 25f, 0));
+                        FitDecor(firs[firs.Length > 1 ? 1 : 0], fb, 3.4f, Quaternion.Euler(0, 190f, 0));
+                        return;
+                    }
+                    break;
+                case "Beach": case "Sunset":
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Palm, fa, main, alt, foliage, trunk, window, 2.0f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Palm, fb, main, alt, foliage, trunk, window, 2.3f);
+                    return;
+                case "Desert":
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Cactus, fa, main, alt, foliage, trunk, window, 1.9f);
+                    LowPolyBuilder.BuildProp(boardRoot, PropKind.Cactus, fb, main, alt, foliage, trunk, window, 2.2f);
+                    return;
+            }
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 1)], fa, 3.6f, Quaternion.Euler(0, 180f, 0));
+            FitDecor(cityBuildings[ThemePick(th, cityBuildings.Length, 2)], fb, 3.4f, Quaternion.Euler(0, 180f, 0));
         }
 
         // T3: SimplePoly building row across the back for non-facade themes (no boarding door). Different per theme.
@@ -3965,12 +4053,16 @@ namespace BusJam
             }
 
             // Per-theme street props down the sides of the PEOPLE area (the boarding zone) — NOT on the road/jam.
-            if (!lowEnd && cityProps != null && cityProps.Length > 0)
+            // City-ish themes + Park keep real street furniture; nature themes swap it for bushes (world-matching).
+            GameObject[] streetPool = cityProps;
+            if (th.name != "City" && th.name != "Night" && th.name != "Bonus" && th.name != "Park")
+            { var bushes = FilterFx(cityTrees, "bush"); if (bushes != null) streetPool = bushes; }
+            if (!lowEnd && streetPool != null && streetPool.Length > 0)
                 for (int i = 0; i < 3; i++)
                 {
                     float z = PeopleZ - 0.8f + i * 0.6f; // #3: kept FORWARD of the back buildings (no clipping, e.g. the fire hydrant) but still in the people zone
-                    FitDecor(cityProps[ThemePick(th, cityProps.Length, i)],     new Vector3(-5.5f, 0, z), 1.0f, Quaternion.Euler(0, 90f, 0));
-                    FitDecor(cityProps[ThemePick(th, cityProps.Length, i + 1)], new Vector3(5.5f, 0, z), 1.0f, Quaternion.Euler(0, -90f, 0));
+                    FitDecor(streetPool[ThemePick(th, streetPool.Length, i)],     new Vector3(-5.5f, 0, z), 1.0f, Quaternion.Euler(0, 90f, 0));
+                    FitDecor(streetPool[ThemePick(th, streetPool.Length, i + 1)], new Vector3(5.5f, 0, z), 1.0f, Quaternion.Euler(0, -90f, 0));
                 }
 
             BuildJamProps(th); // little theme props framing the FRONT of the jam (small; foreground, out of the slots)
@@ -3983,11 +4075,15 @@ namespace BusJam
         void BuildBoardingDoor(Theme th, Material frameMat)
         {
             float x = exitDoorX, z = DoorSpawnZ;
-            frameMat = MaterialLibrary.MakeRuntimeMuted(new Color(0.58f, 0.55f, 0.52f), 0.3f); // OUTSIDE frame/posts stay a FIXED neutral stone — only the INSIDE glow carries the theme colour
-            var wallMat = MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f); // themed building face
-            Color portalCol = Color.Lerp(th.accent, Color.white, 0.25f);                           // portal glow strongly tinted to the THEME accent (still bright enough to bloom)
-            var glowMat = MaterialLibrary.MakeRuntime(portalCol, 0.5f, 2.6f);                        // theme-COLOURED portal light (blooms)
-            var haloMat = MaterialLibrary.MakeRuntime(Color.Lerp(th.accent, Color.white, 0.15f), 0.6f, 1.3f); // theme-coloured halo bleeding onto the wall
+            frameMat = Faceted(MaterialLibrary.MakeRuntimeMuted(new Color(0.58f, 0.55f, 0.52f), 0.3f), 5, 0.88f, 2f); // OUTSIDE frame/posts: FIXED neutral stone + facet grain — only the INSIDE glow carries the theme colour
+            var wallMat = Faceted(MaterialLibrary.GetTheme(th.name, "DoorWall", th.propMain, 0.40f, 0.05f), 6, 0.88f, 3f); // themed building face with panel facets
+            // The INSIDE light carries the theme colour. Theme accents are pale pastels, and pale x Vibrant() x 2.6
+            // emission x bloom blew out to pure WHITE on screen — so force the hue SATURATED and keep the emission
+            // moderate, so the glow visibly reads in the theme's colour (bloom only whitens the very core).
+            Color.RGBToHSV(th.accent, out float ph, out float ps, out float pv);
+            Color portalCol = Color.HSVToRGB(ph, Mathf.Max(ps, 0.65f), 1f);
+            var glowMat = MaterialLibrary.MakeRuntime(portalCol, 0.5f, 1.5f);                        // theme-COLOURED portal light
+            var haloMat = MaterialLibrary.MakeRuntime(portalCol, 0.6f, 0.85f);                       // matching halo bleeding onto the wall
 
             // Building-wall slab the portal is set into.
             MakeCube(boardRoot, wallMat, new Vector3(2.3f, 2.8f, 0.18f)).transform.position = new Vector3(x, 1.40f, z + 0.16f);
@@ -4012,13 +4108,19 @@ namespace BusJam
         // slots/parking and mostly clear of the central exit lanes. Different per theme. No-op without the pack.
         void BuildJamProps(Theme th)
         {
-            if (lowEnd || cityProps == null || cityProps.Length == 0) return;
+            if (lowEnd) return;
+            // City-ish themes (and the Park, which has real street furniture) keep hydrants/dustbins at the jam
+            // corners; every other theme swaps them for BUSHES so the corners match the world (no hydrants in a forest).
+            GameObject[] pool = cityProps;
+            if (th.name != "City" && th.name != "Night" && th.name != "Bonus" && th.name != "Park")
+            { var bushes = FilterFx(cityTrees, "bush"); if (bushes != null) pool = bushes; }
+            if (pool == null || pool.Length == 0) return;
             Vector3[] spots = {
                 new Vector3(-4.0f, 0, -5.2f), new Vector3(4.0f, 0, -5.2f),
                 new Vector3(-3.6f, 0, -6.0f), new Vector3(3.6f, 0, -6.0f), // pulled in + shallower -> on-screen, clear of reversing away-exit buses
             };
             for (int i = 0; i < spots.Length; i++)
-                FitDecor(cityProps[ThemePick(th, cityProps.Length, i + 3)], spots[i], 0.7f, Quaternion.Euler(0, i * 73f, 0));
+                FitDecor(pool[ThemePick(th, pool.Length, i + 3)], spots[i], 0.7f, Quaternion.Euler(0, i * 73f, 0));
         }
 
         // ---- T5/T6 imported VFX (COSMETIC; lowEnd-gated; missing prefab -> no-op / cheap procedural fallback) ----

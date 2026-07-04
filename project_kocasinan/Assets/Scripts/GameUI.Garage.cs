@@ -31,10 +31,11 @@ namespace BusJam
         {
             switch (t)
             {
-                case ChestTier.Silver:    return new Color(0.70f, 0.74f, 0.82f);
-                case ChestTier.Gold:      return new Color(0.95f, 0.78f, 0.30f);
-                case ChestTier.Legendary: return new Color(0.72f, 0.42f, 0.95f);
-                default:                  return new Color(0.78f, 0.53f, 0.30f); // Bronze
+                // NOTE: this is now the ROPE/band colour — the chest BODY is the same wood on every tier (see BuildChest).
+                case ChestTier.Silver:    return new Color(0.82f, 0.84f, 0.88f); // bright silver
+                case ChestTier.Gold:      return new Color(0.98f, 0.80f, 0.28f); // gold
+                case ChestTier.Legendary: return new Color(1.00f, 0.45f, 0.08f); // flaming orange
+                default:                  return new Color(0.74f, 0.45f, 0.17f); // Bronze — copper-brown
             }
         }
 
@@ -276,10 +277,12 @@ namespace BusJam
         void BuildChest(Transform parent, Color tint, float w)
         {
             const float V = 0.5f, V2 = 0.5f; // anchor shorthand (centre)
-            Color lidCol  = new Color(tint.r * 0.70f, tint.g * 0.70f, tint.b * 0.70f);
-            Color footCol = new Color(tint.r * 0.48f, tint.g * 0.48f, tint.b * 0.48f);
-            Color gold     = new Color(1f, 0.82f, 0.30f);
-            Color goldHi   = new Color(1f, 0.90f, 0.46f);
+            // The CHEST is the SAME wood on every tier; only the ROPES (rim + strap) and the lock take `tint` (the tier
+            // colour: brown / silver / gold / flaming-orange), so tiers read by their bands, not the box.
+            Color bodyCol = new Color(0.70f, 0.57f, 0.42f); // light wood
+            Color lidCol  = new Color(0.58f, 0.46f, 0.34f); // darker wood
+            Color footCol = new Color(0.46f, 0.36f, 0.27f); // darkest wood
+            Color lockCol = Color.Lerp(tint, Color.white, 0.28f); // the tier colour, lightened for a metallic lock
 
             // two little rounded feet at the bottom
             for (int s = -1; s <= 1; s += 2)
@@ -291,15 +294,15 @@ namespace BusJam
             var lid = Img(parent, UIKit.ShopIconBgA(), White); lid.color = lidCol; lid.raycastTarget = false;
             Place(lid.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.20f), new Vector2(w * 1.00f, w * 0.40f));
             // rounded body — drawn after the lid so its front covers the lid's lower edge (reads as lid-on-box)
-            var body = Img(parent, UIKit.ShopIconBgA(), White); body.color = tint; body.raycastTarget = false;
+            var body = Img(parent, UIKit.ShopIconBgA(), White); body.color = bodyCol; body.raycastTarget = false;
             Place(body.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, -w * 0.12f), new Vector2(w * 0.92f, w * 0.56f));
-            // gold rim along the lid/body seam + a vertical strap down the front
-            var rim = Img(parent, null, gold); rim.raycastTarget = false;
-            Place(rim.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.04f), new Vector2(w * 0.98f, w * 0.10f));
-            var strap = Img(parent, null, gold); strap.raycastTarget = false;
-            Place(strap.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, -w * 0.14f), new Vector2(w * 0.13f, w * 0.44f));
-            // big round lock + dark keyhole
-            var lok = Img(parent, UIKit.CircleYellow(), White); lok.color = goldHi; lok.raycastTarget = false;
+            // the ROPES — horizontal rim at the lid/body seam + a vertical strap down the front — carry the TIER colour
+            var rim = Img(parent, null, tint); rim.raycastTarget = false;
+            Place(rim.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.04f), new Vector2(w * 1.00f, w * 0.13f));
+            var strap = Img(parent, null, tint); strap.raycastTarget = false;
+            Place(strap.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, -w * 0.14f), new Vector2(w * 0.16f, w * 0.44f));
+            // big round lock (tier colour) + dark keyhole
+            var lok = Img(parent, UIKit.CircleYellow(), White); lok.color = lockCol; lok.raycastTarget = false;
             Place(lok.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.02f), new Vector2(w * 0.26f, w * 0.26f));
             var hole = Img(parent, null, new Color(0.30f, 0.20f, 0.10f)); hole.raycastTarget = false;
             Place(hole.rectTransform, new Vector2(V, V2), new Vector2(V, V2), new Vector2(0, w * 0.02f), new Vector2(w * 0.07f, w * 0.11f));
@@ -463,7 +466,7 @@ namespace BusJam
             var chestRt = chestGo.GetComponent<RectTransform>();
             Place(chestRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(360, 320));
             revealChestGroup = chestGo.AddComponent<CanvasGroup>();
-            BuildChest(chestGo.transform, new Color(0.78f, 0.53f, 0.30f), 240);
+            BuildChest(chestGo.transform, new Color(0.98f, 0.80f, 0.28f), 240); // generic gold-roped chest for the opening animation
 
             // item group (frame + name + sub) — hidden until the chest pops open
             var itemGo = new GameObject("Item", typeof(RectTransform));
