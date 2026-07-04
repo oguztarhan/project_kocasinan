@@ -1133,6 +1133,7 @@ namespace BusJam
             if (levelBadgeGo) levelBadgeGo.SetActive(on);
             if (adFreeBtnGo)  adFreeBtnGo.SetActive(on);
             if (garageBtnGo)  garageBtnGo.SetActive(on); // hide the GARAGE button too while the garage/shop is open
+            if (hudTheme)     hudTheme.gameObject.SetActive(on); // theme-name label (top-left) — was left floating over the open garage/shop
         }
         public void ShowContinue() { Toggle(continuePanel, true); }
         public void SetContinuePrice(int cost) { if (continuePrice) continuePrice.text = cost.ToString(); }
