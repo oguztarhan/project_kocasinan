@@ -87,7 +87,7 @@ namespace BusJam
         bool lowEnd;                          // budget/old mobile → lighter render path (set in Start)
         GameUI ui;
         Sfx sfx;
-        LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS (no on-screen button)
+       // LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS (no on-screen button)
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
@@ -246,9 +246,9 @@ namespace BusJam
             LevelFailed    += reason => ad.AddInterstitialLoss();           // LOSS signal (Lose); increment only — continue panel is up
             LevelStarted   += _ => ad.ShowBanner();                         // banner shown during gameplay
 
-            levelSelect = gameObject.AddComponent<LevelSelect>();
+          /*  levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
-            ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
+            ui.OnLevels = () => levelSelect.Open();*/ // in-game Settings -> LEVELS map (wired after the field is built)
 
             if (autoStart) StartCoroutine(AutoStartFirstLevel());
             else { state = GameState.Menu; ui.HideHud(); }

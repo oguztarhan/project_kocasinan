@@ -1,4 +1,4 @@
-using UnityEngine;
+/*using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -16,7 +16,7 @@ namespace BusJam
         BusJamGame game;
         Font font;
         GameObject panel;
-        GameObject jumpBtn;             // TEMP (level testing): always-visible button that opens this map; remove for release
+       GameObject jumpBtn;             // TEMP (level testing): always-visible button that opens this map; remove for release
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -249,3 +249,4 @@ namespace BusJam
         { rt.anchorMin = rt.anchorMax = anchor; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
     }
 }
+*/
