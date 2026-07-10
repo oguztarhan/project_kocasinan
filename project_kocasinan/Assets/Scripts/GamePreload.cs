@@ -74,10 +74,12 @@ namespace BusJam
                     if ((made & 1) == 0) yield return null;                // 2 instantiates per frame -> no splash stutter
                 }
 
-            // 3) Warm the shaders so the FIRST render of each material doesn't stall to compile its GPU program
-            // (a classic "first new vehicle appears" hitch). Best-effort: never allowed to break loading.
+            // 3) NO Shader.WarmupAllShaders() here (removed): it synchronously compiles EVERY variant of every loaded
+            // shader on the main thread — on weak GPUs / buggy drivers that block ran for minutes or hung outright,
+            // freezing the boot splash on exactly the phones it was meant to help (even BootSplash's HardTimeout can't
+            // fire while the main thread is blocked). The pool prewarm above already removes the big first-Play hitch
+            // (mesh + Animator init); a first-render shader compile is a one-frame stutter, never a soft-lock.
             yield return null;
-            try { Shader.WarmupAllShaders(); } catch (System.Exception) { /* warmup is optional */ }
             Progress = 1f; Done = true;
         }
     }
