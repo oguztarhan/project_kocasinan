@@ -16,7 +16,6 @@ namespace BusJam
         BusJamGame game;
         Font font;
         GameObject panel;
-       GameObject jumpBtn;             // TEMP (level testing): always-visible button that opens this map; remove for release
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -51,15 +50,9 @@ namespace BusJam
 
             BuildPanel(canvasGo.transform);
             Close();
-
-            // TEMP (level testing): an always-visible button on the (always-active) canvas that opens this map, so ANY
-            // level can be jumped to directly — paired with debugUnlockAll in PopulateGrid. Lives on the canvas, NOT the
-            // toggled panel, so it shows during gameplay. Remove for release.
-            var jump = Button(canvasGo.transform, "LEVELS", new Color(0.42f, 0.56f, 0.82f), Open, 24);
-            var jrt = jump.GetComponent<RectTransform>();
-            jrt.anchorMin = jrt.anchorMax = jrt.pivot = new Vector2(1f, 1f);       // top-right, directly UNDER the GARAGE button (which sits at -95,-250, 132x132)
-            jrt.anchoredPosition = new Vector2(-95f, -392f); jrt.sizeDelta = new Vector2(132f, 132f);
-            jumpBtn = jump.gameObject;
+            // (Removed for release) The always-visible on-screen "LEVELS" jump button used for level testing was built
+            // here. It was the ONLY way to open this map (ui.OnLevels is never invoked), so with it gone the map is no
+            // longer reachable in-game — the panel below stays built but inert. debugUnlockAll is off (PopulateGrid).
         }
 
         // ---- Public API -----------------------------------------------------
@@ -67,7 +60,6 @@ namespace BusJam
         {
             PopulateGrid();
             if (panel) panel.SetActive(true);
-            if (jumpBtn) jumpBtn.SetActive(false); // TEMP: hide the open button while the map is up
             Time.timeScale = 0f;   // pause gameplay while browsing
             isOpen = true;
         }
@@ -75,7 +67,6 @@ namespace BusJam
         public void Close()
         {
             if (panel) panel.SetActive(false);
-            if (jumpBtn) jumpBtn.SetActive(true); // TEMP: re-show the open button
             Time.timeScale = 1f;
             isOpen = false;
         }
@@ -151,7 +142,7 @@ namespace BusJam
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
             // Release: normal progression — only levels up to the player's unlocked level are tappable.
-            bool debugUnlockAll = true; // TEMP: show/unlock ALL levels for testing (remove for release)
+            bool debugUnlockAll = false; // release: normal progression (only levels up to the player's unlocked level)
             int total = debugUnlockAll ? 120 : Mathf.Max(unlocked + LockedPreview, MinShown); // 120 covers the bonus levels (every 10th) incl. L100
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 

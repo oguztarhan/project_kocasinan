@@ -165,6 +165,58 @@ namespace BusJam
 #endif
         }
 
+        // ---------------- On-device delivery TEST (diagnostic) ----------------
+        // Fires ONE visible notification ~4s after it is called, DELIBERATELY bypassing the +1h/day-based re-engagement
+        // schedule AND the player/remote enabled toggles — an explicit tap is an explicit request. Android posts it even
+        // while the app is in the FOREGROUND (the channel is High importance), so a tester gets a definitive yes/no in
+        // seconds without backgrounding the app or waiting an hour. If NOTHING appears after tapping, the fault is
+        // permission / OEM battery-kill / a Remote Config kill-switch — NOT this code. Returns a short status string for
+        // the caller to show on the button. Wired to the Settings "TEST NOTIFICATION" button (GameUI).
+        // NOTE: stay in the app after tapping — backgrounding within ~4s triggers ScheduleAll()'s CancelAll() and wipes it.
+        public static string SendTest()
+        {
+#if UNITY_ANDROID
+            // Re-register the channel defensively (idempotent) in case Start() has not run yet on this instance.
+            AndroidNotificationCenter.RegisterNotificationChannel(new AndroidNotificationChannel
+            {
+                Id = AndroidChannel,
+                Name = "BusJam",
+                Importance = Importance.High,
+                Description = "BusJam reminders",
+                CanShowBadge = true,
+                EnableVibration = true,
+            });
+            const string perm = "android.permission.POST_NOTIFICATIONS";
+            if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(perm))
+            {
+                UnityEngine.Android.Permission.RequestUserPermission(perm); // async dialog — user must grant then tap again
+                return "İzin ver, tekrar dokun";
+            }
+            var txt = NotificationContent.Get(0);
+            AndroidNotificationCenter.SendNotification(new AndroidNotification
+            {
+                Title = txt.title,
+                Text = txt.body,
+                FireTime = DateTime.Now.AddSeconds(4),
+                SmallIcon = "busjam_notify",
+                LargeIcon = "busjam_large",
+            }, AndroidChannel);
+            return "Gönderildi — ~4 sn";
+#elif UNITY_IOS
+            var txt = NotificationContent.Get(0);
+            iOSNotificationCenter.ScheduleNotification(new iOSNotification
+            {
+                Title = txt.title,
+                Body = txt.body,
+                ShowInForeground = true, // show even while the app is open, so the test is visible without backgrounding
+                Trigger = new iOSNotificationTimeIntervalTrigger { TimeInterval = TimeSpan.FromSeconds(4), Repeats = false },
+            });
+            return "Gönderildi — ~4 sn";
+#else
+            return "Sadece mobil";
+#endif
+        }
+
 #if UNITY_ANDROID
         // Waits for the POST_NOTIFICATIONS grant, then posts ONE visible notification ~5s later — so a tester can confirm
         // the whole chain (permission -> channel -> icon -> delivery) from the FOREGROUND, with no backgrounding needed.

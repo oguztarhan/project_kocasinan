@@ -26,6 +26,7 @@ namespace BusJam
         void AddVehiclesEntry(Transform parent)
         {
             var row = Img(parent, UIKit.ShopBoxA(), new Color(0.45f, 0.38f, 0.72f));
+            GOverride(row, g => g.vehiclesButtonSprite, g => g.vehiclesButtonColor); // Inspector: swap the "ARAÇLAR" button image / colour
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 130; le.minHeight = 130;
             var b = row.gameObject.AddComponent<Button>(); b.targetGraphic = row;
             b.onClick.AddListener(ShowVehicles);
@@ -33,20 +34,13 @@ namespace BusJam
         }
 
         // ---- build the (hidden) wardrobe panel — same scroll recipe as BuildGarage --------
-        // Adopt the baked panel (InGameGarage marker) if present; otherwise build the chrome in code. Content is built
-        // lazily on first ShowVehicles either way, so the game is unchanged until you bake.
+        // Always build the wardrobe chrome in code (so it reflects the latest changes); the InGameGarage marker is read
+        // only for colours. Content (+ thumbnails) is built lazily on first ShowVehicles.
         void BuildVehicles()
         {
-            var g = InGameGarage.Instance;
-            Button close;
-            if (g != null && g.vehiclesRoot != null && g.vehiclesContent != null && g.vehiclesGold != null)
-            {
-                vehiclesPanel = g.vehiclesRoot; vehiclesContent = g.vehiclesContent; vehiclesGoldT = g.vehiclesGold; close = g.vehiclesClose;
-            }
-            else close = BuildVehiclesChrome();
-
+            Button close = BuildVehiclesChrome();
             if (close) close.onClick.AddListener(HideVehicles); // wired at runtime (onClick refs don't serialize)
-            if (vehiclesPanel) vehiclesPanel.SetActive(false);  // content (+ thumbnails) built lazily on first ShowVehicles
+            if (vehiclesPanel) vehiclesPanel.SetActive(false);
         }
 
         // Build ONLY the wardrobe window chrome; sets vehiclesPanel / vehiclesContent / vehiclesGoldT and returns the
@@ -58,6 +52,7 @@ namespace BusJam
             vehiclesPanel.AddComponent<GraphicRaycaster>();
 
             var card = Img(vehiclesPanel.transform, UIKit.PanelTall(), new Color(0.20f, 0.22f, 0.33f));
+            GOverride(card, g => g.vehiclesWindowSprite, g => g.vehiclesWindowColor); // Inspector: swap the Vehicles ("Araçlar") window image / colour
             Center(card.rectTransform, new Vector2(980, 1560));
             Label(card.transform, Loc.T("VEHICLES"), title, new Vector2(0, 690), new Vector2(760, 120), 70, White);
             var close = RedClose(card.transform, null);

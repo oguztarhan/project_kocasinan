@@ -37,6 +37,9 @@ namespace BusJam
         readonly Sprite[] jokerIcons = new Sprite[3];
         readonly int[] jokerCosts = new int[3];
         GameObject gearGo, levelBadgeGo, adFreeBtnGo; // (#6) HUD chrome hidden while the shop is open; the coin bar stays
+        GameObject coinBarGo;      // top-center HUD coin bar — hidden while the GARAGE is open (the garage shows its own gold)
+        bool hideBonusTimer;       // true while the garage is open -> the bonus countdown suppresses itself (no duplicate over the garage)
+        InGameGarage garageCfg;    // scene marker read for per-element image/colour overrides (found incl. inactive, so no need to enable it)
 
         // Bottom space reserved for the AdMob adaptive banner so the joker row never sits under it (T3). Tunable.
         const float BannerReservePx = 190f;
@@ -86,6 +89,7 @@ namespace BusJam
             SetupFailed();
             SetupSuccess();
             SetupJokerBuy();
+            garageCfg = Object.FindFirstObjectByType<InGameGarage>(FindObjectsInactive.Include); // read image/colour overrides even if its canvas is inactive
             BuildGarage();
             BuildVehicles(); // vehicle wardrobe ("dolap") panel — opened from a button on the garage
             ShowHud();
@@ -136,6 +140,7 @@ namespace BusJam
             if (comboText) comboText.gameObject.SetActive(false);
             if (h.peopleIcon) { h.peopleIcon.sprite = UISprites.Person(); h.peopleIcon.color = White; }
             if (h.coinButton) h.coinButton.onClick.AddListener(ShowShop);
+            coinBarGo = h.coinButton ? h.coinButton.gameObject : (hudCoins ? hudCoins.transform.parent.gameObject : null); // (#6) hidden while the garage is open
             if (h.gearButton) h.gearButton.onClick.AddListener(ShowSettings);
             gearGo = h.gearButton ? h.gearButton.gameObject : null;                                       // (#6)
             var lb = FindDeep(hudPanel.transform, "Level_Badge"); levelBadgeGo = lb ? lb.gameObject : null; // (#6)
@@ -199,6 +204,7 @@ namespace BusJam
 
             // COIN display: TOP-CENTER (atlas1_20 bar), opens the in-game shop.
             var coinBtn = Btn(hudPanel.transform, UIKit.CoinBar(), Dark, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(300, 96), ShowShop);
+            coinBarGo = coinBtn.gameObject; // (#6) hidden while the garage is open (the garage shows its own gold)
             var ci = Img(coinBtn.transform, UIKit.Coin(), Gold); ci.raycastTarget = false;
             Place(ci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(74, 74));
             hudCoins = Label(coinBtn.transform, "0", num, new Vector2(35, 0), new Vector2(180, 60), 44, White);
@@ -433,6 +439,20 @@ namespace BusJam
             });
         }
 
+        // On-device notification DELIVERY TEST (diagnostic). Tapping fires a visible notification ~4s later — Android
+        // shows it even in the foreground — bypassing the +1h/day-based re-engagement schedule AND the enabled toggles,
+        // so the whole chain (permission → channel → icon → delivery) is confirmable on a device in seconds instead of
+        // waiting an hour. If nothing appears after tapping, the fault is permission / OEM battery-kill / a Remote Config
+        // kill-switch, NOT the notification code. The button's own label reports the result. Added as the LAST child so
+        // it draws on top of the (baked) panel content. To drop it before production, delete this method + its one call.
+        void AddNotificationTestButton(Transform panel)
+        {
+            if (panel == null) return;
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(540, 96), null);
+            var lbl = Label(btn.transform, "TEST NOTIFICATION", title, Vector2.zero, new Vector2(540, 60), 34, White);
+            btn.onClick.AddListener(() => { lbl.text = NotificationService.SendTest(); }); // status shown in-place
+        }
+
         // Restore Purchases (a Google Play storefront REQUIREMENT): re-asserts the no-ads entitlement after a reinstall
         // (IAPManager.Restore replays owned non-consumables). Appended as a full-width row at the BOTTOM of the shop
         // list, so it lives in the storefront next to the things it restores. Works for the baked shop AND the code shop.
@@ -463,6 +483,11 @@ namespace BusJam
             // AddNotificationsToggle(...). That call is intentionally gone so the button no longer appears in the
             // in-game Settings panel. The method is left defined (unused) in case it's wanted again later.
             // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings.
+
+            // On-device notification DELIVERY TEST button (diagnostic). settingsPanel is assigned in BOTH branches above
+            // (baked = InGamePanels.settings, code-built = BuildSettings), so this covers both. Fires a visible
+            // notification ~4s after tapping to confirm delivery in seconds; remove before production if undesired.
+            AddNotificationTestButton(settingsPanel != null ? settingsPanel.transform : null);
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
@@ -1202,6 +1227,7 @@ namespace BusJam
         public void SetBonusStopwatch(float elapsed)
         {
             if (!bonusCountdown) return;
+            if (hideBonusTimer) { if (bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(false); return; } // (#2) suppressed while the garage is open
             if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
             int s = Mathf.Max(0, Mathf.FloorToInt(elapsed));
             bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
@@ -1213,6 +1239,7 @@ namespace BusJam
         public void SetBonusCountdown(float seconds)
         {
             if (!bonusCountdown) return;
+            if (hideBonusTimer) { if (bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(false); return; } // (#2) suppressed while the garage is open
             if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
             int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
             bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");

@@ -384,6 +384,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bed697f71165de47847b744d9dc7442, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameGarage
+  garageWindowSprite: {fileID: -4088049390063211046, guid: 39e0242329775814891ef673e48ae932, type: 3}
+  garageWindowColor: {r: 1, g: 1, b: 1, a: 0}
+  vehiclesWindowSprite: {fileID: -4088049390063211046, guid: 39e0242329775814891ef673e48ae932, type: 3}
+  vehiclesWindowColor: {r: 1, g: 1, b: 1, a: 0}
+  vehiclesButtonSprite: {fileID: 32978900350387816, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  vehiclesButtonColor: {r: 1, g: 1, b: 1, a: 0}
+  freeChestSprite: {fileID: 32978900350387816, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  freeChestColor: {r: 1, g: 1, b: 1, a: 0}
+  legendaryChestSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  legendaryChestColor: {r: 1, g: 1, b: 1, a: 0}
+  commonSprite: {fileID: 4294396834851167543, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  commonColor: {r: 1, g: 1, b: 1, a: 0}
+  uncommonSprite: {fileID: 4294396834851167543, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  uncommonColor: {r: 1, g: 1, b: 1, a: 0}
+  epicSprite: {fileID: 4294396834851167543, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  epicColor: {r: 1, g: 1, b: 1, a: 0}
+  legendarySprite: {fileID: 4294396834851167543, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  legendaryColor: {r: 1, g: 1, b: 1, a: 0}
+  chestsHeaderSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  chestsHeaderColor: {r: 1, g: 1, b: 1, a: 0}
+  chestsHeaderHeight: 74
+  chestsHeaderFontSize: 40
+  craftHeaderSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  craftHeaderColor: {r: 1, g: 1, b: 1, a: 0}
+  craftHeaderHeight: 72
+  craftHeaderFontSize: 40
+  bronzeCardSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  bronzeCardColor: {r: 1, g: 1, b: 1, a: 0}
+  silverCardSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  silverCardColor: {r: 1, g: 1, b: 1, a: 0}
+  goldCardSprite: {fileID: -5696031133070807526, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
+  goldCardColor: {r: 1, g: 1, b: 1, a: 0}
+  overrideChestButtons: 1
+  chestButtonSize: {x: 250, y: 78}
+  chestButtonOffset: {x: 0, y: 30}
+  overrideCraftButtons: 0
+  craftButtonSize: {x: 280, y: 92}
+  craftButtonOffset: {x: -160, y: 0}
   garageRoot: {fileID: 576726267}
   garageContent: {fileID: 1853361844}
   garageGold: {fileID: 1981095969}
@@ -5391,7 +5429,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.9764706}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.9764706}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -11508,7 +11546,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.9764706}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.9764706}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

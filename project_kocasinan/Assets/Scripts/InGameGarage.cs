@@ -4,27 +4,67 @@ using UnityEngine.UI;
 namespace BusJam
 {
     /// <summary>
-    /// Marker placed by the editor tool "BusJam ▸ Bake Garage Panels" on the dedicated overlay canvas that holds the
-    /// scene-authored Garage + Vehicles (wardrobe) windows. At play start it registers itself and hides the panels,
-    /// so <see cref="GameUI"/> ADOPTS these Inspector-editable panels instead of building them in code (the same
-    /// adopt-or-build pattern as <see cref="InGameHud"/> / <see cref="InGamePanels"/>).
+    /// Inspector-editable config for the (code-built) garage + wardrobe (vehicles) windows. <see cref="GameUI"/>
+    /// ALWAYS builds the window chrome + cards in code (so they reflect the latest code), and reads the OVERRIDES
+    /// below to restyle individual elements without touching code. GameUI reads this marker even when its canvas is
+    /// INACTIVE, so you don't have to enable anything — just assign the Sprite/Colour you want.
     ///
-    /// Keep this canvas ACTIVE in the editor; the two panels are baked inactive so they don't cover the screen. To
-    /// reposition / restyle one, tick it active in the Hierarchy, edit, then untick. Only the WINDOW CHROME is baked
-    /// (window, title, close, gold counter, scroll area) — the chest/vehicle cards inside the scroll area are still
-    /// generated at runtime, so leave the "Content" object empty.
+    /// Each override: leave the Sprite empty AND the Colour at alpha 0 to keep that element's built-in look. Assign a
+    /// Sprite to swap its image; set a Colour (alpha &gt; 0) to tint it. Assign both to use your image at that colour.
     /// </summary>
     public class InGameGarage : MonoBehaviour
     {
         public static InGameGarage Instance;
 
-        [Header("Garage window")]
+        // ---- Per-element image / colour overrides. Assign in the Inspector to restyle one specific garage element.
+        //      Empty Sprite + alpha-0 Colour = keep the built-in look (nothing changes).
+        [Header("Element overrides — Garage / Vehicles windows")]
+        public Sprite garageWindowSprite;    public Color garageWindowColor;    // the Garage window (the panel that opens)
+        public Sprite vehiclesWindowSprite;  public Color vehiclesWindowColor;  // the Vehicles ("Araçlar") window
+
+        [Header("Element overrides — rows")]
+        public Sprite vehiclesButtonSprite;  public Color vehiclesButtonColor;  // the "ARAÇLAR" button (opens the wardrobe)
+        public Sprite freeChestSprite;       public Color freeChestColor;       // the FREE CHEST row image
+        public Sprite legendaryChestSprite;  public Color legendaryChestColor;  // the key-only LEGENDARY chest row image
+
+        [Header("Element overrides — CRAFT rows")]
+        public Sprite commonSprite;          public Color commonColor;          // CRAFT: Common row image
+        public Sprite uncommonSprite;        public Color uncommonColor;        // CRAFT: Uncommon row image
+        public Sprite epicSprite;            public Color epicColor;            // CRAFT: Epic row image
+        public Sprite legendarySprite;       public Color legendaryColor;       // CRAFT: Legendary row image
+
+        // Returns the per-tier CRAFT override (tier: 0 Common, 1 Uncommon, 2 Epic, 3 Legendary).
+        public Sprite CraftSprite(int tier) => tier == 3 ? legendarySprite : tier == 2 ? epicSprite : tier == 1 ? uncommonSprite : commonSprite;
+        public Color  CraftColor(int tier)  => tier == 3 ? legendaryColor  : tier == 2 ? epicColor  : tier == 1 ? uncommonColor  : commonColor;
+
+        // ---- CHESTS / CRAFT section headers — make them prominent. Sprite = banner image behind the header; Colour
+        //      (alpha > 0) = tint; Height / Font-size = 0 keeps the built-in value.
+        [Header("Section headers — CHESTS / CRAFT (0 height/size = keep default)")]
+        public Sprite chestsHeaderSprite; public Color chestsHeaderColor; public float chestsHeaderHeight = 74f; public int chestsHeaderFontSize = 40; // "CHESTS" header
+        public Sprite craftHeaderSprite;  public Color craftHeaderColor;  public float craftHeaderHeight  = 72f; public int craftHeaderFontSize  = 40; // "CRAFT" header
+
+        // ---- Chest CARD backgrounds (behind the Bronze / Silver / Gold chests). Sprite swaps the image; Colour
+        //      (alpha > 0) tints it. Empty = the built-in dark card.
+        [Header("Chest card backgrounds — Bronze / Silver / Gold")]
+        public Sprite bronzeCardSprite; public Color bronzeCardColor;
+        public Sprite silverCardSprite; public Color silverCardColor;
+        public Sprite goldCardSprite;   public Color goldCardColor;
+
+        // ---- Button size + position. Tick the "override" box to drive the buttons from here (size = width/height in px,
+        //      offset = position; +x right, +y up). Left unticked, the buttons keep their built-in layout.
+        [Header("Button size & position — tick 'override' to control")]
+        public bool overrideChestButtons; public Vector2 chestButtonSize = new Vector2(250, 78);  public Vector2 chestButtonOffset = new Vector2(0, 16);   // BRONZE/SILVER/GOLD buy buttons
+        public bool overrideCraftButtons; public Vector2 craftButtonSize = new Vector2(280, 92);  public Vector2 craftButtonOffset = new Vector2(-160, 0); // CRAFT buttons
+
+        // LEGACY baked-chrome refs — no longer adopted (GameUI builds the chrome in code so it always reflects the
+        // latest changes). Kept only so old scene bakes deserialize; Awake still hides any leftover baked panels.
+        [Header("Garage window (legacy baked refs — unused)")]
         public GameObject garageRoot;     // full-screen panel, shown/hidden by ShowGarage/HideGarage
         public Transform  garageContent;  // scroll "Content" the chest/entry cards are spawned under
         public Text       garageGold;     // gold counter label
         public Button     garageClose;    // red X (wired to HideGarage at runtime)
 
-        [Header("Vehicles (wardrobe) window")]
+        [Header("Vehicles (wardrobe) window (legacy baked refs — unused)")]
         public GameObject vehiclesRoot;
         public Transform  vehiclesContent;
         public Text       vehiclesGold;
