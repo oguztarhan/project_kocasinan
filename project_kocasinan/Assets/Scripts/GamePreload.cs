@@ -46,7 +46,7 @@ namespace BusJam
             // gameplay will spawn, a couple per frame (keeps the splash animating). StartLevel's board build and the
             // MID-PLAY person streaming then POP from the pool instead of Instantiate'ing — that runtime Instantiate
             // (high-poly meshes + skinned Animator init) was the vehicle-spawn hitch on weak phones.
-            bool tight = SystemInfo.systemMemorySize > 0 && SystemInfo.systemMemorySize < 3072; // low-RAM phone -> smaller pools
+            bool tight = DeviceSetup.DeviceTier != DeviceSetup.Tier.High; // Low + Mid phones -> smaller prewarm pools
             var jobs = new List<(GameObject prefab, int n)>();
             var vcat = Resources.Load<VehicleCatalog>("VehicleCatalog");
             void AddVehicle(VehicleType t, int n)

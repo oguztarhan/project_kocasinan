@@ -498,7 +498,7 @@ namespace BusJam
             }
         }
 
-        // (LEVELS debug button removed for release.)
+        // (LEVELS access is the always-visible on-screen button built by LevelSelect itself — no settings button needed.)
 
         // (Skin debug button removed — skins are deprecated; vehicles come from the garage chests + craft.)
 

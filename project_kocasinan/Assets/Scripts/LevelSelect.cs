@@ -1,4 +1,4 @@
-/*using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -152,7 +152,7 @@ namespace BusJam
             int unlocked = Mathf.Max(1, SaveSystem.Level);
             // Release: normal progression — only levels up to the player's unlocked level are tappable.
             bool debugUnlockAll = true; // TEMP: show/unlock ALL levels for testing (remove for release)
-            int total = debugUnlockAll ? 60 : Mathf.Max(unlocked + LockedPreview, MinShown);
+            int total = debugUnlockAll ? 120 : Mathf.Max(unlocked + LockedPreview, MinShown); // 120 covers the bonus levels (every 10th) incl. L100
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 
             for (int n = 1; n <= total; n++)
@@ -249,4 +249,3 @@ namespace BusJam
         { rt.anchorMin = rt.anchorMax = anchor; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
     }
 }
-*/

@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace BusJam
 {
@@ -22,6 +24,8 @@ namespace BusJam
         static void Boot()
         {
             Screen.orientation = ScreenOrientation.Portrait;
+            DeviceTier = ClassifyTier();   // decide the graphics tier ONCE, before anything renders
+            ApplyQuality();                // set the per-tier render budget on the URP asset + QualitySettings
             ApplyFrameRate();
             TrimResolution();
         }
@@ -37,14 +41,75 @@ namespace BusJam
             Application.targetFrameRate = Mathf.Min(cap, MaxPanelHz());
         }
 
-        /// <summary>Editor / desktop / console = high-end. On mobile, classify by RAM + core count (a good cross-SoC
-        /// proxy for Android + iOS tiers). Tunable — bump the thresholds if mid devices feel pushed.</summary>
-        public static bool HighEndDevice()
+        // ===================== device quality tier =====================
+        /// <summary>Cheap phone -> Low, mid phone -> Mid, flagship (or editor/desktop) -> High. Classified ONCE at
+        /// launch from RAM + core count (a decent cross-SoC proxy). The WHOLE game reads DeviceTier so every system
+        /// agrees on one tier. Tune the two thresholds below freely if a class of device still struggles / has headroom.</summary>
+        public enum Tier { Low, Mid, High }
+        public static Tier DeviceTier { get; private set; } = Tier.High;
+
+        // TESTING: set this to Tier.Low / Mid / High to FORCE a tier on ANY device (incl. the editor), so you can
+        // preview each budget without the target hardware. Leave null for real per-device classification. >>> null for release <<<
+        public static Tier? ForceTier = null;
+
+        static Tier ClassifyTier()
         {
-            if (!Application.isMobilePlatform) return true;
-            return SystemInfo.systemMemorySize >= 5500   // ~6 GB+ RAM
-                && SystemInfo.processorCount   >= 7;      // 8-core class SoC
+            if (ForceTier.HasValue) return ForceTier.Value;           // code override (see above)
+#if UNITY_EDITOR
+            int menuTier = UnityEditor.EditorPrefs.GetInt(EditorTierKey, -1); // BusJam ▸ Graphics Tier menu (persists across Play)
+            if (menuTier >= 0) return (Tier)menuTier;
+#endif
+            if (!Application.isMobilePlatform) return Tier.High;       // editor / desktop / console
+            int ram = SystemInfo.systemMemorySize, cores = SystemInfo.processorCount;
+            if (ram >= 5500 && cores >= 7) return Tier.High;          // ~6 GB+ 8-core flagship
+            if (ram >= 3200)               return Tier.Mid;          // ~4 GB mid phone (was the gap: ran full graphics)
+            return Tier.Low;                                          // ~2-3 GB budget phone
         }
+
+        // High-end == the top tier. Kept as a method so existing callers (the frame-rate cap) still work unchanged.
+        public static bool HighEndDevice() => DeviceTier == Tier.High;
+
+        /// <summary>Apply the per-tier RENDER budget to the URP asset + QualitySettings, ONCE at launch. This is the
+        /// STARTING quality; PerfGovernor still adaptively drops renderScale at runtime to defend the 60-fps floor, and
+        /// BusJamGame reads DeviceTier to gate the two biggest gameplay-board costs (the inverted-hull TOON OUTLINE,
+        /// which draws every vehicle twice, and the shadowmap pass).
+        ///   • Low : shadows OFF, MSAA off, renderScale 0.80, 0 pixel lights   (BusJamGame: no outlines, no VFX)
+        ///   • Mid : HARD shadows @28 m, MSAA off, renderScale 0.90, 1 light    (BusJamGame: no outlines)
+        ///   • High: SOFT shadows @50 m, 2x MSAA, renderScale 1.00, 2 lights    (BusJamGame: outlines on)</summary>
+        public static void ApplyQuality()
+        {
+            QualitySettings.antiAliasing = 0;   // URP owns MSAA via the asset below, not QualitySettings
+            switch (DeviceTier)
+            {
+                case Tier.Low: QualitySettings.pixelLightCount = 0; QualitySettings.shadows = UnityEngine.ShadowQuality.Disable;  break;
+                case Tier.Mid: QualitySettings.pixelLightCount = 1; QualitySettings.shadows = UnityEngine.ShadowQuality.HardOnly; break;
+                default:       QualitySettings.pixelLightCount = 2; QualitySettings.shadows = UnityEngine.ShadowQuality.All;      break;
+            }
+
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
+            {
+                switch (DeviceTier)
+                {
+                    // High leaves cascades as authored so the shared asset isn't mutated in the editor (editor == High).
+                    case Tier.Low: urp.renderScale = 0.80f; urp.msaaSampleCount = 1; urp.shadowDistance = 0f;  urp.shadowCascadeCount = 1; break;
+                    case Tier.Mid: urp.renderScale = 0.90f; urp.msaaSampleCount = 1; urp.shadowDistance = 28f; urp.shadowCascadeCount = 1; break;
+                    default:       urp.renderScale = 1.00f; urp.msaaSampleCount = 2; urp.shadowDistance = 50f; break;
+                }
+            }
+        }
+
+#if UNITY_EDITOR
+        public const string EditorTierKey = "BusJam.ForceTier"; // EditorPrefs key shared with the Graphics Tier menu
+        // Re-classify (re-reads the menu EditorPrefs) and re-apply live. renderScale / MSAA / shadow distance update
+        // instantly; the toon outlines + sun-shadow style apply on the NEXT level build (they're set when a level is
+        // built), so reload the gameplay scene / press Retry to see those change.
+        public static void EditorApplyTier()
+        {
+            DeviceTier = ClassifyTier();
+            ApplyQuality();
+            ApplyFrameRate();
+        }
+#endif
 
         // Highest refresh the panel advertises (current mode + every supported mode — some 120 Hz panels report 60 as
         // "current" until a high rate is requested). Clamped to [60, 240]; 60 if the platform reports nothing useful.

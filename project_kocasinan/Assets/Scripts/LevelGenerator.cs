@@ -110,7 +110,16 @@ namespace BusJam
                                        capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
             }
 
-            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f); // queue untouched: window==baseSlots, total==sum caps
+            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f, 0); // colorCount<=0: keep the fill/core colours (2-colour bonus)
+            // SERVABILITY (bonus): the core (red) bus is boxed in the dead centre and can only be parked LAST, but the
+            // 4-wide open window emits its red people while 3 fill buses are still parked & incomplete — a red FRONT
+            // person then hard-blocks the queue before the core can ever be parked -> deadlock. Move ALL core-colour
+            // people to the very END (stable): the single-colour fill clears first (trivially servable), which frees a
+            // slot to park the core last, then its reds board. (2-colour bonus can't use the distinct-open-colours fix.)
+            var ordered = new List<LineGroup>(groups.Count);
+            foreach (var g in groups) if (g.color != core) ordered.Add(g);
+            foreach (var g in groups) if (g.color == core) ordered.Add(g);
+            groups = ordered;
             var gridBuses = BuildBonusGrid(buses, rng, out int gridW, out int gridH);
 
             return new LevelData
@@ -248,7 +257,9 @@ namespace BusJam
 
             // BuildQueue emits exactly `capacity` people per vehicle, so total people ==
             // total seats per color -> every vehicle fills exactly -> always winnable.
-            var groups    = BuildQueue(buses, rng, baseSlots, minRun, goldenP, GameConfig.FeatureMystery ? mysteryP : 0f);
+            // colorCount<=0 keeps authored colours untouched: Coin Rush shape-fill (forceAllCars) is a uniform 2-colour
+            // silhouette that never had the aliasing deadlock, so leave its colours exactly as authored.
+            var groups    = BuildQueue(buses, rng, baseSlots, minRun, goldenP, GameConfig.FeatureMystery ? mysteryP : 0f, forceAllCars ? 0 : colorCount);
 
             // Layout VARIETY + difficulty ramp (solvability unchanged): cycle a shape per level, pack
             // denser as levels rise, and let HARDER levels use diagonals (true 8-way) while easy levels
@@ -301,17 +312,38 @@ namespace BusJam
         // ---- Queue (window emission -> one single person per slot) -----------
         // window MUST equal the unlocked parking slots (baseSlots): at most `window`
         // buses are ever "open", which keeps the queue servable -> solvable.
-        static List<LineGroup> BuildQueue(List<BusDef> buses, System.Random rng, int window, int minRun, float goldenP, float mysteryP)
+        static List<LineGroup> BuildQueue(List<BusDef> buses, System.Random rng, int window, int minRun, float goldenP, float mysteryP, int colorCount)
         {
             int n = buses.Count;
             window = Mathf.Clamp(window, 1, n);
             var remaining = new int[n];
             for (int i = 0; i < n; i++) remaining[i] = buses[i].capacity;
 
-            var flat = new List<PieceColor>();
+            // SERVABILITY: (re)assign each bus a color AS IT OPENS, distinct from every currently-open bus's color.
+            // The intended solution parks buses in index order and boards the FRONT queue person onto the matching
+            // PARKED bus (FindParkedBus, by color). The window guarantees the front color always belongs to some open
+            // bus — but if two open buses shared a color, forced boarding could fill the "wrong" one and strand a later
+            // color, deadlocking a "guaranteed-solvable" level (this was the real ~19%-of-levels bug). Making the open
+            // set colour-distinct means each queue colour maps to exactly ONE parked bus, so boarding can never
+            // mis-route, for ANY runtime tie-break. Deterministic (consumes NO rng), so the grid built afterwards is
+            // byte-identical. Colours are written back to `buses` so the grid carries the same assignment. When
+            // colorCount <= 0 (bonus fill/core), the authored colours are kept; when colorCount < the concurrently-
+            // open count, distinctness is impossible but ALSO unnecessary (few-colour boards can't strand a colour).
+            var color = new PieceColor[n];
             var open = new List<int>();
+            void OpenBus(int idx)
+            {
+                if (colorCount <= 0) { color[idx] = buses[idx].color; open.Add(idx); return; }
+                var used = new HashSet<int>();
+                foreach (var o in open) used.Add((int)color[o]);
+                int c = 0; while (c < colorCount && used.Contains(c)) c++;
+                color[idx] = (PieceColor)(c < colorCount ? c : idx % colorCount);
+                open.Add(idx);
+            }
+
+            var flat = new List<PieceColor>();
             int nextToOpen = Mathf.Min(window, n);
-            for (int i = 0; i < nextToOpen; i++) open.Add(i);
+            for (int i = 0; i < nextToOpen; i++) OpenBus(i);
             while (open.Count > 0)
             {
                 int pick = open[rng.Next(open.Count)];
@@ -321,13 +353,16 @@ namespace BusJam
                 // and we only ever emit from a bus that is currently `open` (window invariant -> servable).
                 int floor = Mathf.Min(Mathf.Max(1, minRun), remaining[pick]);
                 int run = floor + rng.Next(remaining[pick] - floor + 1); // uniform in [floor, remaining]
-                for (int r = 0; r < run; r++) { flat.Add(buses[pick].color); remaining[pick]--; }
+                for (int r = 0; r < run; r++) { flat.Add(color[pick]); remaining[pick]--; }
                 if (remaining[pick] == 0)
                 {
                     open.Remove(pick);
-                    if (nextToOpen < n) { open.Add(nextToOpen); nextToOpen++; }
+                    if (nextToOpen < n) { OpenBus(nextToOpen); nextToOpen++; }
                 }
             }
+            // Carry the servable colour assignment into the grid (placement is colour-independent, so geometry is
+            // unchanged — only which colour rides on each vehicle).
+            for (int i = 0; i < n; i++) { var b = buses[i]; b.color = color[i]; buses[i] = b; }
 
             // One single person per emitted color.
             var groups = new List<LineGroup>();

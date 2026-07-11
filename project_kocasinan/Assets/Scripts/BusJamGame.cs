@@ -87,7 +87,7 @@ namespace BusJam
         bool lowEnd;                          // budget/old mobile → lighter render path (set in Start)
         GameUI ui;
         Sfx sfx;
-       // LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS (no on-screen button)
+        LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS button (debug/testing)
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
@@ -181,7 +181,7 @@ namespace BusJam
         {
             Screen.orientation = ScreenOrientation.Portrait;
             DeviceSetup.ApplyFrameRate();       // dynamic cap by device tier (high-end up to 120, others 60); re-assert after scene load
-            lowEnd = Application.isMobilePlatform && SystemInfo.systemMemorySize < 3072; // <3GB phone → lighter paths (editor/desktop never lowEnd)
+            lowEnd = DeviceSetup.DeviceTier == DeviceSetup.Tier.Low; // Low tier (~<3GB phone) → lightest paths (editor/desktop = High, never lowEnd)
             cam = Camera.main;
             BuildMaterials();
             peopleCatalog = Resources.Load<PeopleCatalog>("PeopleCatalog"); // null -> code-built people
@@ -246,9 +246,9 @@ namespace BusJam
             LevelFailed    += reason => ad.AddInterstitialLoss();           // LOSS signal (Lose); increment only — continue panel is up
             LevelStarted   += _ => ad.ShowBanner();                         // banner shown during gameplay
 
-          /*  levelSelect = gameObject.AddComponent<LevelSelect>();
+            levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
-            ui.OnLevels = () => levelSelect.Open();*/ // in-game Settings -> LEVELS map (wired after the field is built)
+            ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
 
             if (autoStart) StartCoroutine(AutoStartFirstLevel());
             else { state = GameState.Menu; ui.HideHud(); }
@@ -455,9 +455,18 @@ namespace BusJam
                 return;
             }
 
-            // Partial advance: crawlers cap at advanceN cells/tap; normals advance until the blocker.
-            int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH;
-            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, cap);
+            // Partial advance is ONLY the special "<<" crawler nosing forward through a BLOCKED lane (advanceN
+            // cells/tap). ANY other tap that did NOT just park must give blocked feedback and STAY PUT:
+            //   • a NORMAL vehicle (advanceN == 0) — it either parks or does nothing; it must never slide;
+            //   • ANY vehicle whose lane is clear (canExit) but all 4 parking slots are full (slot == null).
+            // The old code let a normal bus "advance until the blocker": with a CLEAR lane and FULL parking that slid
+            // it all the way to the board edge (cap = gridW+gridH), silently mutating occ and often sliding into
+            // another vehicle's still-needed exit lane. That destroys the generator's index-order solvability with no
+            // crash/feedback and no signal to the player — the root cause of a level reading as "unsolvable without a
+            // joker". Guarding here makes such a tap a true no-op, so a solvable level can't be bricked by a mis-tap.
+            if (bus.advanceN <= 0 || canExit) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; }
+
+            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, bus.advanceN);
             if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; } // blocked: crash + shake + debris poof (no forward progress, no exit)
 
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
@@ -3831,7 +3840,10 @@ namespace BusJam
                 sun.color = th.lightColor;                                  // warm/cool key per theme
                 sun.intensity = th.lightIntensity * 1.2f;                   // stronger key = crisper, less-flat shading
                 sun.transform.rotation = Quaternion.Euler(52f, -34f, 0f);   // pleasant diagonal so shadows read on the top-down framing
-                sun.shadows = lowEnd ? LightShadows.None : LightShadows.Soft; // budget phones skip the shadowmap pass (objects still read grounded on the ground slab)
+                // Tiered shadows: Low skips the shadowmap pass entirely; Mid gets cheap HARD shadows; High gets soft.
+                sun.shadows = DeviceSetup.DeviceTier == DeviceSetup.Tier.Low ? LightShadows.None
+                            : DeviceSetup.DeviceTier == DeviceSetup.Tier.Mid ? LightShadows.Hard
+                            : LightShadows.Soft;
                 sun.shadowStrength = 0.55f;                                 // soft, not pitch-black
             }
 
@@ -4614,7 +4626,9 @@ namespace BusJam
         // freshly-built model root; the duplicate has NO collider (taps unaffected) and is a child so Teardown reaps it.
         void OutlineAll(GameObject go)
         {
-            if (lowEnd || go == null || toonOutlineFx == null) return;
+            // Toon outlines draw every model a SECOND time (inverted hull), so they're the single biggest gameplay-board
+            // cost on weak/mid phones. HIGH tier only — Low AND Mid skip them (they still read fine without the ink edge).
+            if (DeviceSetup.DeviceTier != DeviceSetup.Tier.High || go == null || toonOutlineFx == null) return;
             foreach (var mr in go.GetComponentsInChildren<MeshRenderer>(true))
             {
                 if (mr.name == "SkinExtra") continue; // flat skin decal/wrap quad — no toon edge
