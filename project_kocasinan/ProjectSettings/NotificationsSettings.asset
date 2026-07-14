@@ -37,8 +37,8 @@
             "m_Values": [
                 "True",
                 "0",
-                "False",
-                "com.unity3d.player.UnityPlayerActivity"
+                "True",
+                "com.google.firebase.MessagingUnityPlayerActivity"
             ]
         },
         "DrawableResources": [

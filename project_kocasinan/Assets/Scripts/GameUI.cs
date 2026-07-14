@@ -446,14 +446,6 @@ namespace BusJam
         // waiting an hour. If nothing appears after tapping, the fault is permission / OEM battery-kill / a Remote Config
         // kill-switch, NOT the notification code. The button's own label reports the result. Added as the LAST child so
         // it draws on top of the (baked) panel content. To drop it before production, delete this method + its one call.
-        void AddNotificationTestButton(Transform panel)
-        {
-            if (panel == null) return;
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.30f, 0.55f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(540, 96), null);
-            var lbl = Label(btn.transform, "TEST NOTIFICATION", title, Vector2.zero, new Vector2(540, 60), 34, White);
-            btn.onClick.AddListener(() => { lbl.text = NotificationService.SendTest(); }); // status shown in-place
-        }
-
         // Restore Purchases (a Google Play storefront REQUIREMENT): re-asserts the no-ads entitlement after a reinstall
         // (IAPManager.Restore replays owned non-consumables). Appended as a full-width row at the BOTTOM of the shop
         // list, so it lives in the storefront next to the things it restores. Works for the baked shop AND the code shop.
@@ -480,9 +472,8 @@ namespace BusJam
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback (code-built settings)
-            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings. The old code-overlay TEST
-            // NOTIFICATION and LEVELS buttons were removed per request. COLOR BLIND is now a Hierarchy button you add
-            // to the Settings panel yourself; we wire it by name below.
+            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings. LEVELS was removed per
+            // request; COLOR BLIND is now a Hierarchy button you add to the Settings panel yourself (wired by name).
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
         }
 

@@ -186,22 +186,32 @@ namespace BusJam
                 CanShowBadge = true,
                 EnableVibration = true,
             });
+            // 1) Runtime permission (Android 13+). If the app has NO notification permission, ask and bail — grant it,
+            //    then tap again. (If the whole app's notifications are OFF in system settings this also reads false.)
             const string perm = "android.permission.POST_NOTIFICATIONS";
             if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(perm))
             {
                 UnityEngine.Android.Permission.RequestUserPermission(perm); // async dialog — user must grant then tap again
-                return "İzin ver, tekrar dokun";
+                Debug.Log("[NotifTest] POST_NOTIFICATIONS not granted -> requested. Grant, then tap again.");
+                return "İzin YOK — ver, tekrar dokun";
             }
+            // 2) Post it for +5s. The High channel shows it as a heads-up EVEN in the foreground, so STAY in the app
+            //    (backgrounding within ~5s runs ScheduleAll()'s CancelAll() and wipes it).
             var txt = NotificationContent.Get(0);
             AndroidNotificationCenter.SendNotification(new AndroidNotification
             {
                 Title = txt.title,
                 Text = txt.body,
-                FireTime = DateTime.Now.AddSeconds(4),
+                FireTime = DateTime.Now.AddSeconds(5),
                 SmallIcon = "busjam_notify",
                 LargeIcon = "busjam_large",
             }, AndroidChannel);
-            return "Gönderildi — ~4 sn";
+            // NOTE: deliberately DO NOT call AndroidNotificationCenter.GetNotificationChannel() to read back the channel
+            // importance — on this Mobile Notifications native lib it throws a JNI NoSuchFieldError ("field 'id' in class
+            // ...NotificationChannelWrapper"). The notification is already posted above; the readback was only a
+            // diagnostic, so we skip it. (If a notification never appears, check the channel toggle in system settings.)
+            Debug.Log("[NotifTest] permission OK. posted for +5s on '" + AndroidChannel + "'.");
+            return "Gönderildi — 5 sn, uygulamada kal";
 #elif UNITY_IOS
             var txt = NotificationContent.Get(0);
             iOSNotificationCenter.ScheduleNotification(new iOSNotification
@@ -209,9 +219,9 @@ namespace BusJam
                 Title = txt.title,
                 Body = txt.body,
                 ShowInForeground = true, // show even while the app is open, so the test is visible without backgrounding
-                Trigger = new iOSNotificationTimeIntervalTrigger { TimeInterval = TimeSpan.FromSeconds(4), Repeats = false },
+                Trigger = new iOSNotificationTimeIntervalTrigger { TimeInterval = TimeSpan.FromSeconds(5), Repeats = false },
             });
-            return "Gönderildi — ~4 sn";
+            return "Gönderildi — 5 sn";
 #else
             return "Sadece mobil";
 #endif
