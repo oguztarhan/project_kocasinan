@@ -141,9 +141,10 @@ namespace BusJam
             for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
-            // Release: normal progression — only levels up to the player's unlocked level are tappable.
-            bool debugUnlockAll = false; // release: normal progression (only levels up to the player's unlocked level)
-            int total = debugUnlockAll ? 120 : Mathf.Max(unlocked + LockedPreview, MinShown); // 120 covers the bonus levels (every 10th) incl. L100
+            // TESTING: show the first 100 levels ALL tappable so you can jump to any of them from Settings → LEVELS.
+            // >>> SET debugUnlockAll = false BEFORE RELEASE <<< (false = normal progression: only up to the unlocked level).
+            bool debugUnlockAll = true;
+            int total = debugUnlockAll ? 100 : Mathf.Max(unlocked + LockedPreview, MinShown); // first 100 levels for testing
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 
             for (int n = 1; n <= total; n++)

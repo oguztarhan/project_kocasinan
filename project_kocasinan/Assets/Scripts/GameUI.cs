@@ -17,6 +17,7 @@ namespace BusJam
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
         public System.Action OnHome, OnReplay, OnLevels;
+        public System.Action OnColorBlindToggle; // Settings COLOR BLIND toggle -> BusJamGame.ApplyColorBlindMode
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
         public System.Action<int> OnFreeCoins; // +coins rewarded button -> BusJamGame grants coins & fires CoinsChanged
@@ -479,21 +480,42 @@ namespace BusJam
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback (code-built settings)
-            // (Removed per request) The in-game settings push-notification on/off toggle was added here via
-            // AddNotificationsToggle(...). That call is intentionally gone so the button no longer appears in the
-            // in-game Settings panel. The method is left defined (unused) in case it's wanted again later.
-            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings.
+            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings. The old code-overlay TEST
+            // NOTIFICATION and LEVELS buttons were removed per request. COLOR BLIND is now a Hierarchy button you add
+            // to the Settings panel yourself; we wire it by name below.
+            WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
+        }
 
-            // On-device notification DELIVERY TEST button (diagnostic). settingsPanel is assigned in BOTH branches above
-            // (baked = InGamePanels.settings, code-built = BuildSettings), so this covers both. Fires a visible
-            // notification ~4s after tapping to confirm delivery in seconds; remove before production if undesired.
-            AddNotificationTestButton(settingsPanel != null ? settingsPanel.transform : null);
+        // Wire a COLOR BLIND on/off button that YOU add to the Settings panel in the Hierarchy — name the object
+        // "ColorBlind" (or "Btn_ColorBlind"). Tapping flips SaveSystem.ColorBlind and rebuilds the board in the new
+        // palette (OnColorBlindToggle). Your own label/graphics are left untouched (design + localize them freely). If
+        // the button has a child named "Check" (or "On" / "Tick"), it's shown ONLY while the mode is ON — a ready-made
+        // state indicator. No-op if no such button exists yet, so it's safe until you add it.
+        void WireColorBlindButton(Transform settingsRoot)
+        {
+            if (settingsRoot == null) return;
+            var t = FindDeep(settingsRoot, "ColorBlind") ?? FindDeep(settingsRoot, "Btn_ColorBlind") ?? FindDeep(settingsRoot, "Colorblind");
+            if (t == null) return;
+            var btn = t.GetComponent<Button>(); if (btn == null) btn = t.gameObject.AddComponent<Button>();
+            var check = FindDeep(t, "Check") ?? FindDeep(t, "On") ?? FindDeep(t, "Tick");
+            void Refresh() { if (check != null) check.gameObject.SetActive(SaveSystem.ColorBlind); }
+            Refresh();
+            btn.onClick.AddListener(() => { SaveSystem.ColorBlind = !SaveSystem.ColorBlind; Refresh(); OnColorBlindToggle?.Invoke(); });
+        }
+
+        // Settings → LEVELS: opens the level-select map so you can jump to any UNLOCKED level (for testing). BusJamGame
+        // wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order doesn't matter.
+        // (The old always-on-screen LEVELS button was removed; this restores in-game access from Settings.)
+        void AddLevelsButton(Transform panel)
+        {
+            if (panel == null) return;
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.42f, 0.40f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -210), new Vector2(540, 96),
+                          () => { HideSettings(); OnLevels?.Invoke(); }); // close Settings, then open the level map (LevelSelect pauses the game)
+            Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(540, 60), 34, White); // raw key -> Localizer translates it (LEVELS is in Loc.Table)
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
-        // looked for "Card/Btn_Empty", which doesn't exist, so it was never wired). We also fix its label: the baked
-        // label is a TMP using a different font than the other (legacy-Text) buttons, so we hide it and add a legacy
-        // Text that matches the siblings.
+        // looked for "Card/Btn_Empty", which doesn't exist, so it was never wired).
         void WireLanguageButton(Transform settingsRoot)
         {
             var t = FindDeep(settingsRoot, "Language") ?? FindDeep(settingsRoot, "Btn_Language") ?? FindDeep(settingsRoot, "Btn_Empty");
@@ -512,15 +534,23 @@ namespace BusJam
                 }
             }
 
-            // Swap the odd TMP label for a legacy Text in GROBOLD ("Gro Bold") — the kit's title font, UIKit.Title().
+            // FIX: the "Language" word wasn't rendering. Its baked label is a black legacy Text (same as the working
+            // "Color Blind" label, so colour is NOT the issue) but it sits in a small fixed box (200x50) with
+            // Wrap+Truncate overflow inside a non-uniformly SCALED button, which clipped the text to nothing. So force
+            // the label ROBUST: fill the whole button, centre it, and NEVER wrap/clip (Overflow) — then it always
+            // renders. Also set the "Language" key so LocalizeScene translates it (and re-translates on a lang change).
             var tmp = btn.GetComponentInChildren<TMPro.TMP_Text>(true);
-            if (tmp != null) tmp.gameObject.SetActive(false);
-            if (btn.GetComponentInChildren<Text>(true) == null)
-            {
-                var lbl = Label(btn.transform, "Language", title, Vector2.zero, new Vector2(440, 90), 40, White); // title = GROBOLD / Gro Bold
-                var rt = lbl.rectTransform;
-                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            }
+            if (tmp != null) tmp.gameObject.SetActive(false); // hide any baked TMP label; the visible one is the legacy Text
+            var lbl = btn.GetComponentInChildren<Text>(true);
+            if (lbl == null) lbl = Label(btn.transform, "Language", title, Vector2.zero, new Vector2(440, 90), 40, Color.black);
+            lbl.gameObject.SetActive(true);
+            lbl.text = "Language";                                    // Loc key -> translated by LocalizeScene
+            lbl.alignment = TextAnchor.MiddleCenter;
+            lbl.horizontalOverflow = HorizontalWrapMode.Overflow;     // never wrap
+            lbl.verticalOverflow   = VerticalWrapMode.Overflow;       // never truncate/clip -> the word always shows
+            var lrt = lbl.rectTransform;
+            lrt.localScale = Vector3.one;
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
         }
 
         // (LEVELS access is the always-visible on-screen button built by LevelSelect itself — no settings button needed.)

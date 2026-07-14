@@ -134,6 +134,22 @@ namespace BusJam
             set { PlayerPrefs.SetInt("bj_notifications", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Color-blind mode: when on, Palette.ToColor returns a colorblind-safe team palette. Flipped from the in-game
+        // Settings toggle, which then rebuilds the board (BusJamGame.ApplyColorBlindMode) so it applies live.
+        public static bool ColorBlind
+        {
+            get => PlayerPrefs.GetInt("bj_colorblind", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_colorblind", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        // Set once the player buys the BANNER-ONLY no-ads IAP (remove_banner). AdManager reads it on launch and keeps
+        // the banner off (interstitials + rewarded still show). IAPManager grants it; Restore re-sets it on a new device.
+        public static bool BannerRemoved
+        {
+            get => PlayerPrefs.GetInt("bj_banner_removed", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_banner_removed", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // Set once the player buys the no-ads IAP (remove_ads / remove_ads_plus). AdManager reads it on launch and
         // keeps every ad off; IAPManager.ProcessPurchase sets it, and Restore Purchases re-sets it on a new device.
         public static bool AdsRemoved

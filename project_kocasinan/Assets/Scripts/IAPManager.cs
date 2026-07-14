@@ -30,6 +30,7 @@ namespace BusJam
         };
         public const string RemoveAds     = "remove_ads";       // non-consumable: ads off
         public const string RemoveAdsPlus = "remove_ads_plus";  // non-consumable: ads off + one-time 200 gold + Recolor joker
+        public const string RemoveBanner  = "remove_banner";    // non-consumable: BANNER ONLY off (interstitial + rewarded still show) — CREATE this product in Play Console
 
         /// <summary>Store product id for a coin pack of exactly <paramref name="coins"/> coins, else null. Lets the
         /// shop UI (which knows the coin amount) initiate the right purchase without hard-coding ids per button.</summary>
@@ -62,6 +63,7 @@ namespace BusJam
             foreach (var p in CoinPacks) builder.AddProduct(p.id, ProductType.Consumable);
             builder.AddProduct(RemoveAds,     ProductType.NonConsumable);
             builder.AddProduct(RemoveAdsPlus, ProductType.NonConsumable);
+            builder.AddProduct(RemoveBanner,  ProductType.NonConsumable);
             UnityPurchasing.Initialize(this, builder);
         }
 
@@ -118,6 +120,12 @@ namespace BusJam
                 SaveSystem.AdsRemoved = true;
                 AdManager.Instance?.SetAdsEnabled(false);
             }
+            // Banner-only entitlement: turns off ONLY the banner (interstitial + rewarded keep serving).
+            if (id == RemoveBanner)
+            {
+                SaveSystem.BannerRemoved = true;
+                AdManager.Instance?.SetBannerEnabled(false);
+            }
             // The "plus" tier's one-time bonus must NOT re-grant on a restore -> gate it behind a one-time flag.
             if (id == RemoveAdsPlus && PlayerPrefs.GetInt("bj_rap_bonus", 0) == 0)
             {
@@ -153,6 +161,11 @@ namespace BusJam
             {
                 SaveSystem.AdsRemoved = true;
                 AdManager.Instance?.SetAdsEnabled(false);
+            }
+            if (Owns(RemoveBanner))
+            {
+                SaveSystem.BannerRemoved = true;
+                AdManager.Instance?.SetBannerEnabled(false);
             }
             OnChanged?.Invoke();
         }

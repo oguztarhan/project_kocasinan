@@ -48,6 +48,13 @@ public static class Loc
         { "HOME",     new[]{ "ANASAYFA","HOME","START","HOME","INICIO","主页","ACCUEIL","INÍCIO","BERANDA" } }, // single-word (was "ANA SAYFA")
         { "SHOP",     new[]{ "MAĞAZA","SHOP","SHOP","NEGOZIO","TIENDA","商店","BOUTIQUE","LOJA","TOKO" } },
 
+        // ---- Remove-Ads popup (Panel_RemoveAds): title + the banner-only offer ----
+        { "REMOVE ADS",    new[]{ "REKLAMLARI KALDIR","REMOVE ADS","WERBUNG ENTFERNEN","RIMUOVI ANNUNCI","QUITAR ANUNCIOS","移除广告","SUPPRIMER LES PUBS","REMOVER ANÚNCIOS","HAPUS IKLAN" } },
+        { "Remove Banner", new[]{ "Banner'ı Kaldır","Remove Banner","Banner entfernen","Rimuovi banner","Quitar banner","移除横幅广告","Supprimer la bannière","Remover banner","Hapus banner" } },
+
+        // ---- Settings: Color-blind toggle label ----
+        { "Color Blind", new[]{ "Renk Körü","Color Blind","Farbenblind","Daltonici","Daltónico","色盲模式","Daltonien","Daltônico","Buta Warna" } },
+
         // ---- Settings / panels common ----
         { "SETTINGS", new[]{ "AYARLAR","SETTINGS","EINSTELLUNGEN","IMPOSTAZIONI","AJUSTES","设置","PARAMÈTRES","DEFINIÇÕES","PENGATURAN" } },
         { "REPLAY",   new[]{ "TEKRAR","REPLAY","NOCHMAL","RIGIOCA","REINTENTAR","重玩","REJOUER","REPETIR","ULANGI" } },

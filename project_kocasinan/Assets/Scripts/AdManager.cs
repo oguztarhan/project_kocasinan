@@ -48,7 +48,9 @@ public class AdManager : MonoBehaviour
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
-    bool _adsEnabled = ADS_ENABLED;         // refined in Awake with SaveSystem.AdsRemoved (PlayerPrefs can't be read in a field initializer)
+    bool _adsEnabled = ADS_ENABLED;         // gates BANNER + INTERSTITIAL. refined in Awake with SaveSystem.AdsRemoved (PlayerPrefs can't be read in a field initializer)
+    bool _bannerEnabled = true;             // BANNER-ONLY gate (remove_banner IAP): off => no banner, but interstitial/rewarded still show; refined in Awake
+    bool _rewardedEnabled = ADS_ENABLED;    // REWARDED (opt-in) gate — deliberately NOT reduced by Remove-Ads: a no-ads buyer can STILL choose to watch a rewarded ad for x2 coins / free coins / continue
 
     // ---- in-memory counters (reset per app session; deliberately NOT persisted) ----
     int   _wins, _losses;
@@ -88,6 +90,7 @@ public class AdManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         _adsEnabled = ADS_ENABLED && !SaveSystem.AdsRemoved; // off for good once the no-ads IAP is owned (PlayerPrefs is safe in Awake, not in a field initializer)
+        _bannerEnabled = !SaveSystem.BannerRemoved;          // banner off for good once the remove_banner IAP is owned (interstitial/rewarded unaffected)
     }
 
     bool _booted;
@@ -155,7 +158,7 @@ public class AdManager : MonoBehaviour
     public void ShowBanner()
     {
         _bannerShown = true;
-        if (!_adsEnabled) return;
+        if (!_adsEnabled || !_bannerEnabled) return;
 #if GMA_ADS
         // Re-create the banner if HideBanner destroyed it. BannerView.Show() after Hide() is unreliable
         // (editor placeholder + some devices), so we rebuild instead — this makes the toggle work both ways.
@@ -175,7 +178,7 @@ public class AdManager : MonoBehaviour
 #if GMA_ADS
     void LoadBanner()
     {
-        if (!_adsEnabled || !CanRequestAds()) return;
+        if (!_adsEnabled || !_bannerEnabled || !CanRequestAds()) return;
         if (_banner != null) { _banner.Destroy(); _banner = null; }
         AdSize size = AdSize.GetCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(AdSize.FullWidth);
         _banner = new BannerView(BANNER_ID, size, AdPosition.Bottom);
@@ -270,7 +273,7 @@ public class AdManager : MonoBehaviour
         var reward   = onReward ?? Noop;
         var noReward = onClosedNoReward ?? Noop;
 #if GMA_ADS
-        if (_adsEnabled && _rewarded != null && _rewarded.CanShowAd() && !_showingFullScreen)
+        if (_rewardedEnabled && _rewarded != null && _rewarded.CanShowAd() && !_showingFullScreen)
         {
             _rwReward = reward; _rwNo = noReward; _rwEarned = false;
             _showingFullScreen = true;
@@ -288,7 +291,7 @@ public class AdManager : MonoBehaviour
 #if GMA_ADS
     void LoadRewarded()
     {
-        if (!_adsEnabled || !CanRequestAds()) return;
+        if (!_rewardedEnabled || !CanRequestAds()) return; // NOT _adsEnabled: rewarded opt-in ads survive a Remove-Ads purchase
         if (_rewarded != null) { _rewarded.Destroy(); _rewarded = null; }
         RewardedAd.Load(REWARDED_ID, new AdRequest(), (RewardedAd ad, LoadAdError err) =>
         {
@@ -321,6 +324,8 @@ public class AdManager : MonoBehaviour
 
     // Future: Remove-Ads purchase calls this to suppress banner + interstitial everywhere.
     public void SetAdsEnabled(bool enabled) { _adsEnabled = enabled; if (!enabled) HideBanner(); }
+    // BANNER-ONLY toggle (remove_banner IAP). Turns the banner off/on without touching interstitial or rewarded ads.
+    public void SetBannerEnabled(bool enabled) { _bannerEnabled = enabled; if (!enabled) HideBanner(); }
 
     // ===================== T6: TEMP on-screen debug panel (REMOVE BEFORE RELEASE) =====================
     void OnGUI()

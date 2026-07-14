@@ -249,6 +249,7 @@ namespace BusJam
             levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
             ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
+            ui.OnColorBlindToggle = ApplyColorBlindMode; // in-game Settings -> COLOR BLIND toggle (rebuilds colours live)
 
             if (autoStart) StartCoroutine(AutoStartFirstLevel());
             else { state = GameState.Menu; ui.HideHud(); }
@@ -301,6 +302,33 @@ namespace BusJam
         public void NextLevel() { LoadLevel(currentLevel + 1); } // the level AFTER the one just played (not SaveSystem.Level, which is the highest UNLOCKED -> replaying L7 used to jump to L10)
         public void RetryLevel() { LoadLevel(currentLevel); }
         public void ToggleSound() { SaveSystem.Sound = !SaveSystem.Sound; sfx.Click(); }
+
+        // Called when the player flips the COLOR BLIND toggle. Palette.ToColor already returns the new palette (it reads
+        // SaveSystem.ColorBlind), but the per-colour materials are CACHED (bodyMats + several recolor caches, some
+        // static/persisting), so they must be invalidated and rebuilt or the vehicles keep their old colours. Then
+        // RetryLevel rebuilds the board so every vehicle/person is recreated in the new palette.
+        public void ApplyColorBlindMode()
+        {
+            ClearColorCaches();
+            BuildMaterials();   // rebuild bodyMats (+ glass/wheel/etc.) from Palette.ToColor in the current mode
+            RetryLevel();       // rebuild the board so live vehicles/people pick up the new materials
+        }
+
+        // Drop every cached (colour → material/texture) so the next build re-derives them from the current palette.
+        // Covers the STATIC caches (survive scene reloads) AND the instance caches. bodyMats is repopulated by
+        // BuildMaterials(); the recolor caches (imported sedan / glb bus/connect / van) rebuild on demand as the board
+        // is created, all off the freshly-rebuilt bodyMats colours.
+        void ClearColorCaches()
+        {
+            tintedVehicleMats.Clear();   // static
+            texTintCache.Clear();        // static
+            atlasRecolorCache.Clear();   // static
+            atlasMatCache.Clear();       // static
+            vanRecolorCache.Clear();     // static
+            vanMatCache.Clear();         // instance
+            skinTintCache.Clear();       // instance
+            bodyMats.Clear();            // instance — refilled by BuildMaterials()
+        }
 
         // Settings panel: HOME button -> back to the main menu scene. (click handled globally by UiClickSound)
         public void GoToMainMenu() { AdManager.Instance?.HideBanner(); SceneManager.LoadScene("MainMenu"); }
@@ -455,18 +483,17 @@ namespace BusJam
                 return;
             }
 
-            // Partial advance is ONLY the special "<<" crawler nosing forward through a BLOCKED lane (advanceN
-            // cells/tap). ANY other tap that did NOT just park must give blocked feedback and STAY PUT:
-            //   • a NORMAL vehicle (advanceN == 0) — it either parks or does nothing; it must never slide;
-            //   • ANY vehicle whose lane is clear (canExit) but all 4 parking slots are full (slot == null).
-            // The old code let a normal bus "advance until the blocker": with a CLEAR lane and FULL parking that slid
-            // it all the way to the board edge (cap = gridW+gridH), silently mutating occ and often sliding into
-            // another vehicle's still-needed exit lane. That destroys the generator's index-order solvability with no
-            // crash/feedback and no signal to the player — the root cause of a level reading as "unsolvable without a
-            // joker". Guarding here makes such a tap a true no-op, so a solvable level can't be bricked by a mis-tap.
-            if (bus.advanceN <= 0 || canExit) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; }
+            // A tap that didn't just park now NOSES FORWARD into the empty space ahead, as far as it can — not only the
+            // special "«" crawler (user request: "front is clear, it should go as far as it can").
+            // SAFETY LIMIT (keeps the old level-brick guard): if the lane is FULLY clear (canExit) but every parking
+            // slot is full, STAY PUT. Sliding a fully-clear lane all the way to the board edge is exactly what used to
+            // brick levels (it silently slid into another vehicle's still-needed exit lane, breaking index-order
+            // solvability). Only a lane BLOCKED further ahead advances, and MaxAdvanceSteps stops AT that blocker while
+            // staying in-grid — so the vehicle noses into the visible gap but never drives off the board or past it.
+            if (canExit) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; } // clear lane + no free slot -> no-op
 
-            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, bus.advanceN);
+            int cap = bus.advanceN > 0 ? bus.advanceN : gridW + gridH; // "«" crawler noses its fixed amount; any other vehicle goes up to the blocker
+            int step = LevelGenerator.MaxAdvanceSteps(bus.cell, bus.dir, bus.length, blocked, gridW, gridH, cap);
             if (step == 0) { sfx.Crash(); StartCoroutine(Bump(bus.transform)); SpawnBlockedHit(bus); return; } // blocked: crash + shake + debris poof (no forward progress, no exit)
 
             foreach (var c in LevelGenerator.OccCells(bus.cell, bus.dir, bus.length)) occ.Remove(c); // free old, THEN
@@ -781,7 +808,13 @@ namespace BusJam
                 foreach (var fc in LevelGenerator.OccCells(c, bus.dir, bus.length)) // FULL footprint — matches the (thick) movement clearance, so a moving vehicle's reservation never disagrees with what it drives through
                 {
                     if (CellWorld(fc).z >= RoadZ) continue; // only the contested jam corridor
-                    if (reservedByMoving.TryGetValue(fc, out var ex) && ex != null && ex != bus) continue; // FOLLOW-OUT: leave a cell the leader still holds; the per-vehicle yield keeps us apart (this is why the old [OccOverlap] LogError is gone)
+                    // Never reserve a cell a DIFFERENT jam vehicle still occupies. A DIAGONAL that exited via the thin
+                    // BodySlideClear check has a THICK footprint (incl. swept corners) that can clip a neighbour's
+                    // corner cell — reserving it would put that cell in BOTH occ and reservedByMoving, which is the
+                    // [OccOverlap] error (and a real clip). BodySlideClear already proved the REAL bodies don't touch,
+                    // so that phantom corner needs no reservation; the jam vehicle's own occ keeps others out of it.
+                    if (occ.TryGetValue(fc, out var jo) && jo != null && jo != bus) continue;
+                    if (reservedByMoving.TryGetValue(fc, out var ex) && ex != null && ex != bus) continue; // FOLLOW-OUT: leave a cell the leader still holds; the per-vehicle yield keeps us apart
                     reservedByMoving[fc] = bus;
                 }
         }

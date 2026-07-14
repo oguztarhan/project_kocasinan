@@ -385,19 +385,32 @@ public class MenuController : MonoBehaviour
         if (removeAdsPanel == null) return;
         foreach (var t in removeAdsPanel.GetComponentsInChildren<Transform>(true))
         {
-            if (t.name != "Image" && t.name != "Image 2") continue;
+            System.Action onBuy;
+            if (t.name == "Image 3")
+            {
+                // NEW banner-only offer -> buy remove_banner (turns off ONLY the banner). The user may have dropped in
+                // just an Image, so make the WHOLE graphic clickable (add a Button if it has none) as well as wiring any
+                // inner button, so it fires however they built it.
+                onBuy = BuyRemoveBanner;
+                var root = t.GetComponent<Button>();
+                if (root == null && t.GetComponent<Graphic>() != null) root = t.gameObject.AddComponent<Button>();
+                if (root != null) { root.onClick = new Button.ButtonClickedEvent(); root.onClick.AddListener(() => onBuy()); }
+            }
+            else if (t.name == "Image" || t.name == "Image 2")
+            {
+                // Which product? the "+200" gold bonus marks the remove_ads_plus tier; the other is plain remove_ads.
+                bool isPlus = false;
+                foreach (var txt in t.GetComponentsInChildren<Text>(true))
+                    if (txt.text != null && txt.text.Contains("200")) { isPlus = true; break; }
+                onBuy = isPlus ? (System.Action)BuyRemoveAdsPlus : BuyRemoveAds;
+            }
+            else continue;
 
-            // Which product? the "+200" gold bonus marks the remove_ads_plus tier; the other is plain remove_ads.
-            bool isPlus = false;
-            foreach (var txt in t.GetComponentsInChildren<Text>(true))
-                if (txt.text != null && txt.text.Contains("200")) { isPlus = true; break; }
-            System.Action onBuy = isPlus ? (System.Action)BuyRemoveAdsPlus : BuyRemoveAds;
-
-            // Wire ONLY the small green Button(s) inside this offer to the purchase. Nothing else is touched — the
-            // big orange offer graphic has no Button so it stays non-clickable on its own.
+            // Wire the small green Button(s) INSIDE this offer to the purchase. The big offer graphic root is not
+            // wired here (for Image 3 it was made clickable above); the orange remove_ads graphics stay non-clickable.
             foreach (var green in t.GetComponentsInChildren<Button>(true))
             {
-                if (green.transform == t) continue;                 // never the big orange offer root itself
+                if (green.transform == t) continue;                 // never the big offer root itself
                 green.onClick = new Button.ButtonClickedEvent();
                 green.onClick.AddListener(() => onBuy());
             }
@@ -418,5 +431,6 @@ public class MenuController : MonoBehaviour
     // reinstall (a Google Play policy requirement).
     public void BuyRemoveAds()     { IAPManager.Instance?.Buy(IAPManager.RemoveAds); }
     public void BuyRemoveAdsPlus() { IAPManager.Instance?.Buy(IAPManager.RemoveAdsPlus); }
+    public void BuyRemoveBanner()  { IAPManager.Instance?.Buy(IAPManager.RemoveBanner); }
     public void RestorePurchases() { IAPManager.Instance?.Restore(); }
 }
