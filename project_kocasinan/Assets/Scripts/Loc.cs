@@ -151,5 +151,21 @@ public static class Loc
             "Bonus tur! Süre dolmadan tüm otobüsleri gönder — ve yoldan geçen arabalara çarpma!","Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!","Bonusrunde! Schaffe alle Busse, bevor die Zeit abläuft — und ramme nicht die kreuzenden Autos!",
             "Round bonus! Libera tutti gli autobus prima che scada il tempo — e non urtare le auto che attraversano!","¡Ronda bonus! Despeja todos los autobuses antes de que acabe el tiempo y no choques con los autos que cruzan!","奖励关！在时间结束前清空所有巴士——别撞上横穿马路的汽车！",
             "Manche bonus ! Dégage tous les bus avant la fin du temps — et ne percute pas les voitures qui traversent !","Rodada bónus! Limpa todos os autocarros antes do tempo acabar — e não batas nos carros que atravessam!","Ronde bonus! Bersihkan semua bus sebelum waktu habis — dan jangan tabrak mobil yang menyeberang!" } },
+
+        // ---- Special-bonus intros (CoinRush / TimeAttack / MysteryRush). ADDED 2026-07-13 — these were MISSING from the
+        //      table, so on those levels (e.g. Lv65 = MysteryRush) the banner showed English on every language. The
+        //      tr/de/it/es/fr/pt lines are solid; zh + id are AI-generated — have a native speaker verify them.
+        { "Coin Rush! Clear the heart jam for a chest — then stop the bar on GOLD!", new[]{
+            "Coin Rush! Kalp yığınını temizle, sandığı kap — sonra çubuğu ALTIN'da durdur!","Coin Rush! Clear the heart jam for a chest — then stop the bar on GOLD!","Coin Rush! Räume den Herz-Stau für eine Truhe — stopp dann den Balken auf GOLD!",
+            "Coin Rush! Libera l'ingorgo a cuore per uno scrigno — poi ferma la barra sull'ORO!","¡Coin Rush! ¡Despeja el atasco de corazón por un cofre y detén la barra en ORO!","金币狂潮！清空爱心车阵赢取宝箱——然后把指针停在金色区域！",
+            "Coin Rush ! Dégage l'embouteillage en cœur pour un coffre — puis arrête la barre sur l'OR !","Coin Rush! Limpa o engarrafamento em coração por um baú — depois para a barra no OURO!","Coin Rush! Bersihkan tumpukan berbentuk hati untuk peti — lalu hentikan bilah di EMAS!" } },
+        { "Time Attack! Clear the jam FAST — a quicker time = a better chest!", new[]{
+            "Time Attack! Yığını HIZLI temizle — daha kısa süre = daha iyi sandık!","Time Attack! Clear the jam FAST — a quicker time = a better chest!","Time Attack! Räume den Stau SCHNELL — schnellere Zeit = bessere Truhe!",
+            "Time Attack! Libera l'ingorgo VELOCE — tempo più rapido = scrigno migliore!","¡Time Attack! ¡Despeja el atasco RÁPIDO — menos tiempo = mejor cofre!","极速挑战！快速清空车阵——用时越短，宝箱越好！",
+            "Time Attack ! Dégage l'embouteillage VITE — un temps plus court = un meilleur coffre !","Time Attack! Limpa o engarrafamento RÁPIDO — tempo menor = baú melhor!","Time Attack! Bersihkan tumpukan dengan CEPAT — waktu lebih cepat = peti lebih bagus!" } },
+        { "Mystery Rush! Every car is GRAY — send them out to reveal their colour, then grab a chest!", new[]{
+            "Mystery Rush! Tüm arabalar GRİ — rengini ortaya çıkarmak için onları gönder, sonra sandığı kap!","Mystery Rush! Every car is GRAY — send them out to reveal their colour, then grab a chest!","Mystery Rush! Jedes Auto ist GRAU — schick sie raus, um ihre Farbe zu enthüllen, und schnapp dir eine Truhe!",
+            "Mystery Rush! Ogni auto è GRIGIA — mandale fuori per svelarne il colore, poi prendi uno scrigno!","¡Mystery Rush! Cada coche es GRIS — envíalos para revelar su color y llévate un cofre!","神秘狂潮！所有汽车都是灰色——把它们送出去显示颜色，然后夺取宝箱！",
+            "Mystery Rush ! Chaque voiture est GRISE — envoie-les pour révéler leur couleur, puis rafle un coffre !","Mystery Rush! Cada carro é CINZENTO — envia-os para revelar a cor e agarra um baú!","Mystery Rush! Semua mobil ABU-ABU — kirim keluar untuk mengungkap warnanya, lalu ambil peti!" } },
     };
 }

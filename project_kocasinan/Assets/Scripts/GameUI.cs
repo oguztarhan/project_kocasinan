@@ -1160,17 +1160,50 @@ namespace BusJam
             if (garageBtnGo)  garageBtnGo.SetActive(on); // hide the GARAGE button too while the garage/shop is open
             if (hudTheme)     hudTheme.gameObject.SetActive(on); // theme-name label (top-left) — was left floating over the open garage/shop
         }
-        public void ShowContinue() { Toggle(continuePanel, true); }
+        public void ShowContinue() { MakeExclusive(continuePanel); Toggle(continuePanel, true); }
         public void SetContinuePrice(int cost) { if (continuePrice) continuePrice.text = cost.ToString(); }
         public void HideContinue() { Toggle(continuePanel, false); }
-        public void ShowFailed() { Toggle(failedPanel, true); }
+        public void ShowFailed() { MakeExclusive(failedPanel); Toggle(failedPanel, true); }
         public void HideFailed() { Toggle(failedPanel, false); }
         public void ShowSuccess(int stars, int reward)
         {
+            MakeExclusive(successPanel);                            // level-complete panel must be the ONLY thing on screen
             if (successReward) successReward.text = "+" + reward;   // show the actual coin reward (economy rework)
             Toggle(successPanel, true);
         }
         public void HideSuccess() { Toggle(successPanel, false); }
+
+        // SINGLE RULE — a level-resolution panel (Success / Continue / Failed / a bonus chest) must be the ONLY thing on
+        // screen. Force every OTHER overlay, popup and screen shut BEFORE that panel is shown, so a screen the player
+        // opened mid-boarding (Garage, wardrobe, shop, settings, a chest reveal, …) can never remain layered behind it.
+        // This is the one place that enforces exclusivity; the terminal Show* methods above + the bonus flow call it —
+        // NOT a one-off patch on any single screen. `keep` is the panel we're about to show (never closed).
+        void MakeExclusive(GameObject keep)
+        {
+            GameObject[] overlays =
+            {
+                garagePanel, vehiclesPanel, revealPanel,     // Garage screen + its sub-screens (wardrobe, chest reveal)
+                shopPanel, settingsPanel, jokerBuyPanel,     // other popups
+                chestWonPanel, stopBarPanel,                 // bonus-reward panels
+                continuePanel, failedPanel, successPanel,    // the OTHER terminal panels (mutually exclusive)
+            };
+            foreach (var go in overlays)
+                if (go != null && go != keep && go.activeSelf) go.SetActive(false);
+            if (jokerBuyPanels != null)
+                foreach (var go in jokerBuyPanels)
+                    if (go != null && go != keep && go.activeSelf) go.SetActive(false);
+
+            // ShowGarage hides the coin bar, suppresses the bonus timer, and may flag "opened from the menu". Closing the
+            // garage with the raw SetActive above skips HideGarage, so those side-effects would otherwise persist (an
+            // invisible coin bar + suppressed bonus timer on the NEXT level). Undo them here — unless the garage/wardrobe
+            // is itself the panel being kept.
+            if (keep != garagePanel && keep != vehiclesPanel)
+            {
+                if (coinBarGo) coinBarGo.SetActive(true);
+                hideBonusTimer = false;
+                garageFromMenu = false;
+            }
+        }
 
         // True while any modal pop-up (settings / shop / continue / failed / success) is open. BusJamGame uses
         // this to hide the tutorial coach so nothing tutorial-related shows on top of a panel.

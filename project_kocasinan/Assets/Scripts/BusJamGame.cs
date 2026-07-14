@@ -1714,23 +1714,25 @@ namespace BusJam
             // into Lv6 when jumping levels). Each branch below re-arms its own banner/pointer fresh.
             tutorialActive = false; tutorialStep = 0;
             if (coach != null) coach.HidePointer();
+            // NOTE: pass the RAW English key to the coach (NOT Loc.T(...)). TutorialCoach translates it AND re-translates
+            // on a language change; pre-translating here would freeze the banner in the language it was created in.
             if (levelNumber == 1 && !SaveSystem.TutorialDone)
-                StartTutorial(Loc.T("Tap a car to send it to a parking spot!")); // stays until ANY vehicle tap, then never shown again (TutorialDone)
+                StartTutorial("Tap a car to send it to a parking spot!"); // stays until ANY vehicle tap, then never shown again (TutorialDone)
             else if (levelNumber == 5)
-                StartCoroutine(ShowBanner(Loc.T("Buses seat 10 people!"), 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
+                StartCoroutine(ShowBanner("Buses seat 10 people!", 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
             else if (levelNumber == 6)
-                StartCoroutine(ShowBanner(Loc.T("New: vehicles can now move DIAGONALLY!"), 5f));       // diagonals unlock at level 6
+                StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f));       // diagonals unlock at level 6
             else if (levelNumber == 10)
             {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
-                coach.ShowText(Loc.T("Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!"));
+                coach.ShowText("Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!");
             }
             else if (SpecialBonus)
             {
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
-                coach.ShowText(Loc.T(bonusKind == BonusKind.CoinRush ? "Coin Rush! Clear the heart jam for a chest — then stop the bar on GOLD!"
-                                   : bonusKind == BonusKind.TimeAttack ? "Time Attack! Clear the jam FAST — a quicker time = a better chest!"
-                                   : "Mystery Rush! Every car is GRAY — send them out to reveal their colour, then grab a chest!"));
+                coach.ShowText(bonusKind == BonusKind.CoinRush ? "Coin Rush! Clear the heart jam for a chest — then stop the bar on GOLD!"
+                             : bonusKind == BonusKind.TimeAttack ? "Time Attack! Clear the jam FAST — a quicker time = a better chest!"
+                             : "Mystery Rush! Every car is GRAY — send them out to reveal their colour, then grab a chest!");
             }
             else { tutorialActive = false; if (coach != null) coach.Hide(); }
         }
@@ -1894,7 +1896,7 @@ namespace BusJam
             if (!SaveSystem.FreeJokerGranted) { SaveSystem.AddFreeJoker(0, 1); SaveSystem.FreeJokerGranted = true; ui.RefreshJokerLocks(); }
             tutorialActive = true;
             tutorialStep = 3; // distinct from the bus steps (1/2) so a bus tap can't advance it
-            coach.ShowText(Loc.T("RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck."));
+            coach.ShowText("RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.");
             StartCoroutine(JokerTutorialLoop());
         }
 

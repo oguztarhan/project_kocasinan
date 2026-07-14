@@ -22,6 +22,14 @@ namespace BusJam
         bool pointerOn;
         bool shown;       // a tutorial step currently wants the overlay visible
         bool suppressed;  // a panel/menu is open -> force the whole overlay hidden (restored when it closes)
+        string bannerKey = ""; // ENGLISH source of the current banner; kept so a live language change can re-translate it
+
+        // In-level text is NOT reached by Localizer/LocalizedText (that tags UN-translated English source strings, and
+        // the coach's text is set at runtime). So the coach localizes itself: it holds the English key and re-applies
+        // Loc.T on every language change — fixing "in-level text stays in the old language after switching".
+        void OnEnable()  { Loc.OnLanguageChanged += Relocalize; }
+        void OnDisable() { Loc.OnLanguageChanged -= Relocalize; }
+        void Relocalize() { if (bannerText != null && !string.IsNullOrEmpty(bannerKey)) bannerText.text = Loc.T(bannerKey); }
 
         public void Build()
         {
@@ -95,12 +103,15 @@ namespace BusJam
             Hide();
         }
 
-        public void ShowText(string msg)
+        // `key` is the ENGLISH source string (a Loc table key). The coach translates it to the current language here
+        // and re-translates on any later language change (see Relocalize) — callers pass the raw key, NOT Loc.T(key).
+        public void ShowText(string key)
         {
             if (root == null) Build();
             shown = true;
+            bannerKey = key;
             if (bannerGo) bannerGo.SetActive(true);
-            if (bannerText) bannerText.text = msg;
+            if (bannerText) bannerText.text = Loc.T(key);
             ApplyVisible();
         }
 

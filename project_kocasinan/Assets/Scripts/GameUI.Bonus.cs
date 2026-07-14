@@ -29,6 +29,7 @@ namespace BusJam
         {
             if (chestWonPanel != null) Destroy(chestWonPanel); // rebuild fresh (the chest differs per tier)
             chestWonPanel = Panel("ChestWon", Dim);
+            MakeExclusive(chestWonPanel); // bonus level-complete: nothing (Garage etc.) may remain layered behind it
             var cv = chestWonPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 84;
             chestWonPanel.AddComponent<GraphicRaycaster>();
 
@@ -55,6 +56,7 @@ namespace BusJam
         public void ShowStopBar(System.Action<ChestTier> onResult)
         {
             if (stopBarPanel == null) BuildStopBar();
+            MakeExclusive(stopBarPanel); // bonus level-complete mini-game: force any open screen (Garage etc.) shut first
             stopResult = onResult; stopTapped = false;
             stopBarPanel.SetActive(true);
             stopBarPanel.transform.SetAsLastSibling();
