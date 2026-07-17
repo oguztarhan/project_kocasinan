@@ -30,7 +30,11 @@ namespace BusJam
         const string SoundRes = "busjam_chime";
 
         // ---- Reminder schedule shape ------------------------------------------
-        const int EveryHours  = 4;  // day 0: a touch every 4h for the rest of the day, so we reach them while it's fresh
+        const int FirstNudgeH = 2;  // day 0: first "come back and play" nudge at +2h — deliberately BELOW the chest floor
+                                    // (EveryHours) so a generic come-back always lands same-day and the chest can't be the
+                                    // only same-day notification. (Was +4h == chest floor -> the two collided and the guard
+                                    // dropped the generic one, so a mid-afternoon quit saw ONLY the chest.)
+        const int EveryHours  = 4;  // day 0: cadence between the same-day come-back nudges, and the chest's earliest time
         const int QuietStart  = 10; // earliest local hour a reminder may fire
         const int QuietEnd    = 21; // latest local hour a reminder may fire  -> nothing EVER fires 21:00..10:00
         const int DailyHour   = 18; // day 1+ reminders land here
@@ -43,7 +47,8 @@ namespace BusJam
         // while" lines come later, which is also where they land naturally as the cadence tapers.
         static readonly int[] Cycle = { 0, 5, 10, 1, 6, 7, 9, 11, 2, 3, 8, 12 };
 
-        // Every reminder time, in order. Day 0 = every EveryHours through the rest of today (daytime only); then one a
+        // Every reminder time, in order. Day 0 = a "come back" nudge at +FirstNudgeH, then every EveryHours through the
+        // rest of today (daytime only) — these are the same-day come-back reminders, generic (not the chest). Then one a
         // day at DailyHour, tapering: daily for week 1 -> every 3 days -> weekly, out to HorizonDays.
         //
         // Why a horizon and not a true infinite loop: Android holds a finite number of alarms, so "forever" has to be
@@ -53,7 +58,7 @@ namespace BusJam
         static List<DateTime> BuildSlots(DateTime now)
         {
             var list = new List<DateTime>();
-            for (DateTime t = now.AddHours(EveryHours); t.Date == now.Date && t.Hour < QuietEnd; t = t.AddHours(EveryHours))
+            for (DateTime t = now.AddHours(FirstNudgeH); t.Date == now.Date && t.Hour < QuietEnd; t = t.AddHours(EveryHours))
                 if (t.Hour >= QuietStart) list.Add(t);                                                    // day 0, daytime only
             for (int d = 1;  d <= 7;           d += 1) list.Add(now.Date.AddDays(d).AddHours(DailyHour)); // week 1: daily
             for (int d = 10; d <= 30;          d += 3) list.Add(now.Date.AddDays(d).AddHours(DailyHour)); // then every 3 days
