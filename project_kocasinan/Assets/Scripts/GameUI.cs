@@ -494,15 +494,25 @@ namespace BusJam
             btn.onClick.AddListener(() => { SaveSystem.ColorBlind = !SaveSystem.ColorBlind; Refresh(); OnColorBlindToggle?.Invoke(); });
         }
 
-        // Settings → LEVELS: opens the level-select map so you can jump to any UNLOCKED level (for testing). BusJamGame
-        // wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order doesn't matter.
-        // (The old always-on-screen LEVELS button was removed; this restores in-game access from Settings.)
+        // (DEBUG, currently NOT wired) Settings → LEVELS: opens the level-select map to jump to any level — used to reach
+        // the every-10th bonus levels without grinding to them. Call it from SetupSettings to switch it on, and flip
+        // LevelSelect.debugUnlockAll to true alongside it (otherwise the map only shows levels you have actually reached).
+        // Both are OFF for release: together they let a first-time player skip straight to level 100.
+        // BusJamGame wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order is free.
+        // Placement: its OWN top-most canvas + raycaster. A plain child of the settings card does NOT receive taps (the
+        // card's own overrideSorting canvas swallows them) — this is the placement proven to work on-device.
         void AddLevelsButton(Transform panel)
         {
             if (panel == null) return;
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.42f, 0.40f, 0.85f), new Vector2(0.5f, 1f), new Vector2(0, -210), new Vector2(540, 96),
+            var holder = new GameObject("LevelsBtn", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+            holder.transform.SetParent(panel, false);
+            var hrt = holder.GetComponent<RectTransform>();
+            hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one; hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
+            var cv = holder.GetComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 500; // above the settings card
+
+            var btn = Btn(holder.transform, UIKit.PriceBtnA(), new Color(0.42f, 0.40f, 0.85f), new Vector2(0.5f, 0f), new Vector2(0, 200), new Vector2(540, 110),
                           () => { HideSettings(); OnLevels?.Invoke(); }); // close Settings, then open the level map (LevelSelect pauses the game)
-            Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(540, 60), 34, White); // raw key -> Localizer translates it (LEVELS is in Loc.Table)
+            Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(540, 70), 34, White); // raw key -> Localizer translates it (LEVELS is in Loc.Table)
         }
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code

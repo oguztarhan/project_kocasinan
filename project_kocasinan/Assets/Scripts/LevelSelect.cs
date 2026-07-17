@@ -143,7 +143,7 @@ namespace BusJam
             int unlocked = Mathf.Max(1, SaveSystem.Level);
             // TESTING: show the first 100 levels ALL tappable so you can jump to any of them from Settings → LEVELS.
             // >>> SET debugUnlockAll = false BEFORE RELEASE <<< (false = normal progression: only up to the unlocked level).
-            bool debugUnlockAll = true;
+            bool debugUnlockAll = false;
             int total = debugUnlockAll ? 100 : Mathf.Max(unlocked + LockedPreview, MinShown); // first 100 levels for testing
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 

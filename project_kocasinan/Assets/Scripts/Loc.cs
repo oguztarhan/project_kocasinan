@@ -154,10 +154,13 @@ public static class Loc
             "Yeni: araçlar artık ÇAPRAZ gidebilir!","New: vehicles can now move DIAGONALLY!","Neu: Fahrzeuge können sich jetzt DIAGONAL bewegen!",
             "Novità: i veicoli ora possono muoversi in DIAGONALE!","¡Nuevo: los vehículos ahora pueden moverse en DIAGONAL!","新增：车辆现在可以斜向移动！",
             "Nouveau : les véhicules peuvent maintenant se déplacer en DIAGONALE !","Novo: os veículos agora podem mover-se na DIAGONAL!","Baru: kendaraan kini bisa bergerak DIAGONAL!" } },
-        { "Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!", new[]{
-            "Bonus tur! Süre dolmadan tüm otobüsleri gönder — ve yoldan geçen arabalara çarpma!","Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!","Bonusrunde! Schaffe alle Busse, bevor die Zeit abläuft — und ramme nicht die kreuzenden Autos!",
-            "Round bonus! Libera tutti gli autobus prima che scada il tempo — e non urtare le auto che attraversano!","¡Ronda bonus! Despeja todos los autobuses antes de que acabe el tiempo y no choques con los autos que cruzan!","奖励关！在时间结束前清空所有巴士——别撞上横穿马路的汽车！",
-            "Manche bonus ! Dégage tous les bus avant la fin du temps — et ne percute pas les voitures qui traversent !","Rodada bónus! Limpa todos os autocarros antes do tempo acabar — e não batas nos carros que atravessam!","Ronde bonus! Bersihkan semua bus sebelum waktu habis — dan jangan tabrak mobil yang menyeberang!" } },
+        // Lv10 bonus intro. REWRITTEN 2026-07-17 when that bonus went 2-colour (yellow fill + red core) -> 4-colour: it now
+        // names the 4-colour jam, and says "vehicles" instead of "buses" (the board is ~40% cars / 30% minivans / 30%
+        // buses, so "buses" was already wrong). Key must stay byte-identical to the BusJamGame coach.ShowText string.
+        { "Bonus round! A 4-colour jam — clear every vehicle before time runs out, and don't hit the cars crossing the road!", new[]{
+            "Bonus tur! 4 renkli tıkanıklık — süre dolmadan tüm araçları gönder ve yoldan geçen arabalara çarpma!","Bonus round! A 4-colour jam — clear every vehicle before time runs out, and don't hit the cars crossing the road!","Bonusrunde! Ein Stau in 4 Farben — schaffe alle Fahrzeuge, bevor die Zeit abläuft, und ramme nicht die kreuzenden Autos!",
+            "Round bonus! Un ingorgo a 4 colori — libera tutti i veicoli prima che scada il tempo e non urtare le auto che attraversano!","¡Ronda bonus! Un atasco de 4 colores: despeja todos los vehículos antes de que acabe el tiempo y no choques con los autos que cruzan!","奖励关！四色车阵——在时间结束前清空所有车辆，别撞上横穿马路的汽车！",
+            "Manche bonus ! Un embouteillage à 4 couleurs — dégage tous les véhicules avant la fin du temps et ne percute pas les voitures qui traversent !","Rodada bónus! Um engarrafamento de 4 cores — limpa todos os veículos antes do tempo acabar e não batas nos carros que atravessam!","Ronde bonus! Tumpukan 4 warna — bersihkan semua kendaraan sebelum waktu habis dan jangan tabrak mobil yang menyeberang!" } },
 
         // ---- Special-bonus intros (CoinRush / TimeAttack / MysteryRush). ADDED 2026-07-13 — these were MISSING from the
         //      table, so on those levels (e.g. Lv65 = MysteryRush) the banner showed English on every language. The

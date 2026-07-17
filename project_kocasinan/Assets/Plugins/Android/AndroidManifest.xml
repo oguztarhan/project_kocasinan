@@ -22,6 +22,6 @@
          channel. busjam_notify is baked into res/ by the Mobile Notifications icon list; the channel id matches
          the one NotificationService registers at startup. -->
     <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/busjam_notify" />
-    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="busjam_reengage2" />
+    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="busjam_reengage3" />
   </application>
 </manifest>

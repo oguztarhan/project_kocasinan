@@ -688,8 +688,11 @@ namespace BusJam
             // as "THIS vehicle crashed here", then it drives back. (The old code shook while MoveTo'ing -> jitter.)
             Vector3 hitPos = bus.transform.position + Vector3.up * 0.5f;
             SpawnHit(hitPos);                                                       // HitRock debris poof (no-op on lowEnd)
-            Juice.Burst(this, boardRoot, hitPos, bodyMats[bus.color], 18, 5.5f);    // ALWAYS a big colored spark burst so the crash is unmistakable
-            Juice.Burst(this, boardRoot, hitPos, goldMat, 10, 4f);                  // + a bright spark flash
+            // ONE burst, in the vehicle's OWN colour. A second goldMat "spark flash" used to fire on top of this; it read
+            // as a single effect only because EVERY bonus vehicle was yellow back when the bonus was 2-colour. Against the
+            // 4-colour board it showed up as a clashing second colour on every non-yellow crash. Count raised from 18 to
+            // absorb the removed 10 gold particles, so the crash still reads as unmistakable.
+            Juice.Burst(this, boardRoot, hitPos, bodyMats[bus.color], 26, 5.5f);
             sfx.Crash();                                                           // impact sound
             sfx.Screech();                                                         // + tyre screech
             StopExhaust(exhaust, false);                           // stop the exit trail
@@ -1758,7 +1761,7 @@ namespace BusJam
             else if (levelNumber == 10)
             {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
-                coach.ShowText("Bonus round! Clear every bus before time runs out — and don't hit the cars crossing the road!");
+                coach.ShowText("Bonus round! A 4-colour jam — clear every vehicle before time runs out, and don't hit the cars crossing the road!");
             }
             else if (SpecialBonus)
             {

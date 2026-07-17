@@ -55,7 +55,7 @@ namespace BusJam
         {
             var rng = new System.Random(level * 9176 + 4242);
 
-            if (level % 10 == 0) return GenerateBonus(level, rng); // every 10th = 2-color core-boxed-by-ring bonus
+            if (level % 10 == 0) return GenerateBonus(level, rng); // every 10th = 4-colour core-boxed-by-ring bonus
 
             if (shapeFill && forceStyle.HasValue)
             {
@@ -89,43 +89,45 @@ namespace BusJam
             return VehicleMix.AllThree;                        // L7+: cars + minivans + buses
         }
 
-        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam where EVERY vehicle is one color (fill) except
-        // ONE contrasting vehicle trapped in the dead CENTER (extracted LAST). Mixed cars + buses. Reverse-
-        // placed center-out with the SAME BodyFree+SlideClear, every vehicle exiting outward -> solvable
-        // (clear from the outside in to free the middle one).
+        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam of mixed cars/minivans/buses in FOUR colours, with
+        // ONE vehicle trapped in the dead CENTER (extracted LAST). Reverse-placed center-out with the SAME
+        // BodyFree+SlideClear, every vehicle exiting outward -> solvable (clear from the outside in to free the
+        // middle one). Colours come from BuildQueue's distinct-open-colours fix — see GenerateBonus. (Was a
+        // 2-colour yellow-fill + red-core board until 2026-07-17.)
         static LevelData GenerateBonus(int level, System.Random rng)
         {
             const int busCount = 32; // MANY mixed vehicles, densely packed (T3 big-jam: fits the W6/H9 board; stress-tested 0/0)
-            var fill = PieceColor.Yellow; // everything is this color...
-            var core = PieceColor.Red;    // ...except ONE vehicle in the dead center.
+            // 4 colours (Palette indices 0..3 = Red/Blue/Yellow/Green). MUST stay >= BaseSlots: BuildQueue's
+            // distinct-open-colours servability fix needs a spare colour for every concurrently-OPEN bus, so 4 colours
+            // against a 4-wide window makes distinctness ALWAYS achievable -> each queue colour maps to exactly ONE
+            // parked bus -> boarding can never mis-route -> no deadlock. Raising BaseSlots without raising this breaks it.
+            const int BonusColors = 4;
 
             var buses = new List<BusDef>(busCount);
             for (int i = 0; i < busCount; i++)
             {
-                bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after all the fill clears)
-                int rt = rng.Next(10);                                                    // fill spread across all 3 types
+                bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after everything else clears)
+                int rt = rng.Next(10);                                                    // spread across all 3 types
                 var type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
                                   : (rt < 4 ? VehicleType.Car : (rt < 7 ? VehicleType.Minivan : VehicleType.Bus)); // ~40% car, 30% minivan, 30% bus
-                buses.Add(new BusDef { color = isCore ? core : fill, type = type,
+                buses.Add(new BusDef { color = PieceColor.Red, type = type, // placeholder — BuildQueue assigns the real colour
                                        capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
             }
 
-            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f, 0); // colorCount<=0: keep the fill/core colours (2-colour bonus)
-            // SERVABILITY (bonus): the core (red) bus is boxed in the dead centre and can only be parked LAST, but the
-            // 4-wide open window emits its red people while 3 fill buses are still parked & incomplete — a red FRONT
-            // person then hard-blocks the queue before the core can ever be parked -> deadlock. Move ALL core-colour
-            // people to the very END (stable): the single-colour fill clears first (trivially servable), which frees a
-            // slot to park the core last, then its reds board. (2-colour bonus can't use the distinct-open-colours fix.)
-            var ordered = new List<LineGroup>(groups.Count);
-            foreach (var g in groups) if (g.color != core) ordered.Add(g);
-            foreach (var g in groups) if (g.color == core) ordered.Add(g);
-            groups = ordered;
+            // Colours now come from the SAME machinery the normal levels use (colorCount > 0): BuildQueue re-assigns each
+            // bus a colour distinct from every currently-open bus AS IT OPENS, then writes the assignment back into
+            // `buses` so BuildBonusGrid carries it. This replaces the old 2-colour fill/core scheme AND its "move every
+            // core-colour person to the end of the queue" workaround — that hack existed only because colorCount<=0 kept
+            // the authored colours and so could not use the distinct-open-colours fix. Reordering the emitted queue would
+            // now actively BREAK servability (it violates the window invariant), which is why it is gone rather than kept.
+            // Colour assignment consumes no rng, so the grid below is geometrically identical to the old 2-colour bonus.
+            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f, BonusColors);
             var gridBuses = BuildBonusGrid(buses, rng, out int gridW, out int gridH);
 
             return new LevelData
             {
                 levelNumber = level, groups = groups, gridBuses = gridBuses,
-                gridW = gridW, gridH = gridH, baseSlots = BaseSlots, extraSlots = ExtraSlots, colorCount = 2
+                gridW = gridW, gridH = gridH, baseSlots = BaseSlots, extraSlots = ExtraSlots, colorCount = BonusColors
             };
         }
 
