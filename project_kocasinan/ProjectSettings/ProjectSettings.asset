@@ -837,6 +837,7 @@ PlayerSettings:
   scriptingDefineSymbols:
     Android: APP_UI_EDITOR_ONLY;SENTIS_ANALYTICS_ENABLED;GMA_ADS
     Standalone: SENTIS_ANALYTICS_ENABLED;APP_UI_EDITOR_ONLY;GMA_ADS
+    iOS: APP_UI_EDITOR_ONLY;SENTIS_ANALYTICS_ENABLED;GMA_ADS
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

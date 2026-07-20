@@ -1754,7 +1754,7 @@ namespace BusJam
             // on a language change; pre-translating here would freeze the banner in the language it was created in.
             if (levelNumber == 1 && !SaveSystem.TutorialDone)
                 StartTutorial("Tap a car to send it to a parking spot!"); // stays until ANY vehicle tap, then never shown again (TutorialDone)
-            else if (levelNumber == 5)
+            else if (levelNumber == 5 && !SaveSystem.FreeJokerGranted) // FIRST Lv5 visit only — skip on every replay (FreeJokerGranted persists once the RECOLOR unlock coach has run, mirroring level 1's TutorialDone gate)
                 StartCoroutine(ShowBanner("Buses seat 10 people!", 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
             else if (levelNumber == 6)
                 StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f));       // diagonals unlock at level 6
@@ -2068,7 +2068,7 @@ namespace BusJam
                     // Billboard indicator so the player sees HOW to open the pad: an animated yellow COST NUMBER on the
                     // gold (coin) pads, a video-ad icon on the rewarded-ad pads. Parented to the marker -> removed on Unlock.
                     if (slot.adUnlock) BuildSlotIcon(marker.transform, UIKit.WatchAd());
-                    else BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // animated yellow "75" REPLACES the gold coin
+                    else BuildSlotCostNumber(marker.transform, SlotUnlockCost.ToString()); // the cost number shown INSIDE a gold coin
                 }
             }
             BuildParkingStripes(); // paint lane-marking stripes between the parking bays
@@ -2132,9 +2132,9 @@ namespace BusJam
             img.sprite = sprite; img.raycastTarget = false; img.preserveAspect = true;
         }
 
-        // The coin pad's unlock indicator: a big camera-facing ANIMATED YELLOW cost number (e.g. "75") that REPLACES
-        // the old gold-coin icon. Floats above the pad, billboards to the camera, bobs (its own IdleBob) and pulses
-        // (the marker's IdleBob) so it reads as "tap to unlock for this many coins".
+        // The coin pad's unlock indicator: the cost number (e.g. "75") sitting INSIDE a gold COIN, so it clearly reads
+        // as a COIN cost instead of a bare, ambiguous number (the old version showed just the number). Floats above the
+        // pad, billboards to the camera, bobs (its own IdleBob) and pulses (the marker's IdleBob).
         void BuildSlotCostNumber(Transform parent, string text)
         {
             var go = new GameObject("SlotCost", typeof(RectTransform), typeof(Canvas));
@@ -2142,9 +2142,19 @@ namespace BusJam
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             ((RectTransform)go.transform).sizeDelta = new Vector2(120, 120);
             go.transform.localPosition = new Vector3(0, 0.5f, 0); // centered on the marker, where the coin icon used to sit
-            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.75f / 120f); // a bit smaller (per request), still the sole indicator
+            go.transform.localScale = new Vector3(-1f, 1f, 1f) * (0.92f / 120f); // -X cancels the BillboardUp flip; a touch bigger so coin + number both read clearly
             go.AddComponent<BillboardUp>();
-            AddSignText(go.transform, text, 80, Vector2.zero, Vector2.one, new Color(1f, 0.88f, 0.2f)); // bright yellow/gold
+
+            // Gold COIN backing (added FIRST -> renders behind the number). Same coin sprite as the HUD, gold-tinted.
+            var coinGo = new GameObject("Coin", typeof(RectTransform));
+            coinGo.transform.SetParent(go.transform, false);
+            var crt = coinGo.GetComponent<RectTransform>();
+            crt.anchorMin = Vector2.zero; crt.anchorMax = Vector2.one; crt.offsetMin = Vector2.zero; crt.offsetMax = Vector2.zero;
+            var cimg = coinGo.AddComponent<UnityEngine.UI.Image>();
+            cimg.sprite = UIKit.Coin(); cimg.color = new Color(1f, 0.84f, 0.28f); cimg.raycastTarget = false; cimg.preserveAspect = true;
+
+            // Cost number INSIDE the coin: white + black outline (AddSignText) so it stays legible on gold at any angle.
+            AddSignText(go.transform, text, 56, new Vector2(0.14f, 0.20f), new Vector2(0.86f, 0.80f), Color.white);
             var bob = go.AddComponent<IdleBob>(); bob.amp = 0.08f; bob.speed = 3f; bob.phase = 1.5f;
         }
 
@@ -3078,7 +3088,7 @@ namespace BusJam
         // canvas + flip-cancel, like the crawler badge). Wired to the LOGICAL pool via UpdatePeopleLeft.
         void BuildPeopleLeftSign()
         {
-            float signW = 0.82f, signH = 1.22f;   // (#8) ~1.5x bigger people-count sign (board, neon frame + text all derive from these)
+            float signW = 1.05f, signH = 1.56f;   // people-count sign size — bumped again (~1.28x of the previous 0.82x1.22); board, neon frame + text all derive from these, and the on-screen clamp uses frameHalf so it stays in view
             float frameHalf = (signW + 0.14f) * 0.5f;
             // Just LEFT of the first (leftmost) bus stop, but CLAMPED so the whole sign stays on-screen
             // even when a level has many parking slots (SlotX(0) can run off the left edge otherwise).
@@ -3950,6 +3960,14 @@ namespace BusJam
             // buses drive off-screen sideways ALONG it. STANDARD asphalt every level (slimmed to a 1.0 lane).
             LowPolyBuilder.Slab(boardRoot, new Vector3(0, -0.10f, RoadZ), new Vector3(28f, 0.2f, 1.0f), roadMat);
 
+            // (#8a) Dashed white CENTRE line down the road so the lane reads clearly (was plain asphalt). Flat paint
+            // dashes sit right on the road surface (slab top = y 0.0), evenly spaced along the driving (X) axis.
+            if (stripeMat != null)
+            {
+                const float dashLen = 0.72f, gap = 0.62f, dashY = 0.02f; // dashY: half the 0.04 dash height -> bottom flush with the road top
+                for (float x = -12.6f; x <= 12.6f; x += dashLen + gap)
+                    LowPolyBuilder.Slab(boardRoot, new Vector3(x, dashY, RoadZ), new Vector3(dashLen, 0.04f, 0.15f), stripeMat);
+            }
 
             for (int i = -4; i <= 4; i++)
             {

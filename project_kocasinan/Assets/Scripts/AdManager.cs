@@ -39,12 +39,21 @@ public class AdManager : MonoBehaviour
 
     // ===================== TEST ad unit IDs (Google's universal test ids — publisher ca-app-pub-3940256099942544) =====================
     // >>> TEST ADS ONLY — for CLOSED TESTING, so a tester tap can NEVER trigger an AdMob "invalid traffic" ban. <<<
-    // The REAL publisher's ids were swapped OUT (recoverable from git history / release notes). RESTORE them — here AND
-    // in Assets ▸ Google Mobile Ads ▸ Settings — before the PRODUCTION release, or real ads will never serve / earn.
-    const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // Google TEST App ID (mirror of the Google Mobile Ads Settings value)
-    const string BANNER_ID       = "ca-app-pub-3940256099942544/9214589741"; // Google TEST adaptive banner
-    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"; // Google TEST interstitial
-    const string REWARDED_ID     = "ca-app-pub-3940256099942544/5224354917"; // Google TEST rewarded
+    // AdMob ad unit ids are PER-PLATFORM: an Android unit id returns "no ad available" on iOS (and vice-versa) — that is
+    // why iOS ads never opened. Each platform now uses ITS OWN Google test ids. The REAL publisher's ids were swapped OUT
+    // (recoverable from git history / release notes). RESTORE them — here AND in Assets ▸ Google Mobile Ads ▸ Settings
+    // (adMobAndroidAppId / adMobIOSAppId) — before the PRODUCTION release, or real ads will never serve / earn.
+#if UNITY_IOS
+    const string APP_ID          = "ca-app-pub-3940256099942544~1458002511"; // iOS Google TEST App ID (mirror of Google Mobile Ads Settings adMobIOSAppId)
+    const string BANNER_ID       = "ca-app-pub-3940256099942544/2435281174"; // iOS Google TEST adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/4411468910"; // iOS Google TEST interstitial
+    const string REWARDED_ID     = "ca-app-pub-3940256099942544/1712485313"; // iOS Google TEST rewarded
+#else
+    const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // Android Google TEST App ID (mirror of Google Mobile Ads Settings adMobAndroidAppId)
+    const string BANNER_ID       = "ca-app-pub-3940256099942544/9214589741"; // Android Google TEST adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"; // Android Google TEST interstitial
+    const string REWARDED_ID     = "ca-app-pub-3940256099942544/5224354917"; // Android Google TEST rewarded
+#endif
 
     public static AdManager Instance { get; private set; }
     BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene

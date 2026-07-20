@@ -18,4 +18,4 @@ MonoBehaviour:
   busDriveSpeed: 12.4
   busLeaveSpeed: 14.3
   turnSmoothness: 14
-  vehicleSize: 1
+  vehicleSize: 1.2

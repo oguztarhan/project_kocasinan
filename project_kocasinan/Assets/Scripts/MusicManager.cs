@@ -41,12 +41,33 @@ namespace BusJam
             instance = this;
             DontDestroyOnLoad(gameObject);
 
+            ApplyIosAudioSession(); // iOS: play through the silent switch (see helper) — no-op elsewhere
+
             src = gameObject.AddComponent<AudioSource>();
             src.playOnAwake = false;
             src.loop = true;            // one track loops until we switch context
             src.spatialBlend = 0f;
 
             cat = Resources.Load<SoundCatalog>("SoundCatalog");
+        }
+
+        // Re-assert the iOS audio session when we come back to the foreground: interruptions (phone call, Siri, alarm)
+        // can deactivate/reset it, which would otherwise leave music dead until the next launch.
+        void OnApplicationPause(bool paused) { if (!paused) ApplyIosAudioSession(); }
+
+#if UNITY_IOS && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void _BusJamSetAudioSessionPlayback();
+#endif
+
+        // iOS only: force the AVAudioSession category to .Playback so music/SFX are NOT silenced by the hardware
+        // silent/mute switch (Android has no such switch — that's why music played there but not on iOS). Compiles to
+        // nothing on Android / in the editor. Native side: Assets/Plugins/iOS/BusJamAudioSession.mm.
+        static void ApplyIosAudioSession()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            try { _BusJamSetAudioSessionPlayback(); } catch { /* audio must never break startup */ }
+#endif
         }
 
         void PlayMenuInternal()
