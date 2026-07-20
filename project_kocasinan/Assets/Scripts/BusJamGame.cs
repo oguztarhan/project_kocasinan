@@ -3679,8 +3679,7 @@ namespace BusJam
             slotMat      = lib["SlotPad"];   // stable + editable (was theme accent)
             if (heliBodyMat == null)   heliBodyMat   = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.46f, 0.82f), 0.4f);  // sky-blue shell (built once, reused by every heli joker)
             if (heliAccentMat == null) heliAccentMat = MaterialLibrary.MakeRuntime(new Color(0.97f, 0.78f, 0.16f), 0.35f); // warm yellow accent (fin/hub/hook)
-            roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — same on every theme/level
-            roadMat.mainTexture = FacetTex(8, 0.93f); roadMat.mainTextureScale = new Vector2(24f, 2f); // faint asphalt facets (runtime mat -> safe to set directly; slab is 28x1 so 24x2 keeps facets ~square)
+            roadMat      = MaterialLibrary.MakeRuntime(new Color(0.16f, 0.17f, 0.19f), 0.18f);       // STANDARD dark asphalt — CLEAN flat surface: removed the faint facet TEXTURE that read as old thin lines on the road; the dashed centre line is the only marking now
             stripeMat    = MaterialLibrary.MakeRuntime(new Color(0.93f, 0.93f, 0.86f), 0.10f);       // white-cream paint for the parking-bay lane markings
             neonMat      = MaterialLibrary.MakeRuntime(new Color(0.12f, 1f, 0.70f), 0.5f, 1.7f);      // emissive neon (glows under bloom) for the people-left sign
             headlightMat = MaterialLibrary.MakeRuntime(new Color(1f, 0.97f, 0.86f), 0.5f, 1.6f);       // #5: warm emissive headlight lens — SOFTER glow (was 3.0, looked harsh/blown-out on bonus levels)
@@ -3964,9 +3963,9 @@ namespace BusJam
             // dashes sit right on the road surface (slab top = y 0.0), evenly spaced along the driving (X) axis.
             if (stripeMat != null)
             {
-                const float dashLen = 0.72f, gap = 0.62f, dashY = 0.02f; // dashY: half the 0.04 dash height -> bottom flush with the road top
+                const float dashLen = 0.72f, gap = 0.62f, dashH = 0.012f, dashY = dashH * 0.5f + 0.001f; // FLAT painted dashes: near-zero height so no raised 3D side face shows as a thin line under each dash
                 for (float x = -12.6f; x <= 12.6f; x += dashLen + gap)
-                    LowPolyBuilder.Slab(boardRoot, new Vector3(x, dashY, RoadZ), new Vector3(dashLen, 0.04f, 0.15f), stripeMat);
+                    LowPolyBuilder.Slab(boardRoot, new Vector3(x, dashY, RoadZ), new Vector3(dashLen, dashH, 0.15f), stripeMat);
             }
 
             for (int i = -4; i <= 4; i++)

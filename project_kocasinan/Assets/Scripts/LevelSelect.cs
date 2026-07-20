@@ -16,6 +16,7 @@ namespace BusJam
         BusJamGame game;
         Font font;
         GameObject panel;
+        GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); REMOVE FOR RELEASE
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -50,9 +51,14 @@ namespace BusJam
 
             BuildPanel(canvasGo.transform);
             Close();
-            // (Removed for release) The always-visible on-screen "LEVELS" jump button used for level testing was built
-            // here. It was the ONLY way to open this map (ui.OnLevels is never invoked), so with it gone the map is no
-            // longer reachable in-game — the panel below stays built but inert. debugUnlockAll is off (PopulateGrid).
+
+            // (TESTING) Always-visible on-screen "LEVELS" button that opens this map so any level can be jumped to.
+            // Lives on the canvas (not the toggled panel) so it shows during gameplay. >>> REMOVE FOR RELEASE <<<
+            var jump = Button(canvasGo.transform, "LEVELS", new Color(0.42f, 0.56f, 0.82f), Open, 24);
+            var jrt = jump.GetComponent<RectTransform>();
+            jrt.anchorMin = jrt.anchorMax = jrt.pivot = new Vector2(1f, 1f);       // top-right, under the GARAGE button
+            jrt.anchoredPosition = new Vector2(-95f, -392f); jrt.sizeDelta = new Vector2(132f, 132f);
+            jumpBtn = jump.gameObject;
         }
 
         // ---- Public API -----------------------------------------------------
@@ -60,6 +66,7 @@ namespace BusJam
         {
             PopulateGrid();
             if (panel) panel.SetActive(true);
+            if (jumpBtn) jumpBtn.SetActive(false); // hide the open button while the map is up
             Time.timeScale = 0f;   // pause gameplay while browsing
             isOpen = true;
         }
@@ -67,6 +74,7 @@ namespace BusJam
         public void Close()
         {
             if (panel) panel.SetActive(false);
+            if (jumpBtn) jumpBtn.SetActive(true); // re-show the open button
             Time.timeScale = 1f;
             isOpen = false;
         }
