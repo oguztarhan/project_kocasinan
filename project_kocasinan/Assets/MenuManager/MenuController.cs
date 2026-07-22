@@ -45,6 +45,8 @@ public class MenuController : MonoBehaviour
 
     // Home-only elements (found by name in the baked hierarchy); hidden while a panel is open.
     GameObject[] homeOnly;
+    // Bottom-nav buttons (Nav_Daily / Nav_Home / Nav_Shop); hidden while the SHOP is open (player exits via the ✕).
+    GameObject[] navButtons;
 
     void Start()
     {
@@ -58,11 +60,13 @@ public class MenuController : MonoBehaviour
             FindByName("Btn_Play"),    // PLAY button
             FindByName("Btn_Garage"),  // GARAGE button (skins / chests)
         };
+        navButtons = new[] { FindByName("Nav_Daily"), FindByName("Nav_Home"), FindByName("Nav_Shop") };
         CloseAll();
         Refresh();
         WireShop();            // the baked menu shop's coin/joker buttons have NO listeners in this scene -> wire them now
         WireRemoveAdsPanel();  // the dedicated Remove-Ads popup's offer graphics have NO listeners -> wire them to IAP
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
+        EnsureShopClose();     // (Shop pop-up) add a red ✕ close button — the bottom nav is hidden while the shop is open
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
         if (Object.FindAnyObjectByType<BootSplash>() == null)
@@ -127,6 +131,28 @@ public class MenuController : MonoBehaviour
         go.GetComponent<Button>().onClick.AddListener(ShowHome);
     }
 
+    // (Shop pop-up) Add a red ✕ close button (top-right of the shop Card) wired to ShowHome, so the player can leave the
+    // shop now that the bottom nav is hidden while it's open. Built once (idempotent); lives inside the shop panel so it
+    // shows/hides together WITH the shop.
+    void EnsureShopClose()
+    {
+        if (shopPanel == null) return;
+        Transform card = FindInPanel(shopPanel.transform, "Card");
+        if (card == null && shopPanel.transform.childCount > 0) card = shopPanel.transform.GetChild(0);
+        if (card == null) card = shopPanel.transform;
+        if (FindInPanel(card, "ShopCloseBtn_Runtime") != null) return; // already added on a previous Start
+        var go = new GameObject("ShopCloseBtn_Runtime", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(card, false);
+        go.transform.SetAsLastSibling(); // render on top of the card content
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-30f, -30f);
+        rt.sizeDelta = new Vector2(96f, 96f);
+        var img = go.GetComponent<Image>();
+        img.sprite = UIKit.CloseX(); img.color = Color.white; img.preserveAspect = true; // the SAME red ✕ sprite the in-game shop uses
+        go.GetComponent<Button>().onClick.AddListener(ShowHome);
+    }
+
     void Set(GameObject g, bool on) { if (g) g.SetActive(on); }
 
     void HidePanels()
@@ -147,6 +173,9 @@ public class MenuController : MonoBehaviour
         Set(navHomeSel,  g == navHomeSel);
         Set(navShopSel,  g == navShopSel);
     }
+
+    // Show/hide the whole bottom nav (Daily/Home/Shop). Hidden while the SHOP is open so the ✕ is the only way out.
+    void SetNav(bool on) { if (navButtons == null) return; foreach (var g in navButtons) if (g) g.SetActive(on); }
 
     GameObject FindByName(string n)
     {
@@ -174,10 +203,10 @@ public class MenuController : MonoBehaviour
     }
 
     // ---- Button hooks (wired by the baker as persistent OnClick events) ----
-    public void CloseAll()      { HidePanels(); SetHomeOnly(true); Sel(navHomeSel); }
+    public void CloseAll()      { HidePanels(); SetHomeOnly(true); SetNav(true); Sel(navHomeSel); }
     public void ShowHome()      { CloseAll(); }
     public void OpenDaily()     { Open(dailyPanel, navDailySel); }
-    public void OpenShop()      { Open(shopPanel, navShopSel); }
+    public void OpenShop()      { Open(shopPanel, null); SetNav(false); } // shop hides the bottom nav; exit via the ✕ close button
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
     public void OpenRemoveAds() { Open(removeAdsPanel, null); }
@@ -258,6 +287,7 @@ public class MenuController : MonoBehaviour
         // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
         WireMenuPromo("RemoveAds", IAPManager.RemoveAds, "$9.99", BuyRemoveAds);
         WireMenuPromo("RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", BuyRemoveAdsPlus);
+        WireMenuPromo("RemoveBanner", IAPManager.RemoveBanner, "$0.99", BuyRemoveBanner);
 
         // (c2) Joker bars: charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100) AND grant the joker.
         // The baker wired all three to BuyFor100 (spend 100, grant nothing) -> override here. Handles duplicates.
