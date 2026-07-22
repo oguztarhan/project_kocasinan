@@ -256,8 +256,8 @@ public class MenuController : MonoBehaviour
         GameUI.MapShopCoinButtons(shopPanel.transform, true);
 
         // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
-        WireMenuPromo("RemoveAds", BuyRemoveAds);
-        WireMenuPromo("RemoveAds (1)", BuyRemoveAdsPlus);
+        WireMenuPromo("RemoveAds", IAPManager.RemoveAds, "$9.99", BuyRemoveAds);
+        WireMenuPromo("RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", BuyRemoveAdsPlus);
 
         // (c2) Joker bars: charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100) AND grant the joker.
         // The baker wired all three to BuyFor100 (spend 100, grant nothing) -> override here. Handles duplicates.
@@ -329,7 +329,7 @@ public class MenuController : MonoBehaviour
 
     // Wire ONLY the green price button ("PriceBg" child) of a no-ads bar to its purchase, leaving the orange bar
     // background as a plain tap-blocker (so tapping it neither buys nor closes the shop). Safe if row/child absent.
-    void WireMenuPromo(string rowName, System.Action onBuy)
+    void WireMenuPromo(string rowName, string productId, string fallbackPrice, System.Action onBuy)
     {
         if (shopPanel == null) return;
         var row = FindInPanel(shopPanel.transform, rowName);
@@ -347,6 +347,19 @@ public class MenuController : MonoBehaviour
         if (pImg != null) pBtn.targetGraphic = pImg;
         pBtn.onClick = new Button.ButtonClickedEvent();
         pBtn.onClick.AddListener(() => onBuy());
+
+        // Show the REAL localized store price on the "Price" label (the menu baker left it static -> never localized,
+        // unlike the coin packs). Runs alongside GameUI.MapShopCoinButtons in WireShop, so IAP is already ready here.
+        string real = null;
+#if !UNITY_EDITOR
+        real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+#endif
+        string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
+        if (!string.IsNullOrEmpty(shown))
+        {
+            var pl = FindInPanel(row, "Price");
+            if (pl != null) { var t = pl.GetComponent<Text>() ?? pl.GetComponentInChildren<Text>(true); if (t != null) t.text = shown; }
+        }
     }
 
     // A shop joker bar -> joker kind by row name ("Bar_Shuffle"=Recolor 0, "Bar_Swap"=Swap 1, "Bar_Heli"=Heli 2).

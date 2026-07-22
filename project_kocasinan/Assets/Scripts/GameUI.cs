@@ -884,21 +884,22 @@ namespace BusJam
             pBtn.onClick = new Button.ButtonClickedEvent();
             pBtn.onClick.AddListener(() => onBuy());
 
-            // Show the REAL localized store price on the price button; fall back to the placeholder when the store
-            // price isn't ready (editor fake store / IAP not yet initialised). ONLY the price child is touched — never
-            // the bar's title. Handles both legacy Text and TMP labels.
-            if (price != null)
-            {
-                string real = null;
+            // Set the REAL localized store price on the bar's "Price" label; fall back to the placeholder when the store
+            // price isn't ready (editor fake store / IAP not yet initialised). The label is found ANYWHERE in the row —
+            // robust whether "Price" sits under PriceBg or beside it. Handles both legacy Text and TMP labels.
+            string real = null;
 #if !UNITY_EDITOR
-                real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+            real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
 #endif
-                string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
-                if (!string.IsNullOrEmpty(shown))
+            string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
+            if (!string.IsNullOrEmpty(shown))
+            {
+                var pl = FindDeep(row, "Price") ?? price;
+                if (pl != null)
                 {
-                    var t = price.GetComponentInChildren<Text>(true);
+                    var t = pl.GetComponentInChildren<Text>(true);
                     if (t != null) t.text = shown;
-                    var tmp = price.GetComponentInChildren<TMPro.TMP_Text>(true);
+                    var tmp = pl.GetComponentInChildren<TMPro.TMP_Text>(true);
                     if (tmp != null) tmp.text = shown;
                 }
             }
