@@ -3965,7 +3965,12 @@ namespace BusJam
             {
                 const float dashLen = 0.72f, gap = 0.62f, dashH = 0.012f, dashY = dashH * 0.5f + 0.001f; // FLAT painted dashes: near-zero height so no raised 3D side face shows as a thin line under each dash
                 for (float x = -12.6f; x <= 12.6f; x += dashLen + gap)
-                    LowPolyBuilder.Slab(boardRoot, new Vector3(x, dashY, RoadZ), new Vector3(dashLen, dashH, 0.15f), stripeMat);
+                {
+                    var dash = LowPolyBuilder.Slab(boardRoot, new Vector3(x, dashY, RoadZ), new Vector3(dashLen, dashH, 0.15f), stripeMat);
+                    var dr = dash.GetComponent<Renderer>();                       // paint never casts/receives shadows -> no thin
+                    dr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; // shadow slivers can appear around the dashes
+                    dr.receiveShadows = false;
+                }
             }
 
             for (int i = -4; i <= 4; i++)
