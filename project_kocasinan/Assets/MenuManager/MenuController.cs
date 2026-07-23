@@ -132,22 +132,46 @@ public class MenuController : MonoBehaviour
         go.GetComponent<Button>().onClick.AddListener(ShowHome);
     }
 
-    // (Shop pop-up) Add a red ✕ close button (top-right of the shop Card) wired to ShowHome, so the player can leave the
-    // shop now that the bottom nav is hidden while it's open. Built once (idempotent); lives inside the shop panel so it
-    // shows/hides together WITH the shop.
+    // (Shop pop-up) Close ✕ for the shop — the bottom nav is hidden while the shop is open, so this is the way out.
+    // PREFERS a BAKED button: put an object named "ShopClose" (or "Close") inside the shop panel in the editor, place
+    // it freely, and it is wired to ShowHome here. Only if none exists, a runtime ✕ (CloseX sprite) is built — anchored
+    // to the PANEL's top-right, NOT the Card (the Card's corner can sit OFF-SCREEN on tall phones, which pushed the
+    // old runtime ✕ out of view).
     void EnsureShopClose()
     {
         if (shopPanel == null) return;
-        Transform card = FindInPanel(shopPanel.transform, "Card");
-        if (card == null && shopPanel.transform.childCount > 0) card = shopPanel.transform.GetChild(0);
-        if (card == null) card = shopPanel.transform;
-        if (FindInPanel(card, "ShopCloseBtn_Runtime") != null) return; // already added on a previous Start
+
+        // (a) Baked button in the scene (preferred — position it freely in the editor). NAME-TOLERANT: "ShopClose",
+        // "Shop Close", "shop close", "Shop_Close" … all match, so the exact spelling in the hierarchy doesn't matter.
+        Transform baked = null;
+        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == shopPanel.transform) continue;
+            string n = t.name.Replace(" ", "").Replace("_", "").ToLowerInvariant();
+            if (n == "shopclose") { baked = t; break; }
+        }
+        if (baked == null) baked = FindInPanel(shopPanel.transform, "Close");
+        if (baked != null)
+        {
+            var bimg = baked.GetComponent<Image>();
+            if (bimg != null) bimg.raycastTarget = true;
+            var bbtn = baked.GetComponent<Button>();
+            if (bbtn == null) bbtn = baked.gameObject.AddComponent<Button>();
+            if (bimg != null) bbtn.targetGraphic = bimg;
+            bbtn.interactable = true;
+            bbtn.onClick.RemoveListener(ShowHome); // idempotent across Starts
+            bbtn.onClick.AddListener(ShowHome);
+            return;
+        }
+
+        // (b) Runtime fallback: top-right of the full-screen PANEL, inset enough to clear notches/rounded corners.
+        if (FindInPanel(shopPanel.transform, "ShopCloseBtn_Runtime") != null) return;
         var go = new GameObject("ShopCloseBtn_Runtime", typeof(RectTransform), typeof(Image), typeof(Button));
-        go.transform.SetParent(card, false);
-        go.transform.SetAsLastSibling(); // render on top of the card content
+        go.transform.SetParent(shopPanel.transform, false);
+        go.transform.SetAsLastSibling(); // render on top of everything in the shop
         var rt = (RectTransform)go.transform;
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-30f, -30f);
+        rt.anchoredPosition = new Vector2(-45f, -90f);
         rt.sizeDelta = new Vector2(96f, 96f);
         var img = go.GetComponent<Image>();
         img.sprite = UIKit.CloseX(); img.color = Color.white; img.preserveAspect = true; // the SAME red ✕ sprite the in-game shop uses
@@ -207,10 +231,10 @@ public class MenuController : MonoBehaviour
     public void CloseAll()      { HidePanels(); SetHomeOnly(true); SetNav(true); Sel(navHomeSel); }
     public void ShowHome()      { CloseAll(); }
     public void OpenDaily()     { Open(dailyPanel, navDailySel); }
-    public void OpenShop()      { Open(shopPanel, null); SetNav(false); } // shop hides the bottom nav; exit via the ✕ close button
+    public void OpenShop()      { Open(shopPanel, null); SetNav(false); RefreshShopPromoPrices(); } // nav hidden; re-pull localized prices on open (IAP is ready by now — at Start it may not be)
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
-    public void OpenRemoveAds() { Open(removeAdsPanel, null); }
+    public void OpenRemoveAds() { Open(removeAdsPanel, null); RefreshRemoveAdsPanelPrices(); } // pull REAL localized prices on every open (at Start IAP wasn't ready yet, so the baked $ labels stayed forever)
     public void OpenAdReward()  { Open(adRewardPanel, null); }
     // Language pop-up: overlay it on top (don't hide the settings panel behind it).
     public void OpenLanguage()
@@ -250,7 +274,7 @@ public class MenuController : MonoBehaviour
     public void Play() { SceneManager.LoadScene(gameSceneName); }
 
     // Main-menu GARAGE button: load the game scene and open the garage straight away (closing it returns to the menu).
-    public void OpenGarage() { GameUI.OpenGarageOnLoad = true; SceneManager.LoadScene(gameSceneName); }
+    public void OpenGarage() { GameUI.OpenGarageOnLoad = true; SceneManager.LoadScene(gameSceneName); } // direct load — no transition effect (user preference)
 
     // The baked menu has no garage button, so build one at runtime by CLONING Btn_Play — that inherits the exact
     // orange sprite/style of the other menu buttons — then shrink it, park it under PLAY, relabel it GARAGE and
@@ -324,9 +348,7 @@ public class MenuController : MonoBehaviour
         GameUI.MapShopCoinButtons(shopPanel.transform, true);
 
         // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
-        WireMenuPromo("RemoveAds", IAPManager.RemoveAds, "$9.99", BuyRemoveAds);
-        WireMenuPromo("RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", BuyRemoveAdsPlus);
-        WireMenuPromo("RemoveBanner", IAPManager.RemoveBanner, "$0.99", BuyRemoveBanner);
+        RefreshShopPromoPrices(); // wires the no-ads/banner bars + writes their (localized) prices; re-run on every shop open
 
         // (c2) Joker bars: charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100) AND grant the joker.
         // The baker wired all three to BuyFor100 (spend 100, grant nothing) -> override here. Handles duplicates.
@@ -495,6 +517,55 @@ public class MenuController : MonoBehaviour
                 if (green.transform == t) continue;                 // never the big offer root itself
                 green.onClick = new Button.ButtonClickedEvent();
                 green.onClick.AddListener(() => onBuy());
+            }
+        }
+    }
+
+    // Shop no-ads/banner bars: (re)wire + (re)write their localized prices. Runs in WireShop AND on every shop OPEN,
+    // because at Start (first app launch) IAP may not be initialised yet — the price fetch returned nothing and the
+    // baked $ labels stayed. By open-time IAP is ready, so the real store price (₺ on TR devices) replaces them.
+    void RefreshShopPromoPrices()
+    {
+        WireMenuPromo("RemoveAds", IAPManager.RemoveAds, "$9.99", BuyRemoveAds);
+        WireMenuPromo("RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", BuyRemoveAdsPlus);
+        WireMenuPromo("RemoveBanner", IAPManager.RemoveBanner, "$0.99", BuyRemoveBanner);
+    }
+
+    // Write the REAL localized store price onto one Remove-Ads-popup offer graphic. ONLY texts that already look like
+    // a price ("$" / "₺" / "TL") are replaced — the "Banner" caption and the "+200" bonus label are never touched.
+    // When the store price isn't available (editor / IAP still starting) the baked label is left as-is.
+    void SetOfferPrice(Transform offer, string productId)
+    {
+        string real = null;
+#if !UNITY_EDITOR
+        real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+#endif
+        if (string.IsNullOrEmpty(real)) return;
+        foreach (var txt in offer.GetComponentsInChildren<Text>(true))
+            if (txt.text != null && (txt.text.Contains("$") || txt.text.Contains("₺") || txt.text.Contains("TL")))
+                txt.text = real;
+        foreach (var tmp in offer.GetComponentsInChildren<TMPro.TMP_Text>(true))
+            if (tmp.text != null && (tmp.text.Contains("$") || tmp.text.Contains("₺") || tmp.text.Contains("TL")))
+                tmp.text = real;
+    }
+
+    // The dedicated REKLAMLARI KALDIR popup: put the real localized prices on its three offers. Called on every
+    // popup OPEN (WireRemoveAdsPanel at Start only wires the BUY buttons; it ran before IAP was ready, which is why
+    // the baked "$" prices never localized). The "+200" check EXCLUDES price-looking texts so a real price that
+    // happens to contain "200" (e.g. ₺200,99) can never flip an offer's product.
+    void RefreshRemoveAdsPanelPrices()
+    {
+        if (removeAdsPanel == null) return;
+        foreach (var t in removeAdsPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == "Image 3") SetOfferPrice(t, IAPManager.RemoveBanner);
+            else if (t.name == "Image" || t.name == "Image 2")
+            {
+                bool isPlus = false;
+                foreach (var txt in t.GetComponentsInChildren<Text>(true))
+                    if (txt.text != null && !txt.text.Contains("$") && !txt.text.Contains("₺") && !txt.text.Contains("TL")
+                        && txt.text.Contains("200")) { isPlus = true; break; }
+                SetOfferPrice(t, isPlus ? IAPManager.RemoveAdsPlus : IAPManager.RemoveAds);
             }
         }
     }

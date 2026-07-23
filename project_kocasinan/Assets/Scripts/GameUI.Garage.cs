@@ -839,11 +839,19 @@ namespace BusJam
         {
             if (garageTutCo != null) { StopCoroutine(garageTutCo); garageTutCo = null; }          // closed mid-tour ->
             if (garageTutOverlay) { Destroy(garageTutOverlay); garageTutOverlay = null; }         // abort; restarts next open
+            if (garageFromMenu)
+            {
+                // Menu-garage screen: DON'T tear the garage down first. Hiding it + re-showing the HUD revealed the
+                // empty game scene for the frames it takes MainMenu to load — a weird full-screen flash on close.
+                // Keep the garage (opaque backdrop) up as the transition cover; the scene load destroys it anyway.
+                garageFromMenu = false;
+                OnHome?.Invoke(); // -> GoToMainMenu -> LoadScene("MainMenu")
+                return;
+            }
             Toggle(garagePanel, false); SetHudChromeVisible(true);
             if (chestOddsPanel) chestOddsPanel.SetActive(false); // drop-rates popup dies with the garage
             if (coinBarGo) coinBarGo.SetActive(true);  // (#6) restore the HUD coin bar
             hideBonusTimer = false;                     // (#2) the bonus tick re-shows the timer next frame if the level is still running
-            if (garageFromMenu) { garageFromMenu = false; OnHome?.Invoke(); } // opened from the menu -> straight back to it
         }
     }
 }

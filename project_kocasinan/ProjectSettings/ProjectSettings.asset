@@ -270,7 +270,7 @@ PlayerSettings:
   AndroidAllowedArchitectures: -13
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
-  AndroidKeystoreName: C:/Users/oquzt/Desktop/intake/topsecretfckngbusjam.keystore
+  AndroidKeystoreName: A:/topsecretfckngbusjam.keystore
   AndroidKeyaliasName: busjamtrafficrush
   AndroidEnableArmv9SecurityFeatures: 0
   AndroidEnableArm64MTE: 0
