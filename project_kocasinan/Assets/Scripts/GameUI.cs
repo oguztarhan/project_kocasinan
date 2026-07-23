@@ -819,8 +819,8 @@ namespace BusJam
             //   "RemoveAds"     -> remove_ads      (ads off)
             //   "RemoveAds (1)" -> remove_ads_plus (ads off + a one-time 200 gold + free Recolor joker)
             // The bonus is granted inside IAPManager.Grant (flag-gated so a restore can't repeat it).
-            WirePromoBar(shopRoot, "RemoveAds", RemoveAds);
-            WirePromoBar(shopRoot, "RemoveAds (1)", RemoveAdsPlus);
+            WirePromoBar(shopRoot, "RemoveAds", IAPManager.RemoveAds, "$9.99", RemoveAds);
+            WirePromoBar(shopRoot, "RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", RemoveAdsPlus);
 
             // Map the 6 baked coin packs onto the real IAP products (relabels each card's amount + price to match) so
             // every coin button buys a valid product, whatever amounts the shop was baked with.
@@ -828,7 +828,14 @@ namespace BusJam
 
             // Restore Purchases (Google Play storefront requirement): append a row at the bottom of the shop's scroll list.
             var restoreScroll = shopRoot.GetComponentInChildren<ScrollRect>(true);
-            AddShopRestoreRow(restoreScroll != null && restoreScroll.content != null ? restoreScroll.content : shopRoot);
+            var shopContent = restoreScroll != null && restoreScroll.content != null ? restoreScroll.content : shopRoot;
+            AddShopRestoreRow(shopContent);
+            WirePromoBar(shopRoot, "RemoveBanner", IAPManager.RemoveBanner, "$0.99", () => IAPManager.Instance?.Buy(IAPManager.RemoveBanner)); // baked RemoveBanner bar (user placed it at the top of Content)
+            if (restoreScroll != null)                                         // enlarge the scroll view a bit — extend its BOTTOM edge DOWN (away from the title)
+            {
+                var srt = (RectTransform)restoreScroll.transform;
+                srt.offsetMin = new Vector2(srt.offsetMin.x, srt.offsetMin.y - 90f);
+            }
 
             // (Shop close) Only the empty black backdrop (and the red ✕) close the shop. Force every background/
             // card/row image to catch taps so tapping a package (the red/orange cards) can't fall through to the
@@ -884,7 +891,7 @@ namespace BusJam
         // Wire a baked promo row to a real purchase, but make ONLY the green price button ("PriceBg")
         // trigger the buy. The orange bar background is left as a plain tap-blocker so tapping it does
         // nothing — it must NOT purchase, and must NOT fall through to the shop's close-backdrop.
-        void WirePromoBar(Transform shopRoot, string rowName, System.Action onBuy)
+        void WirePromoBar(Transform shopRoot, string rowName, string productId, string fallbackPrice, System.Action onBuy)
         {
             var row = FindDeep(shopRoot, rowName);
             if (row == null) return;
@@ -907,6 +914,26 @@ namespace BusJam
             if (pImg != null) pBtn.targetGraphic = pImg;
             pBtn.onClick = new Button.ButtonClickedEvent();
             pBtn.onClick.AddListener(() => onBuy());
+
+            // Set the REAL localized store price on the bar's "Price" label; fall back to the placeholder when the store
+            // price isn't ready (editor fake store / IAP not yet initialised). The label is found ANYWHERE in the row —
+            // robust whether "Price" sits under PriceBg or beside it. Handles both legacy Text and TMP labels.
+            string real = null;
+#if !UNITY_EDITOR
+            real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+#endif
+            string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
+            if (!string.IsNullOrEmpty(shown))
+            {
+                var pl = FindDeep(row, "Price") ?? price;
+                if (pl != null)
+                {
+                    var t = pl.GetComponentInChildren<Text>(true);
+                    if (t != null) t.text = shown;
+                    var tmp = pl.GetComponentInChildren<TMPro.TMP_Text>(true);
+                    if (tmp != null) tmp.text = shown;
+                }
+            }
         }
 
         // First descendant (inactive included) whose GameObject is named `name`, else null.
@@ -950,7 +977,13 @@ namespace BusJam
         {
             SetCoins(SaveSystem.Coins);
             RefreshJokers();
-            if (shopPanel != null) MapShopCoinButtons(shopPanel.transform, false); // refresh amounts/prices once IAP is ready (no re-wire)
+            if (shopPanel != null)
+            {
+                MapShopCoinButtons(shopPanel.transform, false); // refresh coin-pack amounts/prices once IAP is ready
+                WirePromoBar(shopPanel.transform, "RemoveAds", IAPManager.RemoveAds, "$9.99", RemoveAds);           // refresh no-ads bar price too
+                WirePromoBar(shopPanel.transform, "RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", RemoveAdsPlus);
+                WirePromoBar(shopPanel.transform, "RemoveBanner", IAPManager.RemoveBanner, "$0.99", () => IAPManager.Instance?.Buy(IAPManager.RemoveBanner)); // refresh baked banner bar price too
+            }
         }
 
         void OnDestroy() { IAPManager.OnChanged -= OnIapChanged; }
@@ -958,7 +991,7 @@ namespace BusJam
         // Placeholder coin-pack prices shown until the REAL localized Play price loads (in the editor, before IAP
         // initialises, or before the products are Active in Play Console — so the labels are never blank). Index =
         // CoinPacks sorted ascending. On a device with active products, IAPManager.Price overrides these per-region.
-        static readonly string[] FallbackPrices = { "$0.99", "$1.99", "$4.99", "$8.99", "$12.00", "$17.99" };
+        static readonly string[] FallbackPrices = { "$0.99", "$1.99", "$4.99", "$8.99", "$12.99", "$17.99" };
 
         // Map the baked coin-pack cards ("Pack_<amount>", used by BOTH the in-game and menu shop bakers) onto the REAL
         // IAP CoinPacks, smallest->smallest, so the displayed amount, the price, and the product actually purchased always
@@ -1019,7 +1052,7 @@ namespace BusJam
             svGo.transform.SetParent(card.transform, false);
             var svRt = svGo.GetComponent<RectTransform>();
             svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
-            svRt.anchoredPosition = new Vector2(0, 20); svRt.sizeDelta = new Vector2(880, 1120);
+            svRt.anchoredPosition = new Vector2(0, -20); svRt.sizeDelta = new Vector2(880, 1220); // enlarged a bit (was 1120 @ y20)
             var scroll = svGo.AddComponent<ScrollRect>();
             scroll.horizontal = false; scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Elastic; scroll.scrollSensitivity = 28;
@@ -1054,7 +1087,7 @@ namespace BusJam
             var adsPrice = Img(adsRow.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = false;
             Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
             var adsRealPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.RemoveAds) : null;
-            Label(adsPrice.transform, string.IsNullOrEmpty(adsRealPrice) ? "TRY 249,99" : adsRealPrice, num, Vector2.zero, new Vector2(360, 60), 36, White);
+            Label(adsPrice.transform, string.IsNullOrEmpty(adsRealPrice) ? "$9.99" : adsRealPrice, num, Vector2.zero, new Vector2(360, 60), 36, White);
             var adsBtn = adsRow.gameObject.AddComponent<Button>(); adsBtn.targetGraphic = adsRow; // whole bar buys remove_ads
             adsBtn.onClick.AddListener(RemoveAds);
 
@@ -1069,7 +1102,7 @@ namespace BusJam
             ShopCoinCard(gridGo.transform, UIKit.ShopCoinB(),     "500",   "$1.99",   500);
             ShopCoinCard(gridGo.transform, UIKit.ShopCoinC(),     "1300",  "$4.99",   1300);
             ShopCoinCard(gridGo.transform, UIKit.ShopGold(),      "2500",  "$8.99",   2500);
-            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "4000",  "$12.00",  4000);
+            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "4000",  "$12.99",  4000);
             ShopCoinCard(gridGo.transform, UIKit.CoinPackBig(),   "5500",  "$17.99",  5500);
 
             // 3) Joker bars (atlas1_44 bg, icon left, buy for 100 gold).
