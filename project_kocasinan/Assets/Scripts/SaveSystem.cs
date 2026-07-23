@@ -209,6 +209,24 @@ namespace BusJam
             set { PlayerPrefs.SetInt("bj_freejoker_granted", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // One-time unlock tutorial per joker (0 = Recolor, 1 = Swap, 2 = Heli): grants a free charge the player is
+        // coached into using, then rewards +1 more. Kind 0 reuses the legacy bj_freejoker_granted key (existing saves
+        // that already ran the Lv5 RECOLOR coach must not see it again).
+        public static bool JokerTutDone(int kind)
+            => kind == 0 ? FreeJokerGranted : PlayerPrefs.GetInt("bj_jokertut_" + kind, 0) == 1;
+        public static void SetJokerTutDone(int kind)
+        {
+            if (kind == 0) { FreeJokerGranted = true; return; }
+            PlayerPrefs.SetInt("bj_jokertut_" + kind, 1); PlayerPrefs.Save();
+        }
+
+        // One-time "Minivans seat 6 people!" info banner, shown when minivans first join the mix (level 4).
+        public static bool MinivanTipShown
+        {
+            get => PlayerPrefs.GetInt("bj_minivan_tip", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_minivan_tip", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // Level-1 tutorial: the coach text stays until the player taps ANY vehicle; once dismissed it NEVER shows again.
         public static bool TutorialDone
         {

@@ -26,11 +26,12 @@ namespace BusJam
         void AddVehiclesEntry(Transform parent)
         {
             var row = Img(parent, UIKit.ShopBoxA(), new Color(0.45f, 0.38f, 0.72f));
+            tutVehiclesRow = row.transform; // garage-tutorial step 1 target
             GOverride(row, g => g.vehiclesButtonSprite, g => g.vehiclesButtonColor); // Inspector: swap the "ARAÇLAR" button image / colour
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 130; le.minHeight = 130;
             var b = row.gameObject.AddComponent<Button>(); b.targetGraphic = row;
             b.onClick.AddListener(ShowVehicles);
-            Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 44, White);
+            Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 48, White);
         }
 
         // ---- build the (hidden) wardrobe panel — same scroll recipe as BuildGarage --------
@@ -53,8 +54,9 @@ namespace BusJam
 
             var card = Img(vehiclesPanel.transform, UIKit.PanelTall(), new Color(0.20f, 0.22f, 0.33f));
             GOverride(card, g => g.vehiclesWindowSprite, g => g.vehiclesWindowColor); // Inspector: swap the Vehicles ("Araçlar") window image / colour
-            Center(card.rectTransform, new Vector2(980, 1560));
-            Label(card.transform, Loc.T("VEHICLES"), title, new Vector2(0, 690), new Vector2(760, 120), 70, White);
+            Center(card.rectTransform, new Vector2(980, PanelCardHeight()));          // clamped to the DEVICE height (short/16:9 phones)
+            var titleT = Label(card.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 120), 70, White);
+            Place(titleT.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -90), new Vector2(760, 120)); // pinned to the card TOP
             var close = RedClose(card.transform, null);
 
             var goldChip = Img(card.transform, UIKit.CoinBar(), Dark); goldChip.raycastTarget = false;
@@ -63,11 +65,14 @@ namespace BusJam
             Place(gci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(60, 60));
             vehiclesGoldT = Label(goldChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, White);
 
+            // Stretched between fixed top/bottom pads (not a fixed 1080 height) so it always stays INSIDE the card —
+            // same overflow fix as BuildGarageChrome.
             var svGo = new GameObject("ScrollView", typeof(RectTransform));
             svGo.transform.SetParent(card.transform, false);
             var svRt = svGo.GetComponent<RectTransform>();
-            svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
-            svRt.anchoredPosition = new Vector2(0, -110); svRt.sizeDelta = new Vector2(900, 1080);
+            svRt.anchorMin = new Vector2(0.5f, 0f); svRt.anchorMax = new Vector2(0.5f, 1f); svRt.pivot = new Vector2(0.5f, 0.5f);
+            svRt.sizeDelta = new Vector2(820, -(350f + 210f));      // measured against the notched window sprite — see BuildGarageChrome
+            svRt.anchoredPosition = new Vector2(0, (210f - 350f) * 0.5f);
             var scroll = svGo.AddComponent<ScrollRect>();
             scroll.horizontal = false; scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Elastic; scroll.scrollSensitivity = 28;
@@ -180,7 +185,7 @@ namespace BusJam
             {
                 var pill = Img(card.transform, null, TierColor(set.rarity)); pill.raycastTarget = false;
                 Place(pill.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -28), new Vector2(196, 44));
-                Label(pill.transform, TierName(set.rarity), num, Vector2.zero, new Vector2(192, 40), 24, White);
+                Label(pill.transform, Loc.T(TierName(set.rarity)), num, Vector2.zero, new Vector2(192, 40), 26, White);
             }
 
             var tile = Img(card.transform, null, new Color(0.16f, 0.17f, 0.22f)); tile.raycastTarget = false;
@@ -198,7 +203,7 @@ namespace BusJam
             Color previewTint = owned ? Color.white : new Color(0.40f, 0.40f, 0.46f, 1f); // locked -> greyed out
             pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill, yaw, previewTint));
 
-            Label(card.transform, label, num, new Vector2(0, -104), new Vector2(272, 54), 34, White);
+            Label(card.transform, label, num, new Vector2(0, -104), new Vector2(272, 54), 36, White);
 
             if (owned)
             {
@@ -209,7 +214,7 @@ namespace BusJam
                 {
                     var badge = Img(card.transform, null, new Color(0.20f, 0.72f, 0.32f)); badge.raycastTarget = false;
                     Place(badge.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(224, 50));
-                    Label(badge.transform, Loc.T("EQUIPPED"), num, Vector2.zero, new Vector2(222, 46), 26, White);
+                    Label(badge.transform, Loc.T("EQUIPPED"), num, Vector2.zero, new Vector2(222, 46), 28, White);
                 }
             }
             else
@@ -219,7 +224,7 @@ namespace BusJam
                 BuildLockBadge(tile.transform, Vector2.zero, 50f);
                 var banner = Img(card.transform, null, new Color(0.05f, 0.05f, 0.08f, 0.85f)); banner.raycastTarget = false;
                 Place(banner.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(232, 50));
-                Label(banner.transform, Loc.T("From chests"), num, Vector2.zero, new Vector2(226, 44), 22, new Color(0.96f, 0.86f, 0.5f));
+                Label(banner.transform, Loc.T("From chests"), num, Vector2.zero, new Vector2(226, 44), 24, new Color(0.96f, 0.86f, 0.5f));
             }
         }
 

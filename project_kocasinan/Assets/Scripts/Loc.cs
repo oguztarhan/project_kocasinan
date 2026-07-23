@@ -59,6 +59,10 @@ public static class Loc
         { "SETTINGS", new[]{ "AYARLAR","SETTINGS","EINSTELLUNGEN","IMPOSTAZIONI","AJUSTES","设置","PARAMÈTRES","DEFINIÇÕES","PENGATURAN" } },
         { "REPLAY",   new[]{ "TEKRAR","REPLAY","NOCHMAL","RIGIOCA","REINTENTAR","重玩","REJOUER","REPETIR","ULANGI" } },
         { "LEVELS",   new[]{ "BÖLÜMLER","LEVELS","LEVEL","LIVELLI","NIVELES","关卡","NIVEAUX","NÍVEIS","LEVEL" } },
+        { "SELECT LEVEL", new[]{ "BÖLÜM SEÇ","SELECT LEVEL","LEVEL WÄHLEN","SCEGLI LIVELLO","ELIGE NIVEL","选择关卡","CHOISIR NIVEAU","ESCOLHE O NÍVEL","PILIH LEVEL" } },
+        { "RESTORE PURCHASES", new[]{ "SATIN ALIMLARI GERİ YÜKLE","RESTORE PURCHASES","KÄUFE WIEDERHERSTELLEN","RIPRISTINA ACQUISTI","RESTAURAR COMPRAS","恢复购买","RESTAURER LES ACHATS","RESTAURAR COMPRAS","PULIHKAN PEMBELIAN" } },
+        { "RESTORED", new[]{ "GERİ YÜKLENDİ","RESTORED","WIEDERHERGESTELLT","RIPRISTINATO","RESTAURADO","已恢复","RESTAURÉ","RESTAURADO","DIPULIHKAN" } },
+        { "LOADING",  new[]{ "YÜKLENİYOR","LOADING","LÄDT","CARICAMENTO","CARGANDO","加载中","CHARGEMENT","A CARREGAR","MEMUAT" } },
         { "LANGUAGE", new[]{ "DİL","LANGUAGE","SPRACHE","LINGUA","IDIOMA","语言","LANGUE","IDIOMA","BAHASA" } },
         { "Language", new[]{ "Dil","Language","Sprache","Lingua","Idioma","语言","Langue","Idioma","Bahasa" } }, // mixed-case variant (the TMP menu label)
 
@@ -76,13 +80,98 @@ public static class Loc
         { "COMBO x{0}!", new[]{ "KOMBO x{0}!","COMBO x{0}!","COMBO x{0}!","COMBO x{0}!","COMBO x{0}!","连击 x{0}!","COMBO x{0} !","COMBO x{0}!","COMBO x{0}!" } },
 
         // ---- Garage: vehicle wardrobe ("dolap") ----
+        { "GARAGE",   new[]{ "GARAJ","GARAGE","GARAGE","GARAGE","GARAJE","车库","GARAGE","GARAGEM","GARASI" } },
         { "VEHICLES", new[]{ "ARAÇLAR","VEHICLES","FAHRZEUGE","VEICOLI","VEHÍCULOS","车辆","VÉHICULES","VEÍCULOS","KENDARAAN" } },
+
+        // ---- Garage tutorial (first open) ----
+        { "TAP TO CONTINUE", new[]{ "DEVAM İÇİN DOKUN","TAP TO CONTINUE","ZUM FORTFAHREN TIPPEN","TOCCA PER CONTINUARE","TOCA PARA CONTINUAR","点击继续","TOUCHEZ POUR CONTINUER","TOQUE PARA CONTINUAR","KETUK UNTUK LANJUT" } },
+        { "Welcome to your GARAGE! Tap VEHICLES to see and EQUIP the cars, minivans and buses you own.",
+          new[]{ "GARAJINA hoş geldin! Sahip olduğun arabaları, minivanları ve otobüsleri görmek ve KUŞANMAK için ARAÇLAR'a dokun.",
+                 "Welcome to your GARAGE! Tap VEHICLES to see and EQUIP the cars, minivans and buses you own.",
+                 "Willkommen in deiner GARAGE! Tippe auf FAHRZEUGE, um deine Autos, Minivans und Busse zu sehen und AUSZURÜSTEN.",
+                 "Benvenuto nel tuo GARAGE! Tocca VEICOLI per vedere ed EQUIPAGGIARE le tue auto, minivan e autobus.",
+                 "¡Bienvenido a tu GARAJE! Toca VEHÍCULOS para ver y EQUIPAR tus coches, minivans y autobuses.",
+                 "欢迎来到车库！点击“车辆”查看并装备你拥有的汽车、面包车和巴士。",
+                 "Bienvenue dans ton GARAGE ! Touche VÉHICULES pour voir et ÉQUIPER tes voitures, minivans et bus.",
+                 "Bem-vindo à sua GARAGEM! Toque em VEÍCULOS para ver e EQUIPAR seus carros, minivans e ônibus.",
+                 "Selamat datang di GARASI! Ketuk KENDARAAN untuk melihat dan MEMAKAI mobil, minivan, dan bus milikmu." } },
+        { "Open chests with gold to win NEW vehicles — the better the chest, the rarer the prize!",
+          new[]{ "YENİ araçlar kazanmak için altınla sandık aç — sandık ne kadar iyiyse ödül o kadar nadir!",
+                 "Open chests with gold to win NEW vehicles — the better the chest, the rarer the prize!",
+                 "Öffne Truhen mit Gold und gewinne NEUE Fahrzeuge — je besser die Truhe, desto seltener der Preis!",
+                 "Apri i forzieri con l'oro per vincere NUOVI veicoli — più bello il forziere, più raro il premio!",
+                 "¡Abre cofres con oro para ganar vehículos NUEVOS! Cuanto mejor el cofre, más raro el premio.",
+                 "用金币打开宝箱赢取新车辆——宝箱越好，奖励越稀有！",
+                 "Ouvre des coffres avec de l'or pour gagner de NOUVEAUX véhicules — plus le coffre est beau, plus le prix est rare !",
+                 "Abra baús com ouro para ganhar veículos NOVOS — quanto melhor o baú, mais raro o prêmio!",
+                 "Buka peti dengan emas untuk memenangkan kendaraan BARU — makin bagus petinya, makin langka hadiahnya!" } },
+        { "The FREE CHEST refills over time. Come back and open it — it costs nothing!",
+          new[]{ "ÜCRETSİZ SANDIK zamanla yenilenir. Geri gel ve aç — hiçbir şeye mal olmaz!",
+                 "The FREE CHEST refills over time. Come back and open it — it costs nothing!",
+                 "Die GRATIS-TRUHE füllt sich mit der Zeit. Komm wieder und öffne sie — sie kostet nichts!",
+                 "Il FORZIERE GRATIS si ricarica col tempo. Torna ad aprirlo — non costa nulla!",
+                 "El COFRE GRATIS se recarga con el tiempo. ¡Vuelve y ábrelo, no cuesta nada!",
+                 "免费宝箱会随时间恢复。记得回来打开——完全免费！",
+                 "Le COFFRE GRATUIT se recharge avec le temps. Reviens l'ouvrir — il ne coûte rien !",
+                 "O BAÚ GRÁTIS recarrega com o tempo. Volte e abra — não custa nada!",
+                 "PETI GRATIS terisi ulang seiring waktu. Kembalilah dan buka — gratis!" } },
+        { "Duplicate vehicles turn into shards. Spend shards here to CRAFT a guaranteed NEW car!",
+          new[]{ "Tekrarlanan araçlar parçaya dönüşür. Parçaları burada harcayıp garantili YENİ bir araba ÜRET!",
+                 "Duplicate vehicles turn into shards. Spend shards here to CRAFT a guaranteed NEW car!",
+                 "Doppelte Fahrzeuge werden zu Splittern. Gib sie hier aus und FERTIGE garantiert ein NEUES Auto!",
+                 "I veicoli doppi diventano frammenti. Spendili qui per CREARE un'auto NUOVA garantita!",
+                 "Los vehículos repetidos se convierten en fragmentos. ¡Gástalos aquí para CREAR un coche NUEVO garantizado!",
+                 "重复的车辆会变成碎片。在这里用碎片打造一辆全新的车！",
+                 "Les véhicules en double deviennent des fragments. Dépense-les ici pour FABRIQUER une NOUVELLE voiture garantie !",
+                 "Veículos repetidos viram fragmentos. Gaste-os aqui para CRIAR um carro NOVO garantido!",
+                 "Kendaraan duplikat berubah jadi pecahan. Gunakan di sini untuk MEMBUAT mobil BARU yang dijamin!" } },
         { "CARS",     new[]{ "ARABALAR","CARS","AUTOS","AUTO","COCHES","汽车","VOITURES","CARROS","MOBIL" } },
         { "MINIVANS", new[]{ "MİNİVANLAR","MINIVANS","MINIVANS","MINIVAN","MINIVANS","面包车","MONOSPACES","MINIVANS","MINIVAN" } },
         { "BUSES",    new[]{ "OTOBÜSLER","BUSES","BUSSE","AUTOBUS","AUTOBUSES","巴士","BUS","ÔNIBUS","BUS" } },
         { "EQUIPPED", new[]{ "TAKILI","EQUIPPED","AUSGERÜSTET","EQUIPAGGIATO","EQUIPADO","已装备","ÉQUIPÉ","EQUIPADO","TERPASANG" } },
         { "LOCKED",   new[]{ "KİLİTLİ","LOCKED","GESPERRT","BLOCCATO","BLOQUEADO","已锁定","VERROUILLÉ","BLOQUEADO","TERKUNCI" } },
         { "From chests", new[]{ "Sandıktan","From chests","Aus Truhen","Dai forzieri","De cofres","来自宝箱","Des coffres","De baús","Dari peti" } },
+
+        // ---- Garage: chests + craft (section headers, chest cards, reveal popup) ----
+        { "CHESTS",     new[]{ "SANDIKLAR","CHESTS","TRUHEN","FORZIERI","COFRES","宝箱","COFFRES","BAÚS","PETI" } },
+        { "CRAFT",      new[]{ "ÜRET","CRAFT","HERSTELLEN","CREA","CREAR","打造","FABRIQUER","CRIAR","BUAT" } },
+        { "BRONZE",     new[]{ "BRONZ","BRONZE","BRONZE","BRONZO","BRONCE","青铜","BRONZE","BRONZE","PERUNGGU" } },
+        { "SILVER",     new[]{ "GÜMÜŞ","SILVER","SILBER","ARGENTO","PLATA","白银","ARGENT","PRATA","PERAK" } },
+        { "GOLD",       new[]{ "ALTIN","GOLD","GOLD","ORO","ORO","黄金","OR","OURO","EMAS" } },
+        { "LEGENDARY",  new[]{ "EFSANEVİ","LEGENDARY","LEGENDÄR","LEGGENDARIO","LEGENDARIO","传说","LÉGENDAIRE","LENDÁRIO","LEGENDARIS" } },
+        { "EPIC",       new[]{ "DESTANSI","EPIC","EPISCH","EPICO","ÉPICO","史诗","ÉPIQUE","ÉPICO","EPIK" } },
+        { "UNCOMMON",   new[]{ "NADİR","UNCOMMON","SELTEN","NON COMUNE","POCO COMÚN","罕见","PEU COMMUN","INCOMUM","TAK UMUM" } },
+        { "COMMON",     new[]{ "SIRADAN","COMMON","GEWÖHNLICH","COMUNE","COMÚN","普通","COMMUN","COMUM","UMUM" } },
+        { "OPEN",       new[]{ "AÇ","OPEN","ÖFFNEN","APRI","ABRIR","打开","OUVRIR","ABRIR","BUKA" } },
+        { "key only",   new[]{ "sadece anahtarla","key only","nur mit Schlüssel","solo con chiave","solo con llave","仅限钥匙","clé uniquement","só com chave","hanya kunci" } },
+        { "FIND A KEY", new[]{ "ANAHTAR BUL","FIND A KEY","FINDE EINEN SCHLÜSSEL","TROVA UNA CHIAVE","CONSIGUE UNA LLAVE","找到钥匙","TROUVE UNE CLÉ","ENCONTRA UMA CHAVE","CARI KUNCI" } },
+        { "FREE CHEST", new[]{ "BEDAVA SANDIK","FREE CHEST","GRATIS-TRUHE","FORZIERE GRATIS","COFRE GRATIS","免费宝箱","COFFRE GRATUIT","BAÚ GRÁTIS","PETI GRATIS" } },
+        { "{0} left",   new[]{ "{0} kaldı","{0} left","{0} übrig","{0} rimasti","{0} restantes","剩余{0}","{0} restants","{0} restantes","{0} tersisa" } },
+        { "NEW!",       new[]{ "YENİ!","NEW!","NEU!","NUOVO!","¡NUEVO!","新车！","NOUVEAU !","NOVO!","BARU!" } },
+        { "CRAFTED!",   new[]{ "ÜRETİLDİ!","CRAFTED!","HERGESTELLT!","CREATO!","¡CREADO!","打造成功！","FABRIQUÉ !","CRIADO!","DIBUAT!" } },
+        { "YOU GOT",    new[]{ "KAZANDIN","YOU GOT","DU BEKOMMST","HAI OTTENUTO","HAS GANADO","获得","TU AS OBTENU","GANHASTE","KAMU DAPAT" } },
+        { "OK",         new[]{ "TAMAM","OK","OK","OK","OK","好的","OK","OK","OKE" } },
+        { "DUPLICATE  +{0} shards", new[]{
+            "KOPYA  +{0} parça","DUPLICATE  +{0} shards","DOPPELT  +{0} Splitter","DOPPIONE  +{0} frammenti","REPETIDO  +{0} fragmentos","重复  +{0}碎片","DOUBLON  +{0} fragments","REPETIDO  +{0} fragmentos","DUPLIKAT  +{0} pecahan" } },
+        { "+1 {0} KEY!", new[]{
+            "+1 {0} ANAHTAR!","+1 {0} KEY!","+1 {0}-SCHLÜSSEL!","+1 CHIAVE {0}!","¡+1 LLAVE {0}!","+1把{0}钥匙！","+1 CLÉ {0} !","+1 CHAVE {0}!","+1 KUNCI {0}!" } },
+        { "DROP RATES", new[]{ "DÜŞME ORANLARI","DROP RATES","DROP-CHANCEN","PROBABILITÀ","PROBABILIDADES","掉落概率","TAUX DE DROP","PROBABILIDADES","PELUANG DROP" } },
+
+        // ---- Bonus reward flow (stop-the-bar + "you won a chest" screen) ----
+        { "YOU WON",            new[]{ "KAZANDIN","YOU WON","DU HAST GEWONNEN","HAI VINTO","HAS GANADO","你赢得了","TU AS GAGNÉ","GANHASTE","KAMU MENANG" } },
+        { "STOP ON GOLD!",      new[]{ "ALTINDA DURDUR!","STOP ON GOLD!","STOPP AUF GOLD!","FERMATI SULL'ORO!","¡PARA EN EL ORO!","停在黄金区！","ARRÊTE SUR L'OR !","PARA NO OURO!","BERHENTI DI EMAS!" } },
+        { "Tap to stop the bar",new[]{ "Çubuğu durdurmak için dokun","Tap to stop the bar","Tippe, um den Balken zu stoppen","Tocca per fermare la barra","Toca para detener la barra","点击停止滑条","Touche pour arrêter la barre","Toca para parar a barra","Ketuk untuk menghentikan bilah" } },
+        // Dynamic key: Loc.T(tier.ToString().ToUpper() + " CHEST!") in GameUI.Bonus.cs -> all four tiers needed.
+        { "BRONZE CHEST!",      new[]{ "BRONZ SANDIK!","BRONZE CHEST!","BRONZE-TRUHE!","FORZIERE DI BRONZO!","¡COFRE DE BRONCE!","青铜宝箱！","COFFRE DE BRONZE !","BAÚ DE BRONZE!","PETI PERUNGGU!" } },
+        { "SILVER CHEST!",      new[]{ "GÜMÜŞ SANDIK!","SILVER CHEST!","SILBER-TRUHE!","FORZIERE D'ARGENTO!","¡COFRE DE PLATA!","白银宝箱！","COFFRE D'ARGENT !","BAÚ DE PRATA!","PETI PERAK!" } },
+        { "GOLD CHEST!",        new[]{ "ALTIN SANDIK!","GOLD CHEST!","GOLD-TRUHE!","FORZIERE D'ORO!","¡COFRE DE ORO!","黄金宝箱！","COFFRE D'OR !","BAÚ DE OURO!","PETI EMAS!" } },
+        { "LEGENDARY CHEST!",   new[]{ "EFSANEVİ SANDIK!","LEGENDARY CHEST!","LEGENDÄRE TRUHE!","FORZIERE LEGGENDARIO!","¡COFRE LEGENDARIO!","传说宝箱！","COFFRE LÉGENDAIRE !","BAÚ LENDÁRIO!","PETI LEGENDARIS!" } },
+        { "EPIC or better guaranteed every {0} opens.", new[]{
+            "Her {0} açılışta DESTANSI veya üstü garantili.","EPIC or better guaranteed every {0} opens.","Alle {0} Öffnungen garantiert EPISCH oder besser.",
+            "EPICO o superiore garantito ogni {0} aperture.","ÉPICO o mejor garantizado cada {0} aperturas.","每开启{0}次必得史诗或更高。",
+            "ÉPIQUE ou mieux garanti toutes les {0} ouvertures.","ÉPICO ou melhor garantido a cada {0} aberturas.","EPIK atau lebih dijamin setiap {0} kali buka." } },
+        { "Privacy options", new[]{
+            "Gizlilik seçenekleri","Privacy options","Datenschutzoptionen","Opzioni privacy","Opciones de privacidad","隐私选项","Options de confidentialité","Opções de privacidade","Opsi privasi" } },
         { "Run BusJam > Build Vehicle Sets", new[]{
             "Araç setleri yok — BusJam ▸ Build Vehicle Sets çalıştır","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
             "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
@@ -136,6 +225,18 @@ public static class Loc
             "RECOLOR açıldı — 1 tanesi bedava! Sıkışınca otobüslerin renklerini karıştırmak için dokun.","RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.","RECOLOR freigeschaltet — 1 gratis! Tippe drauf, um die Busfarben zu mischen, wenn du feststeckst.",
             "RICOLORA sbloccato — 1 gratis! Toccalo per rimescolare i colori degli autobus quando sei bloccato.","¡RECOLOR desbloqueado — 1 gratis! Tócalo para barajar los colores de los autobuses cuando te atasques.","已解锁换色道具——免费赠送1个！卡住时点击它打乱巴士颜色。",
             "RECOLORIER débloqué — 1 gratuit ! Touche-le pour mélanger les couleurs des bus quand tu es bloqué.","RECOLORIR desbloqueado — 1 grátis! Toca para baralhar as cores dos autocarros quando estiveres preso.","RECOLOR terbuka — 1 gratis! Ketuk untuk mengacak warna bus saat buntu." } },
+        { "SWAP unlocked — here's 1 free! Tap it to shuffle the waiting people's order.", new[]{
+            "SWAP açıldı — 1 tanesi bedava! Bekleyen insanların sırasını karıştırmak için dokun.","SWAP unlocked — here's 1 free! Tap it to shuffle the waiting people's order.","SWAP freigeschaltet — 1 gratis! Tippe drauf, um die Reihenfolge der wartenden Personen zu mischen.",
+            "SCAMBIO sbloccato — 1 gratis! Toccalo per mescolare l'ordine delle persone in attesa.","¡SWAP desbloqueado — 1 gratis! Tócalo para barajar el orden de la gente que espera.","已解锁换位道具——免费赠送1个！点击它打乱排队乘客的顺序。",
+            "ÉCHANGE débloqué — 1 gratuit ! Touche-le pour mélanger l'ordre des personnes qui attendent.","TROCA desbloqueada — 1 grátis! Toca para baralhar a ordem das pessoas em espera.","SWAP terbuka — 1 gratis! Ketuk untuk mengacak urutan orang yang menunggu." } },
+        { "HELICOPTER unlocked — here's 1 free! Tap it to airlift a vehicle straight onto a stop.", new[]{
+            "HELİKOPTER açıldı — 1 tanesi bedava! Bir aracı doğrudan durağa taşımak için dokun.","HELICOPTER unlocked — here's 1 free! Tap it to airlift a vehicle straight onto a stop.","HELIKOPTER freigeschaltet — 1 gratis! Tippe drauf, um ein Fahrzeug direkt zu einer Haltestelle zu fliegen.",
+            "ELICOTTERO sbloccato — 1 gratis! Toccalo per trasportare un veicolo dritto a una fermata.","¡HELICÓPTERO desbloqueado — 1 gratis! Tócalo para llevar un vehículo directo a una parada.","已解锁直升机道具——免费赠送1个！点击它把一辆车直接吊到站台。",
+            "HÉLICOPTÈRE débloqué — 1 gratuit ! Touche-le pour transporter un véhicule droit vers un arrêt.","HELICÓPTERO desbloqueado — 1 grátis! Toca para levar um veículo direto a uma paragem.","HELIKOPTER terbuka — 1 gratis! Ketuk untuk mengangkut kendaraan langsung ke halte." } },
+        { "Nice! Here's +1 free joker — use it anytime.", new[]{
+            "Harika! +1 bedava joker daha — istediğin zaman kullan.","Nice! Here's +1 free joker — use it anytime.","Super! Hier ist +1 Gratis-Joker — nutze ihn jederzeit.",
+            "Ottimo! Ecco +1 jolly gratis — usalo quando vuoi.","¡Genial! Aquí tienes +1 comodín gratis — úsalo cuando quieras.","太棒了！再送你1个免费道具——随时使用。",
+            "Bien joué ! Voici +1 joker gratuit — utilise-le quand tu veux.","Boa! Aqui tens +1 curinga grátis — usa quando quiseres.","Mantap! Ini +1 joker gratis — pakai kapan saja." } },
 
         // ---- Tutorial (new lines: Lv1 cars-only + seat 4, Lv5 bus seat 10, Lv6 diagonals) ----
         { "Tap a car to send it to a parking spot!", new[]{
@@ -150,6 +251,10 @@ public static class Loc
             "Otobüsler 10 kişiliktir!","Buses seat 10 people!","Busse fassen 10 Personen!",
             "Gli autobus hanno 10 posti!","¡Los autobuses tienen 10 plazas!","巴士可坐10人！",
             "Les bus ont 10 places !","Os autocarros levam 10 pessoas!","Bus memuat 10 orang!" } },
+        { "Minivans seat 6 people!", new[]{
+            "Minivanlar 6 kişiliktir!","Minivans seat 6 people!","Minivans fassen 6 Personen!",
+            "I minivan hanno 6 posti!","¡Las minivans tienen 6 plazas!","面包车可坐6人！",
+            "Les monospaces ont 6 places !","As minivans levam 6 pessoas!","Minivan memuat 6 orang!" } },
         { "New: vehicles can now move DIAGONALLY!", new[]{
             "Yeni: araçlar artık ÇAPRAZ gidebilir!","New: vehicles can now move DIAGONALLY!","Neu: Fahrzeuge können sich jetzt DIAGONAL bewegen!",
             "Novità: i veicoli ora possono muoversi in DIAGONALE!","¡Nuevo: los vehículos ahora pueden moverse en DIAGONAL!","新增：车辆现在可以斜向移动！",

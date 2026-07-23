@@ -454,9 +454,9 @@ namespace BusJam
             if (content == null) return;
             var row = Img(content, UIKit.ShopBoxA(), new Color(0.30f, 0.55f, 0.85f));
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
-            var lbl = Label(row.transform, "RESTORE PURCHASES", title, Vector2.zero, new Vector2(640, 70), 36, White);
+            var lbl = Label(row.transform, Loc.T("RESTORE PURCHASES"), title, Vector2.zero, new Vector2(640, 70), 36, White);
             var btn = row.gameObject.AddComponent<Button>(); btn.targetGraphic = row;
-            btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = "RESTORED"; });
+            btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = Loc.T("RESTORED"); });
         }
 
         // ---- Settings / Continue / Failed setup -----------------------------
@@ -475,6 +475,37 @@ namespace BusJam
             // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings. LEVELS was removed per
             // request; COLOR BLIND is now a Hierarchy button you add to the Settings panel yourself (wired by name).
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
+            AddPrivacyOptionsButton(settingsPanel != null ? settingsPanel.transform : null);
+        }
+
+        // Google's EU consent policy: users who were shown the UMP consent form (EEA/UK) must ALWAYS have an entry
+        // point to change their ad-privacy choices. This floats a small button at the BOTTOM of whichever Settings
+        // panel is in use (baked or code-built — same float pattern as the notifications toggle, so it can't collide
+        // with authored layout) and shows itself ONLY while UMP reports the requirement, so everyone else never sees it.
+        void AddPrivacyOptionsButton(Transform panel)
+        {
+            if (panel == null) return;
+            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.45f, 0.50f, 0.60f), new Vector2(0.5f, 0f), new Vector2(0, 90), new Vector2(560, 84),
+                          () => AdManager.Instance?.ShowPrivacyOptions());
+            Label(btn.transform, Loc.T("Privacy options"), num, Vector2.zero, new Vector2(540, 54), 30, White);
+            btn.gameObject.AddComponent<PrivacyOptionsVisibility>(); // shows/hides with the live UMP requirement
+        }
+
+        // Keeps the Privacy-options button visible ONLY while UMP requires it. Uses a CanvasGroup (not SetActive, which
+        // would stop its own Update) and only runs while the Settings panel is open — effectively free.
+        class PrivacyOptionsVisibility : MonoBehaviour
+        {
+            CanvasGroup cg;
+            void Awake() { cg = gameObject.AddComponent<CanvasGroup>(); Apply(); }
+            void OnEnable() { Apply(); }
+            void Update() { Apply(); } // the UMP status lands asynchronously after boot -> keep it fresh while visible
+            void Apply()
+            {
+                bool req = AdManager.Instance != null && AdManager.Instance.PrivacyOptionsRequired;
+                if (cg == null) return;
+                cg.alpha = req ? 1f : 0f;
+                cg.interactable = cg.blocksRaycasts = req;
+            }
         }
 
         // Wire a COLOR BLIND on/off button that YOU add to the Settings panel in the Hierarchy — name the object
@@ -1173,8 +1204,12 @@ namespace BusJam
         // ---- API ------------------------------------------------------------
         public void ShowHud() { Toggle(hudPanel, true); SetHudChromeVisible(true); }
         public void HideHud() { Toggle(hudPanel, false); }
-        public void ShowSettings() { Toggle(settingsPanel, true); }
-        public void HideSettings() { Toggle(settingsPanel, false); }
+        // The HUD gear is the PAUSE button: gameplay (vehicles, traffic, bonus clock) freezes while the Settings
+        // panel is up and resumes the instant it closes. Every close path funnels through HideSettings (RedClose /
+        // baked Close / Home / Replay / LEVELS), so the game can never stay stuck at timeScale 0 — and LevelSelect
+        // re-pauses itself right after the LEVELS path resumes here.
+        public void ShowSettings() { Toggle(settingsPanel, true); Time.timeScale = 0f; }
+        public void HideSettings() { Toggle(settingsPanel, false); Time.timeScale = 1f; }
         public void ShowShop() { SetHudChromeVisible(false); Toggle(shopPanel, true); } // (#6) hide gear/level/ad/jokers
         public void HideShop() { Toggle(shopPanel, false); SetHudChromeVisible(true); } // restore them when it closes
 

@@ -39,6 +39,24 @@ namespace BusJam
         static int PityEvery(ChestTier t) =>
             t == ChestTier.Bronze ? 10 : t == ChestTier.Silver ? 8 : t == ChestTier.Gold ? 6 : 4;
 
+        // ---- STORE-POLICY DISCLOSURE (Apple 3.1.1 / Google Play Monetization): loot-box odds must be shown to the
+        // player BEFORE purchase. These two accessors feed the garage's DROP RATES popup straight from the real roll
+        // tables above, so the on-screen disclosure can never drift from what Open() actually does.
+
+        /// <summary>Effective drop odds per CAR tier [Common, Uncommon, Epic, Legendary] for one chest — the raw
+        /// 5-rarity odds aggregated through the same mapping Open() uses (Rare+Epic both give an Epic car; a
+        /// Legendary roll outside the Legendary chest downgrades to Epic).</summary>
+        public static float[] CarTierOdds(ChestTier t)
+        {
+            var o = Odds(t);
+            float epic = o[2] + o[3], leg = o[4];
+            if (t != ChestTier.Legendary) { epic += leg; leg = 0f; } // the downgrade rule in Open()
+            return new[] { o[0], o[1], epic, leg };
+        }
+
+        /// <summary>Opens between guaranteed Rare-or-better results (the pity counter) — part of the disclosure.</summary>
+        public static int PityCount(ChestTier t) => PityEvery(t);
+
         // Shards a DUPLICATE car melts into, by car tier (0 Common / 1 Medium / 2 Legendary).
         static int DupeShardsTier(int tier) => tier >= 3 ? 200 : tier == 2 ? 80 : tier == 1 ? 25 : 10;
 

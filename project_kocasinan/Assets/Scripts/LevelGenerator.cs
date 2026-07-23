@@ -67,17 +67,29 @@ namespace BusJam
             }
 
             // MANY vehicles every level (easy-but-many at L1); difficulty rises via colors/specials/
-            // diagonals/density, NOT count.
-            int colorCount = Mathf.Clamp(2 + (level - 1) / 3, 2, Palette.Count); // L1-3 = 2 colors, +1 every 3
-            int busCount   = Mathf.Clamp(14 + level / 5, 16, 19);               // big jam (T3): 16 at L1 -> 19; fills the taller W6/H9 big-cell board (stress-tested 0/0)
+            // diagonals/density, NOT count. Every ramp below keeps climbing DEEP into the game (the old caps
+            // all plateaued by ~L25, which made L30+ feel identical) — each knob is solvability-safe.
+            int colorCount = Mathf.Clamp(2 + (level - 1) / 3, 2, Palette.Count); // L1-3 = 2 colors, +1 every 3 -> all 8 by L19
+            // Vehicle count: 16 at L1 -> 19 by L25 (the stress-tested big-jam band), then keeps growing +1 every
+            // 12 levels to 24 by L85. Still WELL under the board's proven capacity: the bonus generator packs 32
+            // vehicles (~42 cells) onto the same W6/H9 board with the same BodyFree+SlideClear rules; 24 normal
+            // vehicles is ~31 of 54 cells, and placement retries grow H whenever a lane can't be cleared.
+            int busCount   = level <= 25 ? Mathf.Clamp(14 + level / 5, 16, 19)
+                                         : Mathf.Min(24, 19 + (level - 25) / 12); // 20 at L37, 21 at L49 ... 24 at L85
             float goldenP  = Mathf.Min(0.10f, level * 0.01f);
-            float mysteryP = Mathf.Min(0.30f, Mathf.Max(0, level - 4) * 0.03f); // no mystery until L5
+            float mysteryP = Mathf.Min(0.45f, Mathf.Max(0, level - 4) * 0.03f); // gray queue people: none until L5, up to 45% by L20 (was capped 30%). Cosmetic reveal-timing only -> solvability unchanged.
 
-            // Special "<<" crawlers ramp in later (boards are denser now); none early.
-            float specialP = level < 10 ? 0f : Mathf.Min(0.20f, (level - 9) * 0.03f);
+            // Special "<<" crawlers ramp in later (boards are denser now); none early. Cap raised 20% -> 30%.
+            float specialP = level < 10 ? 0f : Mathf.Min(0.30f, (level - 9) * 0.03f);
+
+            // QUEUE CHOPPINESS — the biggest late-game lever. minRun is the guaranteed same-color chunk length
+            // in the queue: 4 = long friendly stretches (easy to plan), 1 = fully choppy alternation (must juggle
+            // several colors' buses at once). Purely an emission-order knob: BuildQueue's window invariant and
+            // distinct-open-colours servability fix hold for ANY run length, so solvability is untouched.
+            int minRun = level < 12 ? 4 : level < 35 ? 3 : level < 70 ? 2 : 1;
 
             return Build(rng, level, colorCount, busCount, 6, 0, BaseSlots, ExtraSlots,
-                         goldenP, mysteryP, MixForLevel(level), specialP, 4, /*minRun*/ 4, forceStyle, forceMysteryP);
+                         goldenP, mysteryP, MixForLevel(level), specialP, 4, minRun, forceStyle, forceMysteryP);
         }
 
         // Gentle ramp across the THREE vehicle types: cap-4 cars only at first (easy + many + few people),
@@ -89,19 +101,29 @@ namespace BusJam
             return VehicleMix.AllThree;                        // L7+: cars + minivans + buses
         }
 
-        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam of mixed cars/minivans/buses in FOUR colours, with
-        // ONE vehicle trapped in the dead CENTER (extracted LAST). Reverse-placed center-out with the SAME
-        // BodyFree+SlideClear, every vehicle exiting outward -> solvable (clear from the outside in to free the
-        // middle one). Colours come from BuildQueue's distinct-open-colours fix — see GenerateBonus. (Was a
-        // 2-colour yellow-fill + red-core board until 2026-07-17.)
+        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam of mixed cars/minivans/buses in TWO colours:
+        // ONE core-colour vehicle trapped in the dead CENTER (extracted LAST), every other vehicle the fill
+        // colour. Reverse-placed center-out with the SAME BodyFree+SlideClear, every vehicle exiting outward
+        // -> solvable (clear from the outside in to free the middle one).
         static LevelData GenerateBonus(int level, System.Random rng)
         {
             const int busCount = 32; // MANY mixed vehicles, densely packed (T3 big-jam: fits the W6/H9 board; stress-tested 0/0)
-            // 4 colours (Palette indices 0..3 = Red/Blue/Yellow/Green). MUST stay >= BaseSlots: BuildQueue's
-            // distinct-open-colours servability fix needs a spare colour for every concurrently-OPEN bus, so 4 colours
-            // against a 4-wide window makes distinctness ALWAYS achievable -> each queue colour maps to exactly ONE
-            // parked bus -> boarding can never mis-route -> no deadlock. Raising BaseSlots without raising this breaks it.
-            const int BonusColors = 4;
+            // TWO colours (the classic bonus look): one fill colour everywhere, one different core colour in the
+            // middle. Servability with only 2 colours cannot use BuildQueue's distinct-open-colours trick
+            // (window=4 > 2 colours), so it is guaranteed structurally instead:
+            //  - every FILL bus is the SAME colour, so a fill person can board ANY open fill bus. The buses are
+            //    interchangeable and total capacity == total fill people, so forced front-of-queue boarding can
+            //    never fill the "wrong" one — there is no wrong one — and can never strand a person.
+            //  - every CORE-colour person is stable-moved to the END of the queue (below), matching the core being
+            //    extracted LAST (it is boxed in the dead center): its people arrive exactly when it can park.
+            // This is the previously stress-verified configuration (0 unsolvable across all bonus levels 10..1500).
+            // The PAIR varies per bonus (red+yellow, blue+red, green+blue, ...): drawn from a SEPARATE rng seeded by
+            // the level so the main rng stream — and therefore the verified board geometry — is untouched.
+            var colorRng = new System.Random(level * 733 + 91);
+            int fillIdx = colorRng.Next(Palette.Count);
+            int coreIdx = (fillIdx + 1 + colorRng.Next(Palette.Count - 1)) % Palette.Count; // any colour EXCEPT the fill
+            PieceColor FillColor = (PieceColor)fillIdx;
+            PieceColor CoreColor = (PieceColor)coreIdx;
 
             var buses = new List<BusDef>(busCount);
             for (int i = 0; i < busCount; i++)
@@ -110,24 +132,27 @@ namespace BusJam
                 int rt = rng.Next(10);                                                    // spread across all 3 types
                 var type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
                                   : (rt < 4 ? VehicleType.Car : (rt < 7 ? VehicleType.Minivan : VehicleType.Bus)); // ~40% car, 30% minivan, 30% bus
-                buses.Add(new BusDef { color = PieceColor.Red, type = type, // placeholder — BuildQueue assigns the real colour
+                buses.Add(new BusDef { color = isCore ? CoreColor : FillColor, type = type,
                                        capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
             }
 
-            // Colours now come from the SAME machinery the normal levels use (colorCount > 0): BuildQueue re-assigns each
-            // bus a colour distinct from every currently-open bus AS IT OPENS, then writes the assignment back into
-            // `buses` so BuildBonusGrid carries it. This replaces the old 2-colour fill/core scheme AND its "move every
-            // core-colour person to the end of the queue" workaround — that hack existed only because colorCount<=0 kept
-            // the authored colours and so could not use the distinct-open-colours fix. Reordering the emitted queue would
-            // now actively BREAK servability (it violates the window invariant), which is why it is gone rather than kept.
-            // Colour assignment consumes no rng, so the grid below is geometrically identical to the old 2-colour bonus.
-            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f, BonusColors);
+            // colorCount <= 0 -> BuildQueue KEEPS the authored colours above (no distinct-open reassignment). The
+            // rng consumption inside BuildQueue is colour-independent, so the grid built afterwards is byte-identical
+            // to the verified geometry.
+            var groups = BuildQueue(buses, rng, BaseSlots, 4, 0f, 0f, 0);
+            // Stable partition: every core-colour person goes to the END of the queue (relative order otherwise
+            // preserved). Safe ONLY because the fill buses are all one interchangeable colour — see the note above.
+            var reordered = new List<LineGroup>(groups.Count);
+            foreach (var g in groups) if (g.color != CoreColor) reordered.Add(g);
+            foreach (var g in groups) if (g.color == CoreColor) reordered.Add(g);
+            groups = reordered;
+
             var gridBuses = BuildBonusGrid(buses, rng, out int gridW, out int gridH);
 
             return new LevelData
             {
                 levelNumber = level, groups = groups, gridBuses = gridBuses,
-                gridW = gridW, gridH = gridH, baseSlots = BaseSlots, extraSlots = ExtraSlots, colorCount = BonusColors
+                gridW = gridW, gridH = gridH, baseSlots = BaseSlots, extraSlots = ExtraSlots, colorCount = 2
             };
         }
 
@@ -266,13 +291,20 @@ namespace BusJam
             // Layout VARIETY + difficulty ramp (solvability unchanged): cycle a shape per level, pack
             // denser as levels rise, and let HARDER levels use diagonals (true 8-way) while easy levels
             // stay 4-way like the reference.
-            var style = forceStyle ?? (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % 4);
-            float pack = Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f)); // more slack early, denser later
+            // Early levels cycle the 4 gentle styles; from L24 the FULL 9-style set joins (Heart/Circle/Triangle/
+            // Plus/X make more interlocked, blockier jams). Style biases anchor try-order ONLY -> solvability safe.
+            var style = forceStyle ?? (LayoutStyle)((Mathf.Max(1, levelNumber) - 1) % (levelNumber < 24 ? 4 : 9));
+            // Density keeps climbing past the old L21 plateau: 1.7 -> 1.35 by L21, then on to 1.2 by ~L81.
+            // pack only sets the INITIAL board size; placement retries still grow H whenever BodyFree/SlideClear
+            // can't be satisfied, so a tighter pack means a tighter jam, never a broken one.
+            float pack = levelNumber <= 21
+                ? Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f))   // more slack early, denser later
+                : Mathf.Lerp(1.35f, 1.2f, Mathf.Clamp01((levelNumber - 21) / 60f)); // late game: denser still
             bool allowDiagonals = levelNumber >= 6 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 6+ = 8-way (remote flag off => 4-way everywhere)
             // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
             // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
             // level layouts are byte-for-byte unchanged.
-            float vehicleMysteryP = forceMysteryP >= 0f ? forceMysteryP : (GameConfig.FeatureMystery ? Mathf.Min(0.30f, Mathf.Max(0, levelNumber - 10) * 0.03f) : 0f);
+            float vehicleMysteryP = forceMysteryP >= 0f ? forceMysteryP : (GameConfig.FeatureMystery ? Mathf.Min(0.40f, Mathf.Max(0, levelNumber - 10) * 0.03f) : 0f); // cap raised 30% -> 40% (hits at L24)
             var gridBuses = BuildGrid(buses, rng, gridWidth, gridHeightHint, style, pack, allowDiagonals, vehicleMysteryP, out int gridW, out int gridH);
 
             return new LevelData
@@ -403,75 +435,118 @@ namespace BusJam
             var occupied = new HashSet<Vector2Int>();
             var result = new GridBus[n];
 
-            for (int k = n - 1; k >= 0; k--)
+            // WHOLE-BOARD RETRY: if some vehicle can't be placed legally even at H=9, RESTART the whole board with
+            // fresh rng jitter instead of force-dropping it. The old force-drop skipped BodyFree, so on a board that
+            // was genuinely too tight it could OVERLAP two vehicles (headless verification found 4 such levels in
+            // 1..1000: 101/235/578/866 after the difficulty ramp densified late boards). A restart re-rolls every
+            // try-order, which is virtually always enough slack; levels that never needed the fallback consume the
+            // SAME rng draws as before -> their layouts are byte-identical.
+            int Hinit = H;
+            for (int attempt = 0; ; attempt++)
             {
-                int L = Vehicles.CellLength(buses[k].type);
-                // Roll mystery ONCE per vehicle (short-circuits so P==0 levels never touch rng -> identical layout).
-                bool isMystery = vehicleMysteryP > 0f && rng.NextDouble() < vehicleMysteryP;
-                // Special "<<" crawlers stay CARDINAL for clean per-tap framing (the unified occ rewrite is
-                // diagonal-safe via the shared OccCells; this is a design choice, not a geometry limit).
-                var dirs = (allowDiagonals && buses[k].advanceN == 0) ? eight : cardinals;
-                bool placed = false;
-                int guard = 0;
-                while (!placed)
+                bool lastResort = attempt >= 23; // 24th attempt: accept the legacy fallback rather than loop forever
+                // ESCALATION: a board that keeps failing is over-packed by DIAGONAL vehicles (their thick swept
+                // footprint eats ~2x the cells of a straight one). From attempt 12 on, place straight-only; from
+                // attempt 18 on, use the BONUS packer's strategy (center-out fill, exits toward the nearest edge)
+                // which provably packs 32 vehicles (~42 cells) on this same 6x9 board — denser than any normal level.
+                bool diagAllowedThisAttempt = allowDiagonals && attempt < 12;
+                bool bonusStylePacking = attempt >= 18;
+                occupied.Clear();
+                H = Hinit;
+                bool restart = false;
+
+                for (int k = n - 1; k >= 0 && !restart; k--)
                 {
-                    // Try cells in the layout-style's preferred order (ring/cross/diamond first), but ALL
-                    // cells are still tried -> placement still succeeds whenever a valid spot exists.
-                    var cells = StyleOrderedCells(W, H, style, rng);
-                    foreach (var anchor in cells)
+                    int L = Vehicles.CellLength(buses[k].type);
+                    // Roll mystery ONCE per vehicle (short-circuits so P==0 levels never touch rng -> identical layout).
+                    bool isMystery = vehicleMysteryP > 0f && rng.NextDouble() < vehicleMysteryP;
+                    // Special "<<" crawlers stay CARDINAL for clean per-tap framing (the unified occ rewrite is
+                    // diagonal-safe via the shared OccCells; this is a design choice, not a geometry limit).
+                    var dirs = (diagAllowedThisAttempt && buses[k].advanceN == 0) ? eight : cardinals;
+                    bool placed = false;
+                    int guard = 0;
+                    while (!placed)
                     {
-                        // BALANCE straight vs diagonal: prefer cardinals MOST of the time, diagonals only ~35%,
-                        // so the board is a healthy mix (not all-diagonal) for cars AND buses. Every dir is still
-                        // tried, so solvability is unchanged. Cardinal-only sets (crawlers / levels <6) stay flat.
-                        List<Vector2Int> ds;
-                        if (dirs.Length == 8)
+                        // Try cells in the layout-style's preferred order (ring/cross/diamond first), but ALL
+                        // cells are still tried -> placement still succeeds whenever a valid spot exists.
+                        // (Bonus-style escalation: center-out order + outward exits — the proven dense packer.)
+                        var cells = bonusStylePacking ? BoxOrderedCells(W, H, rng, centerFirst: true)
+                                                      : StyleOrderedCells(W, H, style, rng);
+                        foreach (var anchor in cells)
                         {
-                            var diag = new List<Vector2Int>(4);
-                            var card = new List<Vector2Int>(4);
-                            foreach (var d in dirs) { if (d.x != 0 && d.y != 0) diag.Add(d); else card.Add(d); }
-                            Shuffle(diag, rng); Shuffle(card, rng);
-                            ds = new List<Vector2Int>(8);
-                            if (rng.NextDouble() < 0.35) { ds.AddRange(diag); ds.AddRange(card); } // ~35% prefer diagonal
-                            else { ds.AddRange(card); ds.AddRange(diag); }                          // ~65% prefer straight
-                        }
-                        else
-                        {
-                            ds = new List<Vector2Int>(dirs);
-                            Shuffle(ds, rng);
-                        }
-                        foreach (var d in ds)
-                        {
-                            // BodyFree + SlideClear use the SAME OccCells footprint the runtime uses, so a
-                            // diagonal vehicle's thick footprint + corner-sweep are placed solvably.
-                            if (BodyFree(anchor, d, L, occupied, W, H) && SlideClear(anchor, d, L, occupied.Contains, W, H))
+                            // BALANCE straight vs diagonal: prefer cardinals MOST of the time, diagonals only ~35%,
+                            // so the board is a healthy mix (not all-diagonal) for cars AND buses. Every dir is still
+                            // tried, so solvability is unchanged. Cardinal-only sets (crawlers / levels <6) stay flat.
+                            List<Vector2Int> ds;
+                            if (bonusStylePacking)
+                                ds = OutwardDirs(anchor, W, H, rng); // exit toward the nearest edge (clear lanes on a packed board)
+                            else if (dirs.Length == 8)
                             {
-                                result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
-                                foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
-                                placed = true;
-                                break;
+                                var diag = new List<Vector2Int>(4);
+                                var card = new List<Vector2Int>(4);
+                                foreach (var d in dirs) { if (d.x != 0 && d.y != 0) diag.Add(d); else card.Add(d); }
+                                Shuffle(diag, rng); Shuffle(card, rng);
+                                ds = new List<Vector2Int>(8);
+                                if (rng.NextDouble() < 0.35) { ds.AddRange(diag); ds.AddRange(card); } // ~35% prefer diagonal
+                                else { ds.AddRange(card); ds.AddRange(diag); }                          // ~65% prefer straight
                             }
+                            else
+                            {
+                                ds = new List<Vector2Int>(dirs);
+                                Shuffle(ds, rng);
+                            }
+                            foreach (var d in ds)
+                            {
+                                // BodyFree + SlideClear use the SAME OccCells footprint the runtime uses, so a
+                                // diagonal vehicle's thick footprint + corner-sweep are placed solvably.
+                                if (BodyFree(anchor, d, L, occupied, W, H) && SlideClear(anchor, d, L, occupied.Contains, W, H))
+                                {
+                                    result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
+                                    foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
+                                    placed = true;
+                                    break;
+                                }
+                            }
+                            if (placed) break;
                         }
-                        if (placed) break;
-                    }
-                    if (!placed)
-                    {
-                        // Cap growth so the deepest row (c.y up to H-1) stays within the camera's bottom edge.
-                        // With GridExitZ=5.5 / CellSize=1.1 and the camera (FOV54), H=9 -> deepest row edge
-                        // z=-3.85 (on-screen, ndc 0.94). The big-jam counts (busCount<=19) fit W6xH9=54 cells
-                        // with slack (stress-tested 0 overlap / 0 fallback over 1000 levels), so this rarely bites.
-                        if (H < 9) H++;
-                        if (guard++ > 8)
+                        if (!placed)
                         {
-                            // extreme fallback (stress-tested 0/1000): drop the vehicle exiting left on the
-                            // DEEPEST ON-SCREEN row (<=8) and never grow H past 9, so no vehicle lands off-screen.
-                            var d = new Vector2Int(-1, 0);
-                            var anchor = new Vector2Int(0, Mathf.Min(H, 8));
-                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
-                            foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
-                            H = Mathf.Min(H + 2, 9); placed = true;
+                            // Cap growth so the deepest row (c.y up to H-1) stays within the camera's bottom edge.
+                            // With GridExitZ=5.5 / CellSize=1.1 and the camera (FOV54), H=9 -> deepest row edge
+                            // z=-3.85 (on-screen, ndc 0.94).
+                            if (H < 9) H++;
+                            if (guard++ > 8)
+                            {
+                                if (!lastResort) { restart = true; break; } // re-roll the WHOLE board (see note above)
+                                // absolute last resort (never reached in 1..2000 headless verification): place at the
+                                // first BODY-FREE spot so at least nothing overlaps; blind edge-drop only if even
+                                // that fails.
+                                bool dropped = false;
+                                foreach (var anchor in StyleOrderedCells(W, H, style, rng))
+                                {
+                                    foreach (var d in cardinals)
+                                        if (BodyFree(anchor, d, L, occupied, W, H))
+                                        {
+                                            result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
+                                            foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
+                                            dropped = true; break;
+                                        }
+                                    if (dropped) break;
+                                }
+                                if (!dropped)
+                                {
+                                    var d = new Vector2Int(-1, 0);
+                                    var anchor = new Vector2Int(0, Mathf.Min(H, 8));
+                                    result[k] = new GridBus { color = buses[k].color, type = buses[k].type, capacity = buses[k].capacity, cell = anchor, dir = d, advanceN = buses[k].advanceN, mystery = isMystery };
+                                    foreach (var c in OccCells(anchor, d, L)) occupied.Add(c);
+                                }
+                                H = Mathf.Min(H + 2, 9); placed = true;
+                            }
                         }
                     }
                 }
+
+                if (!restart) break; // whole board placed legally
             }
 
             // GUARANTEE at least one mystery vehicle on every level past 10. The per-vehicle roll can come up

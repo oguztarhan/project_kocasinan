@@ -98,6 +98,66 @@ namespace BusJam
                       "Chests stay in the scroll list (tune size/spacing/columns on InGameGarage). Press Play to check.");
         }
 
+        // "BusJam ▸ Bake Garage HUD Button" — bakes the in-game HUD GARAGE button into the scene as a real,
+        // Inspector-editable GameObject (edit its sprite / colour / size / position in the Hierarchy) and assigns
+        // it to InGameHud.garageButton. At runtime GameUI ADOPTS it instead of building the orange default: it
+        // only wires the click, localizes the label TEXT and runs the first-time pulse — the look stays yours.
+        // Re-running when the button already exists just selects it. SAVE the scene (Ctrl+S) afterwards.
+        [MenuItem("BusJam/Bake Garage HUD Button")]
+        static void BakeGarageButton()
+        {
+            var hud = Object.FindFirstObjectByType<InGameHud>(FindObjectsInactive.Include);
+            if (hud == null || hud.hudRoot == null)
+            {
+                EditorUtility.DisplayDialog("Bake Garage HUD Button", "No baked HUD found — run 'Tools ▸ 300Mind UI ▸ Bake In-Game HUD' first (the button lives on the HUD root).", "OK");
+                return;
+            }
+            if (hud.garageButton != null)
+            {
+                Selection.activeGameObject = hud.garageButton.gameObject;
+                EditorGUIUtility.PingObject(hud.garageButton.gameObject);
+                Debug.Log("[GarageUIBaker] The GARAGE button is already baked — selected it for editing.");
+                return;
+            }
+
+            // Replicates the runtime default exactly (UIKit.BtnOrange at natural colour, top-right, 184x92) so
+            // baking changes NOTHING visually until you start editing.
+            var go = new GameObject("Btn_Garage", typeof(RectTransform), typeof(Image), typeof(Button));
+            Undo.RegisterCreatedObjectUndo(go, "Bake Garage HUD Button");
+            go.transform.SetParent(hud.hudRoot.transform, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(1, 1); rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(-105, -250); rt.sizeDelta = new Vector2(184, 92);
+            var img = go.GetComponent<Image>();
+            var sp = UIKit.BtnOrange();
+            if (sp != null) { img.sprite = sp; img.color = Color.white; }         // natural orange kit sprite
+            else img.color = new Color(1f, 0.62f, 0.15f);                          // fallback tint if the kit isn't imported
+            var btn = go.GetComponent<Button>();
+            btn.targetGraphic = img; // onClick stays empty — GameUI wires ShowGarage at runtime
+
+            // Label mirrors the runtime one (text is re-set to the localized "GARAGE" at runtime; style is yours).
+            var lgo = new GameObject("Text", typeof(RectTransform));
+            lgo.transform.SetParent(go.transform, false);
+            var t = lgo.AddComponent<Text>();
+            t.font = GameFont.UGUI; t.text = "GARAGE"; t.fontSize = 28; t.color = Color.white;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.horizontalOverflow = HorizontalWrapMode.Overflow; t.verticalOverflow = VerticalWrapMode.Overflow;
+            t.raycastTarget = false;
+            var sh = lgo.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.4f); sh.effectDistance = new Vector2(2, -2);
+            var lrt = t.rectTransform;
+            lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+            lrt.anchoredPosition = Vector2.zero; lrt.sizeDelta = new Vector2(176, 54);
+
+            hud.garageButton = btn;
+            EditorUtility.SetDirty(hud);
+            EditorSceneManager.MarkSceneDirty(go.scene);
+            Selection.activeGameObject = go;
+            EditorGUIUtility.PingObject(go);
+            Debug.Log("[GarageUIBaker] Baked 'Btn_Garage' onto the HUD and assigned InGameHud.garageButton. " +
+                      "Edit its sprite / colour / size / position in the Inspector, then SAVE the scene (Ctrl+S). " +
+                      "GameUI adopts it automatically at runtime (click + localized label + first-time pulse).");
+        }
+
         static RectTransform MakeSlot(Transform parent, string name, Vector2 pos, Vector2 size, Color tint)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));

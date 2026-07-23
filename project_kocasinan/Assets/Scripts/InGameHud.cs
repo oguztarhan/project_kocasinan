@@ -29,6 +29,8 @@ namespace BusJam
         public Text coinText, levelText, themeText, peopleText, comboText;
         public Image peopleIcon;                      // people-left silhouette (set at runtime)
         public Button coinButton, gearButton;         // coin -> shop, gear -> settings
+        [Tooltip("Baked GARAGE button ('BusJam ▸ Bake Garage HUD Button'). Edit its sprite / colour / size / position freely — GameUI only wires the click, localizes the label text and runs the first-time pulse. Leave empty to keep the code-built orange button.")]
+        public Button garageButton;                   // -> in-game garage (adopt-or-build, like everything above)
         public HudJoker recolor, swap, heli;
 
         void Awake() { Instance = this; }

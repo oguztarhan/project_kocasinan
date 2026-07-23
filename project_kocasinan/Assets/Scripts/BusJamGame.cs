@@ -122,6 +122,7 @@ namespace BusJam
 
         // (#4) Level-1 tutorial coach (self-contained overlay; created lazily; reused by #5/#6).
         TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost; bool tutorialTapSkip;
+        int tutorialJokerKind = -1; // which joker (0/1/2) the step-3 coach is forcing; -1 = none
 
         // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
         const float BonusTime = 60f;        // bonus-only countdown length (1 minute)
@@ -148,6 +149,8 @@ namespace BusJam
         class TrafficCar { public Transform tf; public float x; public int dir; public int lane; public Transform headlights; }
         readonly List<TrafficCar> traffic = new List<TrafficCar>();
         float trafficHalfLoop, trafficLoop; // wrap bounds (even spacing) shared by both lanes
+        float trafficPeriod;                // per-lane car spacing (world units) — kept for RestageTraffic
+        float trafficEdgeX;                 // |x| beyond this = off-screen; cars may only (re)enter from past it
         int trafficSpawnIdx;                // deterministic variety counter (no Random in the hot path)
         float trafficCarSpeed;              // progressive car speed (eased by bonus index in BuildTraffic): slow at L10, faster later
         float trafficVis;                   // 0 = cars CLEARED off the road (red: road is genuinely clear, nothing to hit), 1 = present & flowing (green). Ramped for a smooth clear/return.
@@ -213,7 +216,7 @@ namespace BusJam
             ui.OnRecolor = JokerRecolor;
             ui.OnSwap = JokerSwapPeople;
             ui.OnHeli = JokerHelicopter;
-            ui.OnReskin = RetryLevel;            // Garage equip -> rebuild the board so the new skin MODEL is shown
+            ui.OnReskin = () => { if (!ui.GarageFromMenu) RetryLevel(); }; // Garage equip -> rebuild the board so the new skin MODEL is shown (no board exists on the menu-garage screen)
             ui.OnHome = GoToMainMenu;            // settings -> HOME
             ui.OnReplay = RetryLevel;            // settings -> REPLAY
             ui.OnClaimReward = ClaimWinReward;   // success panel -> claim / ad
@@ -251,7 +254,14 @@ namespace BusJam
             ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
             ui.OnColorBlindToggle = ApplyColorBlindMode; // in-game Settings -> COLOR BLIND toggle (rebuilds colours live)
 
-            if (autoStart) StartCoroutine(AutoStartFirstLevel());
+            if (ui.GarageFromMenu)
+            {
+                // Menu GARAGE screen: ui.Build already opened the garage over an OPAQUE backdrop. Build NO level at
+                // all — no board, no banner, no game music — so it can never feel like being dropped into gameplay.
+                state = GameState.Menu; ui.HideHud();
+                MusicManager.PlayMenu(); // keep the menu music playing under the garage
+            }
+            else if (autoStart) StartCoroutine(AutoStartFirstLevel());
             else { state = GameState.Menu; ui.HideHud(); }
         }
 
@@ -398,6 +408,9 @@ namespace BusJam
                 if (Physics.Raycast(ray, out RaycastHit hit, 400f))
                 {
                     var bus = hit.collider.GetComponentInParent<Bus>();
+                    // Joker coach (step 3) is MANDATORY: board taps are swallowed until the coached joker is used
+                    // (the granted free charge guarantees the tap can succeed, so this can never soft-lock).
+                    if (bus != null && tutorialActive && tutorialStep == 3) { sfx.Error(); return; }
                     if (bus != null) { if (tutorialActive) { tutorialTapSkip = true; if (tutorialStep == 1) AdvanceTutorialOnFirstMove(); } TryTapBus(bus); return; } // tapping the coached vehicle advances/dismisses the tutorial (not only on a successful park)
                     var slot = hit.collider.GetComponentInParent<ParkingSlot>();
                     if (slot != null && slot.locked) TryUnlockSlot(slot);
@@ -1250,7 +1263,7 @@ namespace BusJam
             if (SaveSystem.Level < J1UnlockLevel) { sfx.Error(); return; }
             if (!SpendJoker(0, RecolorCost)) { sfx.Error(); return; }
             sfx.Coin();
-            if (tutorialActive && tutorialStep == 3) EndTutorial(); // (#6) used the free joker -> drop the coach
+            if (tutorialActive && tutorialStep == 3) FinishJokerTutorial(); // (#6) used the coached joker -> drop the coach + reward +1 free charge
 
             var byCap = new Dictionary<int, List<Bus>>();
             foreach (var b in gridBuses)
@@ -1277,6 +1290,7 @@ namespace BusJam
             if (state != GameState.Playing || visible.Count < 2) { sfx.Error(); return; }
             if (SaveSystem.Level < J2UnlockLevel) { sfx.Error(); return; }
             if (!SpendJoker(1, SwapCost)) { sfx.Error(); return; }
+            if (tutorialActive && tutorialStep == 3) FinishJokerTutorial(); // (#6) used the coached joker -> drop the coach + reward +1 free charge
             // success click handled globally by UiClickSound (button press)
             for (int i = visible.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (visible[i], visible[j]) = (visible[j], visible[i]); }
             StartCoroutine(SwapFx(new List<LineUnit>(visible)));     // each shuffled person sparks in their OWN colour
@@ -1315,6 +1329,7 @@ namespace BusJam
             if (pick == null) foreach (var b in gridBuses) if (b.state == BusState.Queued) { pick = b; break; }      // fallback: any queued vehicle
             if (pick == null) { sfx.Error(); return; }
             if (!SpendJoker(2, HeliCost)) { sfx.Error(); return; }
+            if (tutorialActive && tutorialStep == 3) FinishJokerTutorial(); // (#6) used the coached joker -> drop the coach + reward +1 free charge
 
             foreach (var c in LevelGenerator.OccCells(pick.cell, pick.dir, pick.length)) occ.Remove(c); // free ALL body cells (no phantom)
             gridBuses.Remove(pick);
@@ -1757,7 +1772,26 @@ namespace BusJam
             else if (levelNumber == 5 && !SaveSystem.FreeJokerGranted) // FIRST Lv5 visit only — skip on every replay (FreeJokerGranted persists once the RECOLOR unlock coach has run, mirroring level 1's TutorialDone gate)
                 StartCoroutine(ShowBanner("Buses seat 10 people!", 3.5f, StartJokerTutorial)); // teach bus capacity, then the RECOLOR joker
             else if (levelNumber == 6)
-                StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f));       // diagonals unlock at level 6
+            {   // Level 6 = first PROCEDURAL level = the first with minivans (L1-5 are authored all-car assets;
+                // LevelGenerator.MixForLevel only applies from 6 up). One-time capacity note FIRST, then the
+                // (every-visit) diagonal banner chains after it so the two never overlap.
+                if (!SaveSystem.MinivanTipShown)
+                {
+                    SaveSystem.MinivanTipShown = true; // set immediately: a retry/replay of Lv6 must not re-show it
+                    StartCoroutine(ShowBanner("Minivans seat 6 people!", 3.5f,
+                        () => StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f))));
+                }
+                else
+                    StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f));   // diagonals unlock at level 6
+            }
+            // SWAP (Lv10) / HELI (Lv15) unlock ON bonus levels, so their mandatory-use coaches run on the first
+            // NORMAL level at/after the unlock (11 / 16). SaveSystem.Level must ALSO be past the unlock: with the
+            // debug LEVELS jump the joker button could still be locked, and a forced coach on a locked button
+            // would soft-lock the board (taps are swallowed during step 3).
+            else if (!IsBonus && !SpecialBonus && levelNumber >= J2UnlockLevel && SaveSystem.Level >= J2UnlockLevel && !SaveSystem.JokerTutDone(1))
+                StartJokerTutorial(1);
+            else if (!IsBonus && !SpecialBonus && levelNumber >= J3UnlockLevel && SaveSystem.Level >= J3UnlockLevel && !SaveSystem.JokerTutDone(2))
+                StartJokerTutorial(2);
             else if (levelNumber == 10)
             {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
@@ -1921,33 +1955,57 @@ namespace BusJam
             return null;
         }
 
-        // ---- (#6) Joker-unlock coach + the one-time mandatory free joker --------------------------------
-        void StartJokerTutorial()
+        // ---- (#6) Joker-unlock coaches (RECOLOR/SWAP/HELI) + the mandatory free joker --------------------
+        // Each joker's FIRST appearance: grant 1 free charge, coach the player into using it (board taps are
+        // swallowed meanwhile — see Update), then reward +1 MORE free charge to keep for later.
+        void StartJokerTutorial() // legacy Lv5 entry, chained 3.5s after the bus-capacity banner
         {
             // RECOLOR coaching belongs ONLY to its unlock level (Lv5). The capacity banner defers this by 3.5s, so
             // if the player jumped to another level meanwhile, bail — never let it bleed onto Lv6/Lv10/etc.
             if (currentLevel != J1UnlockLevel) { if (coach != null) coach.Hide(); return; }
+            StartJokerTutorial(0);
+        }
+
+        void StartJokerTutorial(int kind)
+        {
+            if (state != GameState.Playing) return;
             if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
-            // Mandatory free joker: grant ONE Recolor the first time it unlocks, so the player can try it for free.
-            if (!SaveSystem.FreeJokerGranted) { SaveSystem.AddFreeJoker(0, 1); SaveSystem.FreeJokerGranted = true; ui.RefreshJokerLocks(); }
+            // Mandatory free joker: grant ONE charge of this kind the first time it unlocks, so the try is free.
+            if (!SaveSystem.JokerTutDone(kind)) { SaveSystem.AddFreeJoker(kind, 1); SaveSystem.SetJokerTutDone(kind); ui.RefreshJokerLocks(); }
             tutorialActive = true;
             tutorialStep = 3; // distinct from the bus steps (1/2) so a bus tap can't advance it
-            coach.ShowText("RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck.");
+            tutorialJokerKind = kind;
+            coach.ShowText(kind == 0 ? "RECOLOR unlocked — here's 1 free! Tap it to reshuffle the buses' colours when stuck."
+                         : kind == 1 ? "SWAP unlocked — here's 1 free! Tap it to shuffle the waiting people's order."
+                                     : "HELICOPTER unlocked — here's 1 free! Tap it to airlift a vehicle straight onto a stop.");
             StartCoroutine(JokerTutorialLoop());
         }
 
         IEnumerator JokerTutorialLoop()
         {
-            // The joker button is fixed on the HUD: keep the pulsing ring on it until the player has had time to try it.
-            float t = 0f;
-            while (tutorialActive && tutorialStep == 3 && state == GameState.Playing && t < 12f)
+            // The joker button is fixed on the HUD: keep the pulsing ring on it until the joker is USED (no timeout —
+            // the tutorial is mandatory; board taps are swallowed in Update while step 3 is live).
+            int kind = tutorialJokerKind;
+            while (tutorialActive && tutorialStep == 3 && state == GameState.Playing)
             {
-                Vector2 jp = ui.JokerScreenPos(0);
+                Vector2 jp = ui.JokerScreenPos(kind);
                 coach.PointAt(new Vector2(jp.x, jp.y + 130f)); // hover the ring just ABOVE the joker so it doesn't blend with the icon
-                t += Time.unscaledDeltaTime;
                 yield return null;
             }
-            if (tutorialStep == 3) EndTutorial();
+            if (tutorialStep == 3) EndTutorial(); // level ended mid-coach (win/fail) -> clean up
+        }
+
+        // Called by the joker click handlers the moment the coached joker is actually used: drop the coach and
+        // reward +1 MORE free charge of the same kind, so the player leaves the tutorial with one banked.
+        void FinishJokerTutorial()
+        {
+            int kind = Mathf.Clamp(tutorialJokerKind, 0, 2);
+            tutorialStep = 0; // reset BEFORE the reward banner: JokerTutorialLoop's trailing "if step==3 EndTutorial()" would otherwise hide it next frame
+            EndTutorial();
+            tutorialJokerKind = -1;
+            SaveSystem.AddFreeJoker(kind, 1);
+            ui.RefreshJokerLocks(); // show the free-charge badge on the joker button right away
+            StartCoroutine(ShowBanner("Nice! Here's +1 free joker — use it anytime.", 3f));
         }
 
         // ---- Bonus night-mode timer + soft end (every 10th level) -----------------------------------------
@@ -1963,6 +2021,8 @@ namespace BusJam
                 trafficGo = !trafficGo;
                 trafficPhaseLeft = trafficGo ? BonusGreenTime : BonusRedTime;
                 SetTrafficLightsVisual(trafficGo); // swap the lit lamp on the in-world poles (only on phase change)
+                if (trafficGo) RestageTraffic();   // line the cleared cars up OFF-SCREEN so they DRIVE IN from the
+                                                   // road edge on green instead of popping in mid-road where they froze
             }
 
             if (bonusTimeLeft <= 0f) FinishBonus(false); // ran out of time -> the FAILED panel
@@ -4314,6 +4374,8 @@ namespace BusJam
             int perLane = Mathf.Max(1, Mathf.CeilToInt(SPAN / period));
             trafficLoop = perLane * period;                              // wrap length -> EVEN spacing (no seam gap)
             trafficHalfLoop = trafficLoop * 0.5f;
+            trafficPeriod = period;
+            trafficEdgeX = Mathf.Min(SPAN * 0.5f, trafficHalfLoop) - 0.05f; // just past the visible road on either side
             float width = CellSize * 0.95f;                             // ~a single road car
             for (int lane = 0; lane < 2; lane++)
             {
@@ -4329,6 +4391,25 @@ namespace BusJam
                     // cleared on red (transform scale hides meshes but NOT a Light -> would otherwise leave light pools).
                     traffic.Add(new TrafficCar { tf = pivot.transform, x = x, dir = dir, lane = lane, headlights = pivot.transform.Find("Headlights") });
                 }
+            }
+        }
+
+        // Called on every RED -> GREEN flip: the cars are all cleared (scale 0) by then, so teleport each lane's
+        // cars to a queue OFF-SCREEN behind its entry edge, spaced exactly `trafficPeriod` apart (the phase-lock
+        // invariant: gaps stay constant, lanes keep their half-period offset so their gaps never align). They then
+        // scale in while still off-screen and DRIVE IN from the road edge — never popping in mid-road. Because the
+        // wrap length is perLane*period (a multiple of the spacing), wrapping keeps the lattice exact forever.
+        void RestageTraffic()
+        {
+            var laneIdx = new int[2];
+            for (int i = 0; i < traffic.Count; i++)
+            {
+                var c = traffic[i];
+                if (c.tf == null) continue;
+                float phase = c.lane == 1 ? trafficPeriod * 0.5f : 0f; // keep the lanes' anti-align offset
+                c.x = -c.dir * (trafficEdgeX + 0.6f + phase + laneIdx[c.lane] * trafficPeriod);
+                laneIdx[c.lane]++;
+                var p = c.tf.position; p.x = c.x; c.tf.position = p;
             }
         }
 
@@ -4462,8 +4543,11 @@ namespace BusJam
                     if (flow)
                     {
                         c.x += c.dir * step;
-                        if (c.x >= trafficHalfLoop) c.x -= trafficLoop;
-                        else if (c.x < -trafficHalfLoop) c.x += trafficLoop;
+                        // Wrap ONLY at the direction-of-travel end: a restaged car queued OFF-SCREEN behind its
+                        // entry edge (RestageTraffic) can sit beyond the far bound and must NOT be wrap-teleported
+                        // onto the road — it drives in. Motion is monotone per dir, so this is the only end reached.
+                        if (c.dir > 0) { if (c.x >= trafficHalfLoop) c.x -= trafficLoop; }
+                        else           { if (c.x < -trafficHalfLoop) c.x += trafficLoop; }
                     }
                     var p = c.tf.position; p.x = c.x; c.tf.position = p;
                     c.tf.localScale = Vector3.one * trafficVis;   // shrink out on red, grow back in on green

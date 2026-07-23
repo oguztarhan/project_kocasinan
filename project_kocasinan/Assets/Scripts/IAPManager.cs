@@ -41,6 +41,7 @@ namespace BusJam
         }
 
         IStoreController controller;
+        IExtensionProvider extensions;   // kept for iOS: Apple restore lives on IAppleExtensions
         CrossPlatformValidator validator;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -70,7 +71,7 @@ namespace BusJam
         // ---------------- IDetailedStoreListener ----------------
         public void OnInitialized(IStoreController c, IExtensionProvider e)
         {
-            controller = c; Ready = true;
+            controller = c; extensions = e; Ready = true;
             OnChanged?.Invoke(); // localized prices are available now
         }
 
@@ -154,9 +155,26 @@ namespace BusJam
         }
 
         /// <summary>Restore Purchases button. Google replays owned non-consumables through ProcessPurchase on init, so
-        /// this re-asserts the entitlement as a manual safety net + Play-policy requirement.</summary>
+        /// on Android this just re-asserts the entitlement (manual safety net + Play-policy requirement). Apple does
+        /// NOT replay automatically after a reinstall — iOS must explicitly call RestoreTransactions, which re-runs
+        /// ProcessPurchase for every owned product (App Store review REJECTS a Restore button that skips this).</summary>
         public void Restore()
         {
+            // iOS only (runtime-gated so the exact same compiled code ships on Android and this branch is simply never
+            // taken there). Restored products arrive asynchronously via ProcessPurchase -> Grant; the hasReceipt
+            // re-assert below still runs first as the cheap synchronous path for already-known receipts.
+            if (Application.platform == RuntimePlatform.IPhonePlayer)
+            {
+                try
+                {
+                    extensions?.GetExtension<IAppleExtensions>()?.RestoreTransactions((ok, msg) =>
+                    {
+                        Debug.Log("[IAP] Apple restore " + (ok ? "finished" : ("failed: " + msg)));
+                        OnChanged?.Invoke(); // refresh OWNED states once Apple's replay settles
+                    });
+                }
+                catch (System.Exception e) { Debug.LogWarning("[IAP] Apple restore unavailable: " + e.Message); }
+            }
             if (Owns(RemoveAds) || Owns(RemoveAdsPlus))
             {
                 SaveSystem.AdsRemoved = true;

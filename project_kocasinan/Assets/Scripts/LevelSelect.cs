@@ -16,7 +16,12 @@ namespace BusJam
         BusJamGame game;
         Font font;
         GameObject panel;
-       // GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); REMOVE FOR RELEASE
+        GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); gated by the BusJam ▸ LEVELS Test Button toggle
+
+        // Level-testing switch, toggled from the editor menu "BusJam ▸ LEVELS Test Button". Controls BOTH the
+        // on-screen LEVELS jump button and the unlock-first-100 grid. Defaults OFF — and PlayerPrefs never ship
+        // in a build, so a device install always starts with this off (release-safe with no code edits).
+        static bool DebugLevels => PlayerPrefs.GetInt("bj_debug_levels", 0) == 1;
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -50,14 +55,27 @@ namespace BusJam
             }
 
             BuildPanel(canvasGo.transform);
+
+            // TESTING: on-screen "LEVELS" jump button — only exists while the "BusJam ▸ LEVELS Test Button"
+            // editor toggle is ON (see DebugLevels above). Off (the default) = no button, normal progression.
+            if (DebugLevels)
+            {
+                jumpBtn = Button(canvasGo.transform, "LEVELS", new Color(0.30f, 0.55f, 0.92f), () => Toggle(), 40).gameObject;
+                var jrt = jumpBtn.GetComponent<RectTransform>();
+                jrt.anchorMin = jrt.anchorMax = new Vector2(0f, 1f);
+                jrt.pivot = new Vector2(0f, 1f);
+                jrt.anchoredPosition = new Vector2(20, -240);   // top-left, below the HUD row
+                jrt.sizeDelta = new Vector2(230, 90);
+            }
+
             Close();
-            // On-screen "LEVELS" jump button removed for release — the map is no longer opened during gameplay.
         }
 
         // ---- Public API -----------------------------------------------------
         public void Open()
         {
             PopulateGrid();
+            if (jumpBtn) jumpBtn.SetActive(false); // hide the jump button while the map is open
             if (panel) panel.SetActive(true);
             Time.timeScale = 0f;   // pause gameplay while browsing
             isOpen = true;
@@ -66,6 +84,7 @@ namespace BusJam
         public void Close()
         {
             if (panel) panel.SetActive(false);
+            if (jumpBtn) jumpBtn.SetActive(true);
             Time.timeScale = 1f;
             isOpen = false;
         }
@@ -89,7 +108,7 @@ namespace BusJam
             var card = Image(panel.transform, new Color(0.13f, 0.16f, 0.24f, 1f));
             Anchor(card.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(980, 1600));
 
-            Label(card.transform, "SELECT LEVEL", new Vector2(0, 700), new Vector2(820, 90), 58, Color.white);
+            Label(card.transform, Loc.T("SELECT LEVEL"), new Vector2(0, 700), new Vector2(820, 90), 58, Color.white);
 
             var close = Button(card.transform, "X", new Color(0.5f, 0.3f, 0.3f), () => Close(), 46);
             var crt = close.GetComponent<RectTransform>();
@@ -140,9 +159,9 @@ namespace BusJam
             for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
-            // TESTING: show the first 100 levels ALL tappable so you can jump to any of them from Settings → LEVELS.
-            // >>> SET debugUnlockAll = false BEFORE RELEASE <<< (false = normal progression: only up to the unlocked level).
-            bool debugUnlockAll = false;
+            // TESTING: with the "BusJam ▸ LEVELS Test Button" toggle ON, the first 100 levels are ALL tappable so you
+            // can jump anywhere. Off (the default) = normal progression: only up to the unlocked level.
+            bool debugUnlockAll = DebugLevels;
             int total = debugUnlockAll ? 100 : Mathf.Max(unlocked + LockedPreview, MinShown); // first 100 levels for testing
             total = Mathf.CeilToInt(total / (float)Columns) * Columns; // fill rows
 

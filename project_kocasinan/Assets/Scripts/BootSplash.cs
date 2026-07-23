@@ -557,7 +557,7 @@ namespace BusJam
         void Update()
         {
             t += Time.unscaledDeltaTime; if (t < 0.4f || label == null) return; t = 0f;
-            n = (n + 1) % 4; label.text = "LOADING" + new string('.', n);
+            n = (n + 1) % 4; label.text = Loc.T("LOADING") + new string('.', n);
         }
     }
 

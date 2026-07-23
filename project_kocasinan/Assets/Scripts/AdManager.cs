@@ -146,6 +146,32 @@ public class AdManager : MonoBehaviour
 #endif
     }
 
+    // ===================== T1b: Privacy options (Google EU consent policy) =====================
+    // When UMP reports the privacy-options requirement (EEA/UK users who saw the consent form), the app MUST offer
+    // an entry point to revisit/change that choice. GameUI shows a "Privacy options" button in Settings ONLY while
+    // this is true, wired to ShowPrivacyOptions().
+    public bool PrivacyOptionsRequired
+    {
+        get
+        {
+#if GMA_ADS
+            return ConsentInformation.PrivacyOptionsRequirementStatus == PrivacyOptionsRequirementStatus.Required;
+#else
+            return false;
+#endif
+        }
+    }
+
+    public void ShowPrivacyOptions()
+    {
+#if GMA_ADS
+        ConsentForm.ShowPrivacyOptionsForm((FormError err) =>
+        {
+            if (err != null) Debug.LogWarning("[AdManager] privacy options form error: " + err.Message);
+        });
+#endif
+    }
+
 #if GMA_ADS
     void InitMobileAds()
     {

@@ -49,6 +49,7 @@ public class MenuController : MonoBehaviour
     void Start()
     {
         AdManager.Ensure(); // create the ad singleton in the menu too, so the "watch ad → gold" button works here
+        EnsureGarageButton(); // the baked scene has no Btn_Garage -> build it from Btn_Play (same orange style)
         homeOnly = new[]
         {
             FindByName("Coin_Bar"),    // gold counter
@@ -221,6 +222,44 @@ public class MenuController : MonoBehaviour
 
     // Main-menu GARAGE button: load the game scene and open the garage straight away (closing it returns to the menu).
     public void OpenGarage() { GameUI.OpenGarageOnLoad = true; SceneManager.LoadScene(gameSceneName); }
+
+    // The baked menu has no garage button, so build one at runtime by CLONING Btn_Play — that inherits the exact
+    // orange sprite/style of the other menu buttons — then shrink it, park it under PLAY, relabel it GARAGE and
+    // rewire it to OpenGarage. Idempotent (skips if a baked/earlier Btn_Garage exists). While the player has not
+    // yet done the garage tutorial (PlayerPrefs flag set by the in-game garage tutorial), the button PULSES to
+    // draw their eye to it.
+    void EnsureGarageButton()
+    {
+        if (FindByName("Btn_Garage") != null) return;
+        var play = FindByName("Btn_Play");
+        if (play == null) return;
+
+        var go = Instantiate(play, play.transform.parent);
+        go.name = "Btn_Garage";
+        var prt = (RectTransform)play.transform;
+        var grt = (RectTransform)go.transform;
+        grt.localScale = Vector3.one * 0.72f;                                  // smaller than PLAY (secondary action)
+        grt.anchoredPosition = prt.anchoredPosition                            // parked just below PLAY
+                             + new Vector2(0, -(prt.sizeDelta.y * 0.5f + prt.sizeDelta.y * 0.72f * 0.5f + 26f));
+
+        // Strip any CLONED LocalizedText tags first (they carry Btn_Play's "PLAY" key and would re-translate the
+        // label straight back to PLAY on the LocalizeScene pass). Immediate, so the same-frame pass can re-tag the
+        // label fresh with its new "GARAGE" key.
+        foreach (var lt in go.GetComponentsInChildren<LocalizedText>(true)) DestroyImmediate(lt);
+        foreach (var t in go.GetComponentsInChildren<Text>(true)) t.text = "GARAGE"; // Localizer translates on scene pass
+
+        var btn = go.GetComponent<Button>();
+        if (btn == null) btn = go.GetComponentInChildren<Button>(true);
+        if (btn != null)
+        {
+            // mute the CLONED persistent OnClick (it still points at Play) and wire the garage instead
+            for (int i = 0; i < btn.onClick.GetPersistentEventCount(); i++)
+                btn.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+            btn.onClick.AddListener(OpenGarage);
+        }
+
+        // (No pulse here: the tutorial highlight belongs to the IN-GAME garage button only.)
+    }
 
     // Spend 100 gold (joker purchase). Returns silently if not enough.
     public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }
