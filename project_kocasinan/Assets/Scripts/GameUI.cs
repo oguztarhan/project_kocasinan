@@ -1349,7 +1349,16 @@ namespace BusJam
         void BuildBonusCountdown()
         {
             if (hudPanel == null || bonusCountdown != null) return;
-            bonusCountdown = Label(hudPanel.transform, "", num, new Vector2(0, 700), new Vector2(420, 130), 96, White);
+            // The waiting-passenger queue renders at the deepest world band (PeopleZ), which projects to the TOP of the
+            // screen (~y700) — a timer there sat right on the queue and hid which colours were coming. Placed at the
+            // very TOP-CENTER, ABOVE the passengers: TOP-anchored so it stays above them on every aspect (on tall
+            // phones the queue drops toward centre; the top-anchored timer stays put). The coin bar owns this strip,
+            // so it's hidden whenever the timer shows (SetBonus*/HideBonusCountdown below) — the shop isn't needed
+            // mid-bonus, exactly like the garage already hides it.
+            bonusCountdown = Label(hudPanel.transform, "", num, Vector2.zero, new Vector2(420, 130), 96, White);
+            var brt = bonusCountdown.rectTransform;
+            brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 1f); // top-centre
+            brt.anchoredPosition = new Vector2(0, -210);          // just below the notch, above the passenger queue
             bonusCountdown.gameObject.SetActive(false);
             // NOTE: the red/green traffic light is now a real in-world prop on both road sides (BusJamGame.BuildTrafficLights),
             // not a HUD widget — so the player reads stop/go straight off the road.
@@ -1361,6 +1370,7 @@ namespace BusJam
             if (!bonusCountdown) return;
             if (hideBonusTimer) { if (bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(false); return; } // (#2) suppressed while the garage is open
             if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
+            if (coinBarGo && coinBarGo.activeSelf) coinBarGo.SetActive(false); // timer owns the top-centre strip -> hide the coin bar under it
             int s = Mathf.Max(0, Mathf.FloorToInt(elapsed));
             bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
             Color green = new Color(0.36f, 0.92f, 0.45f), orange = new Color(1f, 0.66f, 0.16f), red = new Color(1f, 0.32f, 0.28f);
@@ -1373,6 +1383,7 @@ namespace BusJam
             if (!bonusCountdown) return;
             if (hideBonusTimer) { if (bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(false); return; } // (#2) suppressed while the garage is open
             if (!bonusCountdown.gameObject.activeSelf) bonusCountdown.gameObject.SetActive(true);
+            if (coinBarGo && coinBarGo.activeSelf) coinBarGo.SetActive(false); // timer owns the top-centre strip -> hide the coin bar under it
             int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
             bonusCountdown.text = (s / 60) + ":" + (s % 60).ToString("00");
 
@@ -1392,6 +1403,9 @@ namespace BusJam
         public void HideBonusCountdown()
         {
             if (bonusCountdown) { bonusCountdown.gameObject.SetActive(false); bonusCountdown.rectTransform.localScale = Vector3.one; }
+            // Timer gone -> give the top-centre strip back to the coin bar (normal levels / level end). The garage's
+            // own suppression path (hideBonusTimer) leaves the coin bar alone, since the garage manages it separately.
+            if (coinBarGo && !coinBarGo.activeSelf && !hideBonusTimer) coinBarGo.SetActive(true);
         }
 
         // Combo reward feedback: a green "+Ns" that floats up just under the timer and fades. Called when the player
