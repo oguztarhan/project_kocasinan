@@ -476,6 +476,9 @@ namespace BusJam
             // request; COLOR BLIND is now a Hierarchy button you add to the Settings panel yourself (wired by name).
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
             AddPrivacyOptionsButton(settingsPanel != null ? settingsPanel.transform : null);
+            // DEBUG: the LEVELS jump button now lives HERE in Settings (off the play screen / out of screenshots),
+            // shown only while the "BusJam ▸ LEVELS Test Button" editor toggle is ON. Device builds never see it.
+            if (LevelSelect.DebugLevels) AddLevelsButton(settingsPanel != null ? settingsPanel.transform : null);
         }
 
         // Google's EU consent policy: users who were shown the UMP consent form (EEA/UK) must ALWAYS have an entry

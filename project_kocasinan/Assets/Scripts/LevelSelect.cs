@@ -19,9 +19,9 @@ namespace BusJam
         GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); gated by the BusJam ▸ LEVELS Test Button toggle
 
         // Level-testing switch, toggled from the editor menu "BusJam ▸ LEVELS Test Button". Controls BOTH the
-        // on-screen LEVELS jump button and the unlock-first-100 grid. Defaults OFF — and PlayerPrefs never ship
-        // in a build, so a device install always starts with this off (release-safe with no code edits).
-        static bool DebugLevels => PlayerPrefs.GetInt("bj_debug_levels", 0) == 1;
+        // Settings-panel LEVELS button (GameUI reads this) and the unlock-first-100 grid. Defaults OFF — and
+        // PlayerPrefs never ship in a build, so a device install always starts with this off (release-safe).
+        public static bool DebugLevels => PlayerPrefs.GetInt("bj_debug_levels", 0) == 1;
         RectTransform content;
         bool isOpen;
         public bool IsOpen => isOpen;   // so the tutorial coach can hide while the level map is open
@@ -56,17 +56,9 @@ namespace BusJam
 
             BuildPanel(canvasGo.transform);
 
-            // TESTING: on-screen "LEVELS" jump button — only exists while the "BusJam ▸ LEVELS Test Button"
-            // editor toggle is ON (see DebugLevels above). Off (the default) = no button, normal progression.
-            if (DebugLevels)
-            {
-                jumpBtn = Button(canvasGo.transform, "LEVELS", new Color(0.30f, 0.55f, 0.92f), () => Toggle(), 40).gameObject;
-                var jrt = jumpBtn.GetComponent<RectTransform>();
-                jrt.anchorMin = jrt.anchorMax = new Vector2(0f, 1f);
-                jrt.pivot = new Vector2(0f, 1f);
-                jrt.anchoredPosition = new Vector2(20, -240);   // top-left, below the HUD row
-                jrt.sizeDelta = new Vector2(230, 90);
-            }
+            // The LEVELS entry now lives INSIDE the Settings panel (GameUI.AddLevelsButton, gated by DebugLevels), so
+            // it's off the play screen and out of screenshots. The map is opened via GameUI.OnLevels -> Open(); it
+            // closes with its own X button. (No on-screen jump button on the board anymore.)
 
             Close();
         }

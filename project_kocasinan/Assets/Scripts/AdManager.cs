@@ -37,22 +37,21 @@ public class AdManager : MonoBehaviour
     // ===== TEMP debug panel + hotkey (T6). Set false / delete before release. =====
     public const bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
 
-    // ===================== TEST ad unit IDs (Google's universal test ids — publisher ca-app-pub-3940256099942544) =====================
-    // >>> TEST ADS ONLY — for CLOSED TESTING, so a tester tap can NEVER trigger an AdMob "invalid traffic" ban. <<<
-    // AdMob ad unit ids are PER-PLATFORM: an Android unit id returns "no ad available" on iOS (and vice-versa) — that is
-    // why iOS ads never opened. Each platform now uses ITS OWN Google test ids. The REAL publisher's ids were swapped OUT
-    // (recoverable from git history / release notes). RESTORE them — here AND in Assets ▸ Google Mobile Ads ▸ Settings
-    // (adMobAndroidAppId / adMobIOSAppId) — before the PRODUCTION release, or real ads will never serve / earn.
+    // ===================== ad unit IDs (AdMob ids are PER-PLATFORM — an Android unit returns "no ad" on iOS and vice-versa) =====================
+    // ANDROID = REAL publisher ids (ca-app-pub-2925766743577038) — PRODUCTION release 2026-07-23. Mirror App ID lives in
+    //           Assets ▸ Google Mobile Ads ▸ Settings (adMobAndroidAppId). >>> Do NOT tap your own live ads (invalid-traffic ban). <<<
+    // iOS     = still Google universal TEST ids (ca-app-pub-3940256099942544) — iOS ships to TestFlight only. Before the iOS
+    //           PRODUCTION release, create an iOS app in AdMob and paste its real App ID + 3 unit ids here AND in adMobIOSAppId.
 #if UNITY_IOS
-    const string APP_ID          = "ca-app-pub-3940256099942544~1458002511"; // iOS Google TEST App ID (mirror of Google Mobile Ads Settings adMobIOSAppId)
+    const string APP_ID          = "ca-app-pub-3940256099942544~1458002511"; // iOS Google TEST App ID (mirror of Google Mobile Ads Settings adMobIOSAppId) — TestFlight only
     const string BANNER_ID       = "ca-app-pub-3940256099942544/2435281174"; // iOS Google TEST adaptive banner
     const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/4411468910"; // iOS Google TEST interstitial
     const string REWARDED_ID     = "ca-app-pub-3940256099942544/1712485313"; // iOS Google TEST rewarded
 #else
-    const string APP_ID          = "ca-app-pub-3940256099942544~3347511713"; // Android Google TEST App ID (mirror of Google Mobile Ads Settings adMobAndroidAppId)
-    const string BANNER_ID       = "ca-app-pub-3940256099942544/9214589741"; // Android Google TEST adaptive banner
-    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"; // Android Google TEST interstitial
-    const string REWARDED_ID     = "ca-app-pub-3940256099942544/5224354917"; // Android Google TEST rewarded
+    const string APP_ID          = "ca-app-pub-2925766743577038~9158222172"; // Android REAL App ID (mirror of Google Mobile Ads Settings adMobAndroidAppId)
+    const string BANNER_ID       = "ca-app-pub-2925766743577038/7724947897"; // Android REAL adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-2925766743577038/9067059546"; // Android REAL interstitial
+    const string REWARDED_ID     = "ca-app-pub-2925766743577038/3803647663"; // Android REAL rewarded
 #endif
 
     public static AdManager Instance { get; private set; }

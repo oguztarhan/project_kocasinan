@@ -18,8 +18,9 @@ namespace BusJam
         public static bool Ready { get; private set; }
 
         const string NotifTopic = "all";
-        // DEV: 0 = always fetch, so console changes appear on relaunch. For RELEASE raise it (e.g. 3600000 = 1h) to cache.
-        const ulong MinFetchIntervalMs = 0;
+        // PRODUCTION (2026-07-23): 1h cache to avoid Firebase fetch throttling. (Dev used 0 = always fetch so console
+        // changes appeared on relaunch.)
+        const ulong MinFetchIntervalMs = 3600000;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot()
