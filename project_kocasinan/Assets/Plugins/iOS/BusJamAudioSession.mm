@@ -8,13 +8,12 @@
 
 extern "C" void _BusJamSetAudioSessionPlayback(void)
 {
-    @try {
-        AVAudioSession *session = [AVAudioSession sharedInstance];
-        NSError *err = nil;
-        // .Playback = plays regardless of the silent switch. (No MixWithOthers: the game owns audio output.)
-        [session setCategory:AVAudioSessionCategoryPlayback error:&err];
-        [session setActive:YES error:&err];
-    } @catch (NSException *e) {
-        // Never let audio-session setup crash the app.
-    }
+    // These AVAudioSession calls report failures via the NSError out-param (not Obj-C
+    // exceptions), so no @try/@catch is needed — and Unity's iOS build compiles plugins
+    // with Objective-C exceptions disabled, which made the previous @try fail to build.
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    NSError *err = nil;
+    // .Playback = plays regardless of the silent switch. (No MixWithOthers: the game owns audio output.)
+    [session setCategory:AVAudioSessionCategoryPlayback error:&err];
+    [session setActive:YES error:&err];
 }

@@ -114,6 +114,8 @@ InitTestScene*.unity*
 **/Assets/FIREBASE/*
 !**/Assets/FIREBASE/google-services.json
 !**/Assets/FIREBASE/google-services.json.meta
+!**/Assets/FIREBASE/GoogleService-Info.plist
+!**/Assets/FIREBASE/GoogleService-Info.plist.meta
 **/Assets/GeneratedLocalRepo/
 **/Assets/GeneratedLocalRepo.meta
 **/Assets/ExternalDependencyManager/

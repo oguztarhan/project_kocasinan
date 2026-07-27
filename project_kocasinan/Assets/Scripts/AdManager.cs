@@ -40,13 +40,13 @@ public class AdManager : MonoBehaviour
     // ===================== ad unit IDs (AdMob ids are PER-PLATFORM — an Android unit returns "no ad" on iOS and vice-versa) =====================
     // ANDROID = REAL publisher ids (ca-app-pub-2925766743577038) — PRODUCTION release 2026-07-23. Mirror App ID lives in
     //           Assets ▸ Google Mobile Ads ▸ Settings (adMobAndroidAppId). >>> Do NOT tap your own live ads (invalid-traffic ban). <<<
-    // iOS     = still Google universal TEST ids (ca-app-pub-3940256099942544) — iOS ships to TestFlight only. Before the iOS
-    //           PRODUCTION release, create an iOS app in AdMob and paste its real App ID + 3 unit ids here AND in adMobIOSAppId.
+    // iOS     = REAL publisher ids (ca-app-pub-2925766743577038) — PRODUCTION release 2026-07-27. Mirror App ID lives in
+    //           Assets ▸ Google Mobile Ads ▸ Settings (adMobIOSAppId). >>> Do NOT tap your own live ads (invalid-traffic ban). <<<
 #if UNITY_IOS
-    const string APP_ID          = "ca-app-pub-3940256099942544~1458002511"; // iOS Google TEST App ID (mirror of Google Mobile Ads Settings adMobIOSAppId) — TestFlight only
-    const string BANNER_ID       = "ca-app-pub-3940256099942544/2435281174"; // iOS Google TEST adaptive banner
-    const string INTERSTITIAL_ID = "ca-app-pub-3940256099942544/4411468910"; // iOS Google TEST interstitial
-    const string REWARDED_ID     = "ca-app-pub-3940256099942544/1712485313"; // iOS Google TEST rewarded
+    const string APP_ID          = "ca-app-pub-2925766743577038~8752446344"; // iOS REAL App ID (mirror of Google Mobile Ads Settings adMobIOSAppId)
+    const string BANNER_ID       = "ca-app-pub-2925766743577038/1591053889"; // iOS REAL adaptive banner
+    const string INTERSTITIAL_ID = "ca-app-pub-2925766743577038/1734258183"; // iOS REAL interstitial
+    const string REWARDED_ID     = "ca-app-pub-2925766743577038/4899743505"; // iOS REAL rewarded
 #else
     const string APP_ID          = "ca-app-pub-2925766743577038~9158222172"; // Android REAL App ID (mirror of Google Mobile Ads Settings adMobAndroidAppId)
     const string BANNER_ID       = "ca-app-pub-2925766743577038/7724947897"; // Android REAL adaptive banner
