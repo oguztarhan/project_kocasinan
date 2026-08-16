@@ -1,13 +1,19 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.UI;
 using BusJam;
 
 /// <summary>
 /// Runtime claim logic for the baked Daily-Reward cards. One reward can be claimed per
-/// real day, in order (Day 1 → Day 7); claiming grants the coin reward, shows the
-/// card's checkmark with a pop animation, and persists progress via PlayerPrefs. After
-/// all 7 are claimed the cycle restarts on the next day.
+/// real day, in order (Day 1 → Day 7); claiming grants that day's gold + free jokers +
+/// chest key, shows the card's checkmark with a pop animation, and persists progress via
+/// PlayerPrefs. After all 7 are claimed the cycle restarts on the next day.
+///
+/// <see cref="Plan"/> is the SINGLE SOURCE OF TRUTH for the rewards: the manager re-applies
+/// it to every <see cref="DailyCard"/> (values, icon and label) each time the panel opens,
+/// and the editor baker builds the cards from the same table — so changing the numbers here
+/// takes effect immediately, with no scene re-bake.
 ///
 /// Attached to the Daily panel by the editor baker; it auto-discovers the DailyCard
 /// children and wires their buttons.
@@ -16,6 +22,121 @@ public class DailyRewards : MonoBehaviour
 {
     const string KeyCount = "bj_dailyClaimed"; // how many days claimed in the current cycle
     const string KeyLast  = "bj_dailyLast";    // date (yyyy-MM-dd) of the last claim
+
+    // ======================= THE 7-DAY REWARD PLAN =======================
+    // Gold escalates through the week and day 7 is the jackpot. Jokers are free charges
+    // (spent before gold in-game); a chest key opens that tier's garage chest for free.
+    // Gold is scaled at claim time by GameConfig.DailyGoldScalePct, so the whole curve can
+    // be dialled up/down from Firebase Remote Config without an app update.
+    public struct Reward
+    {
+        public int gold, recolor, swap, heli;
+        public string keyTier; // "" | "Bronze" | "Silver" | "Gold" | "Legendary"
+
+        public Reward(int gold, int recolor = 0, int swap = 0, int heli = 0, string keyTier = "")
+        { this.gold = gold; this.recolor = recolor; this.swap = swap; this.heli = heli; this.keyTier = keyTier ?? ""; }
+    }
+
+    // Index 0 = Day 1.
+    public static readonly Reward[] Plan =
+    {
+        new Reward(200),                                  // Day 1
+        new Reward(300, recolor: 1),                      // Day 2
+        new Reward(400, swap: 1),                         // Day 3
+        new Reward(600, keyTier: "Bronze"),               // Day 4
+        new Reward(800, heli: 1),                         // Day 5
+        new Reward(1000, recolor: 2, swap: 2),            // Day 6
+        new Reward(2500, recolor: 1, swap: 1, heli: 1, keyTier: "Gold"), // Day 7 — JACKPOT
+    };
+
+    public static Reward PlanFor(int day)
+        => (day >= 1 && day <= Plan.Length) ? Plan[day - 1] : new Reward(0);
+
+    // Gold actually paid for a day (shipped value × the remote scale).
+    public static int GoldFor(int day)
+    {
+        int pct = GameConfig.DailyGoldScalePct > 0 ? GameConfig.DailyGoldScalePct : 100;
+        return Mathf.Max(0, Mathf.RoundToInt(PlanFor(day).gold * pct / 100f));
+    }
+
+    // Days whose headline reward is a chest key draw the REAL code-built chest (the same art as
+    // the garage) instead of an atlas icon; returns the tier to draw, or "" for a sprite icon.
+    // The day-7 banner keeps the gold-pile sprite — its headline is the 2500 gold jackpot.
+    public static string ChestArtTier(int day)
+    {
+        var r = PlanFor(day);
+        return (!string.IsNullOrEmpty(r.keyTier) && day < Plan.Length) ? r.keyTier : "";
+    }
+
+    // The card's reward icon: the headline item of that day (key > joker > gold).
+    public static Sprite IconFor(int day)
+    {
+        var r = PlanFor(day);
+        if (!string.IsNullOrEmpty(r.keyTier)) return day >= Plan.Length ? UIKit.ShopGold() : null; // chest days draw art, not a sprite
+        if (r.heli > 0) return UIKit.JokerHeli();
+        if (r.swap > 0 && r.recolor == 0) return UIKit.JokerSwap();
+        if (r.recolor > 0) return UIKit.JokerRecolor();
+        return UIKit.ShopCoinA();
+    }
+
+    // Draw the chest into a card's reward slot: the slot Image goes invisible and holds the art.
+    // Safe to call repeatedly — an existing chest is left alone.
+    public static void BuildChestArt(Image slot, string tier)
+    {
+        if (slot == null || string.IsNullOrEmpty(tier)) return;
+        slot.sprite = null;
+        slot.color = new Color(1f, 1f, 1f, 0f); // the slot itself is just the anchor now
+        if (slot.transform.Find("ChestArt")) return;
+
+        var go = new GameObject("ChestArt", typeof(RectTransform));
+        go.transform.SetParent(slot.transform, false);
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = slot.rectTransform.sizeDelta;
+        UIKit.BuildChest(go.transform, UIKit.ChestTint(tier), Mathf.Max(40f, slot.rectTransform.sizeDelta.x));
+    }
+
+    // Card caption. Days 1-6 are narrow -> "+gold" over one short extra line; day 7 is the
+    // wide jackpot banner -> everything on one line.
+    public static string LabelFor(int day)
+    {
+        var r = PlanFor(day);
+        string gold = "+" + GoldFor(day);
+        if (day >= Plan.Length)
+        {
+            string s = gold;
+            if (!string.IsNullOrEmpty(r.keyTier)) s += "  •  " + Loc.T(r.keyTier.ToUpperInvariant() + " KEY");
+            int jokers = r.recolor + r.swap + r.heli;
+            if (jokers > 0) s += "  •  " + Loc.T("JOKERS") + " ×" + jokers;
+            return s;
+        }
+
+        string extra = "";
+        if (!string.IsNullOrEmpty(r.keyTier)) extra = Loc.T(r.keyTier.ToUpperInvariant() + " KEY");
+        else
+        {
+            int jokers = r.recolor + r.swap + r.heli;
+            bool mixed = (r.recolor > 0 ? 1 : 0) + (r.swap > 0 ? 1 : 0) + (r.heli > 0 ? 1 : 0) > 1;
+            if (jokers > 0)
+            {
+                string name = mixed ? Loc.T("JOKERS") : r.heli > 0 ? Loc.T("HELI") : r.swap > 0 ? Loc.T("SWAP") : Loc.T("RECOLOR");
+                extra = jokers > 1 ? name + " ×" + jokers : name;
+            }
+        }
+        return string.IsNullOrEmpty(extra) ? gold : gold + "\n" + extra;
+    }
+
+    // Copy the plan onto a card's data fields (used by the runtime AND the editor baker).
+    public static void ApplyData(DailyCard c)
+    {
+        if (c == null) return;
+        var r = PlanFor(c.day);
+        c.coins = GoldFor(c.day);
+        c.recolorJokers = r.recolor; c.swapJokers = r.swap; c.heliJokers = r.heli;
+        c.chestKeyTier = r.keyTier;
+    }
+    // =====================================================================
 
     DailyCard[] cards;
 
@@ -31,7 +152,53 @@ public class DailyRewards : MonoBehaviour
                 if (card.button) card.button.onClick.AddListener(() => TryClaim(card));
             }
         }
+        ApplyPlanToCards();
+        Loc.OnLanguageChanged += ApplyPlanToCards; // labels are composed here, so re-compose on a language switch
         Reconcile();
+    }
+
+    void OnDisable() { Loc.OnLanguageChanged -= ApplyPlanToCards; }
+
+    // Push the plan onto every card: values, reward icon and caption.
+    void ApplyPlanToCards()
+    {
+        if (cards == null) return;
+        foreach (var c in cards)
+        {
+            if (c == null) continue;
+            ApplyData(c);
+
+            var iconT = c.transform.Find("Reward");
+            var icon = iconT ? iconT.GetComponent<Image>() : null;
+            if (icon)
+            {
+                string chest = ChestArtTier(c.day);
+                if (!string.IsNullOrEmpty(chest)) BuildChestArt(icon, chest);
+                else { var sp = IconFor(c.day); if (sp) icon.sprite = sp; }
+            }
+
+            var amountT = c.transform.Find("Amount");
+            var amount = amountT ? amountT.GetComponent<Text>() : null;
+            if (!amount) continue;
+
+            amount.text = LabelFor(c.day);
+
+            // The baked caption ("Recolor", "SWAP  +75") is a translation key, so Localizer
+            // tagged it — and that tag re-applies the OLD text on every open / language switch.
+            // Point the tag at our already-translated caption instead (Loc.T echoes unknown
+            // keys back), which keeps it correct whatever order the two run in.
+            var lt = amount.GetComponent<LocalizedText>();
+            if (lt) { lt.key = amount.text; }
+
+            // Two-line captions need a taller box; keep it clear of the centred icon.
+            bool twoLine = amount.text.Contains("\n");
+            var rt = amount.rectTransform;
+            var card = c.transform as RectTransform;
+            float h = card ? card.sizeDelta.y : 280f;
+            amount.fontSize = twoLine ? 24 : 28;
+            rt.sizeDelta = new Vector2(rt.sizeDelta.x, twoLine ? 72f : 46f);
+            rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, -h * 0.5f + (twoLine ? 44f : 34f));
+        }
     }
 
     int Claimed
@@ -72,9 +239,17 @@ public class DailyRewards : MonoBehaviour
         if (!canToday || c.day != claimed + 1) return; // not the claimable day / already claimed today
 
         if (c.coins > 0) SaveSystem.AddCoins(c.coins);
-        if (c.jokerKind >= 0 && c.jokerCount > 0) SaveSystem.AddFreeJoker(c.jokerKind, c.jokerCount);
+        if (c.recolorJokers > 0) SaveSystem.AddFreeJoker(0, c.recolorJokers);
+        if (c.swapJokers > 0)    SaveSystem.AddFreeJoker(1, c.swapJokers);
+        if (c.heliJokers > 0)    SaveSystem.AddFreeJoker(2, c.heliJokers);
+        if (!string.IsNullOrEmpty(c.chestKeyTier)) SaveSystem.AddKeys(c.chestKeyTier, 1);
         Claimed = claimed + 1;
         Last = Today;
+
+        // The menu's gold counter is hidden behind the panel — refresh it so it is already
+        // up to date when the player closes the daily screen.
+        var ctrl = GetComponentInParent<MenuController>();
+        if (ctrl) ctrl.Refresh();
 
         if (c.check)
         {

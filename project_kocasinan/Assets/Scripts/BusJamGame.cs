@@ -38,15 +38,25 @@ namespace BusJam
         public int Coins => SaveSystem.Coins;
         public enum BonusKind { None, TrafficDodge, CoinRush, TimeAttack, MysteryRush }
         BonusKind bonusKind = BonusKind.None;                          // this level's bonus type (set in StartLevel)
-        // Every 10th level = TrafficDodge (unchanged). 15,25,35... rotate the three new types. Remote flag off => None everywhere.
-        static BonusKind LevelBonusKind(int lvl)
+        const int FirstBonusLevel = 8;  // 1-5 are the AUTHORED tutorial levels and 6-7 teach minivans + diagonals: no bonus before this
+        // Cadence: HALF the levels are bonus rounds once the teaching levels are done — every EVEN level from 8 up,
+        // so each decade splits 5 normal / 5 bonus (11,13,15,17,19 normal vs 12,14,16,18,20 bonus). TrafficDodge is
+        // the headline round and takes TWO of every THREE bonus slots (8,10,14,16,20,22,26,28...); the remaining
+        // third rotates CoinRush -> TimeAttack -> MysteryRush (12,18,24,30...).
+        // NOT tied to the %10 grid any more: LevelGenerator (dense jam) and Themes.For (night look) follow
+        // IsTrafficDodgeLevel below, so the layout/theme always match the round the player actually gets.
+        static BonusKind BonusCadence(int lvl)
         {
-            if (!GameConfig.FeatureBonusLevels) return BonusKind.None;
-            if (lvl % 10 == 0) return BonusKind.TrafficDodge;
-            if (lvl >= 15 && lvl % 10 == 5)
-                switch (((lvl - 15) / 10) % 3) { case 0: return BonusKind.CoinRush; case 1: return BonusKind.TimeAttack; default: return BonusKind.MysteryRush; }
-            return BonusKind.None;
+            if (lvl < FirstBonusLevel || lvl % 2 != 0) return BonusKind.None;
+            int slot = lvl / 2;                                        // bonus-slot index; 2 of every 3 are traffic rounds
+            if (slot % 3 != 0) return BonusKind.TrafficDodge;
+            switch ((slot / 3) % 3) { case 0: return BonusKind.CoinRush; case 1: return BonusKind.TimeAttack; default: return BonusKind.MysteryRush; }
         }
+        // Remote flag off => None everywhere (every level plays as a normal round).
+        static BonusKind LevelBonusKind(int lvl) => GameConfig.FeatureBonusLevels ? BonusCadence(lvl) : BonusKind.None;
+        // Pure cadence, deliberately IGNORING the remote flag: the dense 4-colour jam + night theme stay on these
+        // levels either way, so switching the flag off only removes the traffic hazard (what %10 used to do).
+        public static bool IsTrafficDodgeLevel(int lvl) => BonusCadence(lvl) == BonusKind.TrafficDodge;
         public bool IsBonus => bonusKind == BonusKind.TrafficDodge;    // the night traffic-dodge round (ALL existing bonus logic stays gated on this)
         bool SpecialBonus => bonusKind == BonusKind.CoinRush || bonusKind == BonusKind.TimeAttack || bonusKind == BonusKind.MysteryRush;
 
@@ -246,6 +256,7 @@ namespace BusJam
 
             // AdMob cadence signals + banner — subscribe with += so any existing handlers are preserved.
             LevelCompleted += (earned, stars) => ad.AddInterstitialWin();   // WIN signal (Win); increment only — success panel is up
+            LevelCompleted += (earned, stars) => RateUs.NotifyLevelWon();   // banks a win towards the "did you like the game?" prompt
             LevelFailed    += reason => ad.AddInterstitialLoss();           // LOSS signal (Lose); increment only — continue panel is up
             LevelStarted   += _ => ad.ShowBanner();                         // banner shown during gameplay
 
@@ -353,8 +364,17 @@ namespace BusJam
             // Win-interstitial fires AFTER the claim, with time FROZEN so the next level can't build under the ad;
             // the ad close (or the immediate no-ad fallback) un-pauses and advances. (SaveSystem.Level already advanced in Win.)
             var ad = AdManager.Instance;
-            if (ad != null) { Time.timeScale = 0f; ad.ShowInterstitialIfEligible(() => { Time.timeScale = 1f; NextLevel(); }); }
-            else NextLevel();
+            if (ad != null) { Time.timeScale = 0f; ad.ShowInterstitialIfEligible(() => { Time.timeScale = 1f; AdvanceAfterWin(); }); }
+            else AdvanceAfterWin();
+        }
+
+        // Build the next level, then — on a win, the one moment the player is actually pleased — offer the
+        // "did you like the game?" prompt. RateUs decides for itself whether the player is due (wins banked, snooze
+        // expired, not opted out); when it is not due this is a no-op and play continues untouched.
+        void AdvanceAfterWin()
+        {
+            NextLevel();
+            RateUs.MaybeShow();
         }
 
         // (Economy rework) FLAT end-of-level reward — the ONLY gold source in gameplay. No level scaling, no star
@@ -1698,9 +1718,9 @@ namespace BusJam
             // Bonus jams: Coin Rush = an easy jam shaped like a picture (heart/circle/…); Mystery Rush = every vehicle GRAY. Others authored-or-procedural.
             if (bonusKind == BonusKind.CoinRush)
             {
-                // A DIFFERENT shape each Coin Rush level (15,45,75,105,135... every 30): circle -> triangle -> plus -> X -> heart, repeat.
+                // A DIFFERENT shape each Coin Rush level (18,36,54,72... every 18): circle -> triangle -> plus -> X -> heart, repeat.
                 LayoutStyle shape;
-                switch (Mathf.Max(0, (levelNumber - 15) / 30) % 5)
+                switch ((levelNumber / 18) % 5)
                 {
                     case 0:  shape = LayoutStyle.Circle;   break;
                     case 1:  shape = LayoutStyle.Triangle; break;
@@ -1759,7 +1779,8 @@ namespace BusJam
             LevelStarted?.Invoke(levelNumber);
             CheckEnd(); // detect an immediately-stuck board (no-op normally: free slots exist at start)
 
-            // (#4/#5) First-time coaches: level 1 teaches the core loop; level 10 introduces the bonus round.
+            // (#4/#5) First-time coaches: level 1 teaches the core loop; level 8 introduces the traffic-dodge round
+            // (the special bonuses explain themselves in the SpecialBonus branch below).
             // Clear any leftover coach state (pulsing pointer ring + step flags) from the previous level first,
             // so a prior level's joker/diagonal coach can't bleed into this one (e.g. Lv5's RECOLOR ring lingering
             // into Lv6 when jumping levels). Each branch below re-arms its own banner/pointer fresh.
@@ -1784,16 +1805,17 @@ namespace BusJam
                 else
                     StartCoroutine(ShowBanner("New: vehicles can now move DIAGONALLY!", 5f));   // diagonals unlock at level 6
             }
-            // SWAP (Lv10) / HELI (Lv15) unlock ON bonus levels, so their mandatory-use coaches run on the first
-            // NORMAL level at/after the unlock (11 / 16). SaveSystem.Level must ALSO be past the unlock: with the
+            // SWAP unlocks on Lv10 (a bonus round), so its mandatory-use coach runs on the first NORMAL level at/after
+            // the unlock (11); HELI's Lv15 is odd = normal, so that one runs on 15 itself. SaveSystem.Level must ALSO
+            // be past the unlock: with the
             // debug LEVELS jump the joker button could still be locked, and a forced coach on a locked button
             // would soft-lock the board (taps are swallowed during step 3).
             else if (!IsBonus && !SpecialBonus && levelNumber >= J2UnlockLevel && SaveSystem.Level >= J2UnlockLevel && !SaveSystem.JokerTutDone(1))
                 StartJokerTutorial(1);
             else if (!IsBonus && !SpecialBonus && levelNumber >= J3UnlockLevel && SaveSystem.Level >= J3UnlockLevel && !SaveSystem.JokerTutDone(2))
                 StartJokerTutorial(2);
-            else if (levelNumber == 10)
-            {   // bonus: a small intro explaining the round; it vanishes on the first tap (TryTapBus), which also starts the clock
+            else if (IsBonus && levelNumber == FirstBonusLevel)
+            {   // FIRST traffic round of the run (Lv8): a small intro explaining it; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
                 coach.ShowText("Bonus round! A 4-colour jam — clear every vehicle before time runs out, and don't hit the cars crossing the road!");
             }

@@ -148,18 +148,15 @@ public static class MenuUIBaker
         Label(panel.transform, "Subtitle", "COME BACK EVERY DAY TO GET\nGREAT REWARDS", Num, new Vector2(0, 500), new Vector2(760, 90), 30, White);
 
         // Days 1-7 (1-3 claimed). Base card = atlas1_58, coin = atlas1_11. Grid centered on screen.
+        // Rewards come from DailyRewards.Plan — the SAME table the runtime re-applies on every
+        // open, so the bake and the live panel can never drift. Edit the plan there, not here.
         var cardSize = new Vector2(230, 280);
-        // Economy-protecting 7-day plan: small daily gold + only 2 jokers (days 3 & 7).
-        // Joker days grant the gold-equivalent (Recolor=50, Swap=100 +75 gold) because
-        // jokers are gold-spent abilities, not stockpiled inventory items.
-        DayCard(panel.transform, -255, 250, cardSize, 1, UIKit.ShopCoinA(),    "+20",  20);
-        DayCard(panel.transform, 0,    250, cardSize, 2, UIKit.ShopCoinA(),    "+25",  25);
-        DayCard(panel.transform, 255,  250, cardSize, 3, UIKit.JokerRecolor(), "Recolor", 0, 0, 1);
-        DayCard(panel.transform, -255, -50, cardSize, 4, UIKit.ShopCoinA(),    "+30",  30);
-        DayCard(panel.transform, 0,    -50, cardSize, 5, UIKit.ShopCoinA(),    "+40",  40);
-        DayCard(panel.transform, 255,  -50, cardSize, 6, UIKit.ShopCoinA(),    "+50",  50);
-        // Day 7: wide JACKPOT banner — Swap joker + 75 gold.
-        DayCard(panel.transform, 0, -350, new Vector2(770, 250), 7, UIKit.JokerSwap(), "SWAP  +75", 75, 1, 1);
+        float[] xs = { -255, 0, 255, -255, 0, 255 };
+        float[] ys = { 250, 250, 250, -50, -50, -50 };
+        for (int day = 1; day <= 6; day++)
+            DayCard(panel.transform, xs[day - 1], ys[day - 1], cardSize, day);
+        // Day 7: wide JACKPOT banner.
+        DayCard(panel.transform, 0, -350, new Vector2(770, 250), 7);
 
         // Claim manager (1 reward/day, in order, with checkmark pop animation).
         if (panel.GetComponent<DailyRewards>() == null) panel.AddComponent<DailyRewards>();
@@ -172,9 +169,13 @@ public static class MenuUIBaker
     }
 
     // One day card: atlas1_58 base + reward icon (atlas1_11 coin / joker / atlas1_59),
-    // a "Day N" label, an amount, and a claimed check (atlas1_5) when already taken.
-    static void DayCard(Transform parent, float x, float y, Vector2 size, int day, Sprite icon, string amount, int coins, int jokerKind = -1, int jokerCount = 0)
+    // a "Day N" label, the reward caption, and a claimed check (atlas1_5) when already taken.
+    // The icon / caption / payout all come from DailyRewards.Plan.
+    static void DayCard(Transform parent, float x, float y, Vector2 size, int day)
     {
+        Sprite icon = DailyRewards.IconFor(day);
+        string amount = DailyRewards.LabelFor(day);
+        bool twoLine = amount.Contains("\n");
         var card = Img(parent, "Day" + day, UIKit.DailyIconA(), new Color(0.85f, 0.90f, 0.98f));
         card.raycastTarget = true; // the whole card is the claim button
         Place(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), size);
@@ -185,8 +186,12 @@ public static class MenuUIBaker
         dl.rectTransform.anchoredPosition = new Vector2(0, -30);
         var ico = Img(card.transform, "Reward", icon, Gold); ico.raycastTarget = false;
         Center(ico.rectTransform, new Vector2(110, 110));
+        // Chest-key days draw the real code-built chest instead of an atlas icon.
+        DailyRewards.BuildChestArt(ico, DailyRewards.ChestArtTier(day));
         if (!string.IsNullOrEmpty(amount))
-            Label(card.transform, "Amount", amount, Num, new Vector2(0, -size.y * 0.5f + 34), new Vector2(size.x - 16, 46), 28, Dark);
+            Label(card.transform, "Amount", amount, Num,
+                  new Vector2(0, -size.y * 0.5f + (twoLine ? 44 : 34)),
+                  new Vector2(size.x - 16, twoLine ? 72 : 46), twoLine ? 24 : 28, Dark);
 
         // Checkmark overlay (hidden until claimed) + claim button + data tag.
         var chk = Img(card.transform, "Check", UIKit.CheckMark(), new Color(1f, 0.7f, 0.1f));
@@ -196,8 +201,8 @@ public static class MenuUIBaker
         var btn = card.gameObject.AddComponent<Button>();
         btn.targetGraphic = card;
         var dc = card.gameObject.AddComponent<DailyCard>();
-        dc.day = day; dc.coins = coins; dc.check = chk.gameObject; dc.button = btn;
-        dc.jokerKind = jokerKind; dc.jokerCount = jokerCount;
+        dc.day = day; dc.check = chk.gameObject; dc.button = btn;
+        DailyRewards.ApplyData(dc); // gold + jokers + chest key from the plan
     }
 
     static Transform FindChild(Transform root, string name)

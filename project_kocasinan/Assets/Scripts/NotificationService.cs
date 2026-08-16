@@ -180,7 +180,7 @@ namespace BusJam
 
         void OnApplicationQuit() => ScheduleAll();
 
-        // TEST ONLY: fire the whole 13-message ladder within ~2 minutes (SECONDS, not days) so you can background the
+        // TEST ONLY: fire the whole 14-message ladder within ~2 minutes (SECONDS, not days) so you can background the
         // app on a device and watch every one arrive — verifies wiring, icon, permission + the per-language text.
         // >>> SET TO false BEFORE RELEASE <<<  (false = the real day-based schedule below.)
         static readonly bool TestSeconds = false;
@@ -192,9 +192,14 @@ namespace BusJam
 
             if (TestSeconds)
             {
-                // Background the app and wait: free chest at +5s, then the 12 rotation messages every 8s (~1:41 total).
+                // Background the app and wait: free chest at +5s, the rate nudge at +9s, then the 12 rotation
+                // messages every 8s (~1:41 total). Reopening the app after the rate nudge lands should pop the
+                // "did you like the game?" prompt in the menu — MarkNotificationScheduled is what makes that follow-up
+                // fire, exactly as it does on the real schedule.
                 DateTime t = DateTime.Now;
                 Schedule(4, t.AddSeconds(5));
+                Schedule(13, t.AddSeconds(9));
+                RateUs.MarkNotificationScheduled(t.AddSeconds(9));
                 for (int i = 0; i < Cycle.Length; i++) Schedule(Cycle[i], t.AddSeconds(13 + i * 8));
                 return;
             }
@@ -211,6 +216,20 @@ namespace BusJam
             // exact alarms are not an option — SCHEDULE_EXACT_ALARM is restricted to genuine alarm/timer apps.)
             slots.RemoveAll(t => Math.Abs((t - chestAt).TotalMinutes) < MinGapMin);
             Schedule(4, chestAt);
+
+            // The "did you like the game?" rating nudge (message 13), only while the prompt is still pending and the
+            // player has actually finished some levels. Same MinGapMin rule as the chest so it never doubles up with a
+            // come-back reminder. RateUs records its fire time, so the next launch after it lands opens the popup.
+            if (RateUs.WantsNotification)
+            {
+                DateTime rateAt = RateUs.NotificationSlot(now, DailyHour);
+                if (rateAt > now && Math.Abs((rateAt - chestAt).TotalMinutes) >= MinGapMin)
+                {
+                    slots.RemoveAll(t => Math.Abs((t - rateAt).TotalMinutes) < MinGapMin);
+                    Schedule(13, rateAt);
+                    RateUs.MarkNotificationScheduled(rateAt);
+                }
+            }
 
             // The rotation repeats across the whole horizon, so a long-absent player keeps getting reminded rather than
             // falling off the end of a fixed 12-entry ladder.

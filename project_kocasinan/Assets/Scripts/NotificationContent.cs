@@ -5,7 +5,8 @@ namespace BusJam
     public struct NotifText { public string title; public string body; }
 
     /// <summary>
-    /// The 13 local re-engagement notifications, localized to the 9 game languages (same index order as Loc:
+    /// The 14 local re-engagement notifications (0–12 come-back reminders, 13 the "did you like the game?" rating
+    /// nudge), localized to the 9 game languages (same index order as Loc:
     /// 0 tr · 1 en · 2 de · 3 it · 4 es · 5 zh · 6 fr · 7 pt · 8 id). <see cref="NotificationService"/> resolves the
     /// text via <see cref="Get"/> at SCHEDULE time, so each reminder is written in the player's CURRENT language.
     /// English (index 1) is the fallback for any empty slot.
@@ -39,6 +40,7 @@ namespace BusJam
             new[]{ "Pes etme! 💪","Don't give up! 💪","Gib nicht auf! 💪","Non mollare! 💪","¡No te rindas! 💪","别放弃！💪","N'abandonne pas ! 💪","Não desista! 💪","Jangan menyerah! 💪" }, // 10
             new[]{ "Bonus bölüm zamanı! ⏱️","Bonus level time! ⏱️","Bonuslevel-Zeit! ⏱️","È ora del bonus! ⏱️","¡Hora del nivel bonus! ⏱️","奖励关时间到！⏱️","C'est l'heure du bonus ! ⏱️","Hora do nível bônus! ⏱️","Waktunya level bonus! ⏱️" }, // 11
             new[]{ "Bir molaya ne dersin? 😎","Time for a break? 😎","Zeit für eine Pause? 😎","Una pausa? 😎","¿Un descanso? 😎","休息一下？😎","Une petite pause ? 😎","Que tal uma pausa? 😎","Mau rehat sejenak? 😎" }, // 12
+            new[]{ "Oyunu beğendin mi? ⭐","Did you like the game? ⭐","Gefällt dir das Spiel? ⭐","Ti piace il gioco? ⭐","¿Te gusta el juego? ⭐","喜欢这款游戏吗？⭐","Le jeu te plaît ? ⭐","Você gostou do jogo? ⭐","Suka game ini? ⭐" }, // 13 (rate us — see RateUs)
         };
 
         static readonly string[][] Bodies =
@@ -56,6 +58,7 @@ namespace BusJam
             new[]{ "O bölümü bu sefer geçeceksin, hadi dene!","You'll beat that level this time — give it a go!","Diesmal schaffst du das Level — versuch's!","Stavolta superi quel livello, riprova!","Esta vez pasarás ese nivel, ¡inténtalo!","这次你一定能过关，再试一次！","Cette fois tu vas réussir ce niveau, essaie !","Desta vez você passa esse nível, tente!","Kali ini kamu pasti lolos, coba lagi!" }, // 10
             new[]{ "Süreli bonus ve ekstra ödüller seni bekliyor!","A timed bonus and extra rewards await!","Ein Zeit-Bonus und Extra-Belohnungen warten!","Un bonus a tempo ed extra premi ti aspettano!","¡Un bonus por tiempo y premios extra te esperan!","限时奖励和额外大奖在等你！","Un bonus chronométré et des récompenses t'attendent !","Um bônus por tempo e prêmios extras esperam!","Bonus berbatas waktu dan hadiah ekstra menunggu!" }, // 11
             new[]{ "5 dakikan mı var? Tam BusJam zamanı!","Got 5 minutes? Perfect for some BusJam!","5 Minuten Zeit? Perfekt für BusJam!","Hai 5 minuti? Perfetti per BusJam!","¿Tienes 5 minutos? ¡Ideal para BusJam!","有5分钟吗？正好玩把BusJam！","5 minutes de libre ? Parfait pour BusJam !","Tem 5 minutos? Perfeito para BusJam!","Punya 5 menit? Pas buat main BusJam!" }, // 12
+            new[]{ "Bize puan ver ve bir yorum bırak — 10 saniye sürüyor!","Rate us and leave a comment — it takes 10 seconds!","Bewerte uns und schreib einen Kommentar — 10 Sekunden!","Valutaci e lascia un commento: bastano 10 secondi!","¡Valóranos y deja un comentario, solo toma 10 segundos!","给我们打个分并留下评论吧，只要10秒！","Note-nous et laisse un commentaire — 10 secondes !","Avalie e deixe um comentário — leva 10 segundos!","Beri rating dan tulis komentar — cuma 10 detik!" }, // 13 (rate us)
         };
     }
 }

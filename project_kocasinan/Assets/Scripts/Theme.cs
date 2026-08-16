@@ -123,8 +123,8 @@ namespace BusJam
                 prop = PropKind.RoundTree, prop2 = PropKind.Bush, hasHouse = false, hasFacade = true,
                 ambient = new Color(0.62f,0.56f,0.48f), lightColor = new Color(1f,0.90f,0.72f), lightIntensity = 1.3f
             },
-            // BONUS theme (every 10th level) — festive purple + gold. MUST stay LAST in All (Themes.For
-            // returns it only for level%10==0 and rotates the OTHERS over All.Length-1).
+            // BONUS theme (traffic-dodge rounds) — festive purple + gold. MUST stay LAST in All (Themes.For
+            // returns it only for BusJamGame.IsTrafficDodgeLevel and rotates the OTHERS over All.Length-1).
             new Theme {
                 // NIGHT bonus round: dark sky + dim cool key (copied from Night) so it reads as night; KEEP the
                 // gold accent + festive gold/pink props so gameplay still pops against the dark.
@@ -141,7 +141,7 @@ namespace BusJam
         public static Theme For(int level)
         {
             int L = Mathf.Max(1, level);
-            if (L % 10 == 0) return All[All.Length - 1];                 // bonus theme (last entry)
+            if (BusJamGame.IsTrafficDodgeLevel(L)) return All[All.Length - 1];   // bonus theme (last entry)
             int idx = ((L - 1) / LevelsPerTheme) % (All.Length - 1);     // rotate over the NON-bonus themes only
             return All[idx];
         }

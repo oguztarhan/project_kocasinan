@@ -55,7 +55,7 @@ namespace BusJam
         {
             var rng = new System.Random(level * 9176 + 4242);
 
-            if (level % 10 == 0) return GenerateBonus(level, rng); // every 10th = 4-colour core-boxed-by-ring bonus
+            if (BusJamGame.IsTrafficDodgeLevel(level)) return GenerateBonus(level, rng); // traffic-dodge rounds = 4-colour core-boxed-by-ring bonus jam
 
             if (shapeFill && forceStyle.HasValue)
             {
@@ -101,7 +101,7 @@ namespace BusJam
             return VehicleMix.AllThree;                        // L7+: cars + minivans + buses
         }
 
-        // ---- BONUS levels (every 10th): a DENSELY-PACKED jam of mixed cars/minivans/buses in TWO colours:
+        // ---- BONUS levels (the traffic-dodge rounds): a DENSELY-PACKED jam of mixed cars/minivans/buses in TWO colours:
         // ONE core-colour vehicle trapped in the dead CENTER (extracted LAST), every other vehicle the fill
         // colour. Reverse-placed center-out with the SAME BodyFree+SlideClear, every vehicle exiting outward
         // -> solvable (clear from the outside in to free the middle one).
@@ -116,7 +116,9 @@ namespace BusJam
             //    never fill the "wrong" one — there is no wrong one — and can never strand a person.
             //  - every CORE-colour person is stable-moved to the END of the queue (below), matching the core being
             //    extracted LAST (it is boxed in the dead center): its people arrive exactly when it can park.
-            // This is the previously stress-verified configuration (0 unsolvable across all bonus levels 10..1500).
+            // This is the previously stress-verified configuration (0 unsolvable across levels 10,20,...,1500 — the
+            // old every-10th bonus set). Solvability is by CONSTRUCTION (centre-out reverse placement, all exits
+            // outward), which does not depend on the level number, so the new bonus levels (8,14,16,22,...) hold too.
             // The PAIR varies per bonus (red+yellow, blue+red, green+blue, ...): drawn from a SEPARATE rng seeded by
             // the level so the main rng stream — and therefore the verified board geometry — is untouched.
             var colorRng = new System.Random(level * 733 + 91);

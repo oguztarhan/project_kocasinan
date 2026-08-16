@@ -159,5 +159,75 @@ namespace BusJam
         public static Sprite JokerHeli()    => B(14);  // HAND placeholder (no heli icon in kit)
         public static Sprite JokerShield()  => B(13);
         public static Sprite JokerDestroy() => B(7);
+
+        // ---- Code-built treasure chest -------------------------------------------------
+        // Shared by the garage chest cards, the chest-reveal popup and the daily-reward
+        // cards, so a "Bronze chest" looks the same everywhere. The BODY is the same wood
+        // on every tier; only the ropes + lock carry the tier colour.
+        public static Color ChestTint(string tier)
+        {
+            switch (tier)
+            {
+                case "Silver":    return new Color(0.82f, 0.84f, 0.88f); // bright silver
+                case "Gold":      return new Color(0.98f, 0.80f, 0.28f); // gold
+                case "Legendary": return new Color(1.00f, 0.45f, 0.08f); // flaming orange
+                default:          return new Color(0.74f, 0.45f, 0.17f); // Bronze — copper-brown
+            }
+        }
+
+        // A CUTE chest — chunky ROUNDED body + dome lid, tier-coloured straps, a big round
+        // lock with a keyhole, two little feet and a shine. Centred in `parent`, scaled by
+        // width `w`. Uses rounded kit sprites so nothing is a bare rectangle.
+        public static void BuildChest(Transform parent, Color tint, float w)
+        {
+            const float V = 0.5f, V2 = 0.5f; // anchor shorthand (centre)
+            Color bodyCol = new Color(0.38f, 0.31f, 0.24f); // DARK wood on every tier so the coloured ropes read clearly
+            Color lidCol  = new Color(0.30f, 0.24f, 0.19f); // darker
+            Color footCol = new Color(0.23f, 0.18f, 0.14f); // darkest
+            Color lockCol = Color.Lerp(tint, Color.white, 0.28f); // the tier colour, lightened for a metallic lock
+
+            // two little rounded feet at the bottom
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var foot = ChestImg(parent, ShopIconBgA(), Color.white); foot.color = footCol;
+                ChestPlace(foot.rectTransform, new Vector2(s * w * 0.27f, -w * 0.42f), new Vector2(w * 0.24f, w * 0.18f));
+            }
+            // dome lid (rounded), poking up above the body
+            var lid = ChestImg(parent, ShopIconBgA(), Color.white); lid.color = lidCol;
+            ChestPlace(lid.rectTransform, new Vector2(0, w * 0.20f), new Vector2(w * 1.00f, w * 0.40f));
+            // rounded body — drawn after the lid so its front covers the lid's lower edge (reads as lid-on-box)
+            var body = ChestImg(parent, ShopIconBgA(), Color.white); body.color = bodyCol;
+            ChestPlace(body.rectTransform, new Vector2(0, -w * 0.12f), new Vector2(w * 0.92f, w * 0.56f));
+            // the ROPES — horizontal rim at the lid/body seam + a vertical strap down the front — carry the TIER colour
+            var rim = ChestImg(parent, null, tint);
+            ChestPlace(rim.rectTransform, new Vector2(0, w * 0.04f), new Vector2(w * 1.00f, w * 0.13f));
+            var strap = ChestImg(parent, null, tint);
+            ChestPlace(strap.rectTransform, new Vector2(0, -w * 0.14f), new Vector2(w * 0.16f, w * 0.44f));
+            // big round lock (tier colour) + dark keyhole
+            var lok = ChestImg(parent, CircleYellow(), Color.white); lok.color = lockCol;
+            ChestPlace(lok.rectTransform, new Vector2(0, w * 0.02f), new Vector2(w * 0.26f, w * 0.26f));
+            var hole = ChestImg(parent, null, new Color(0.30f, 0.20f, 0.10f));
+            ChestPlace(hole.rectTransform, new Vector2(0, w * 0.02f), new Vector2(w * 0.07f, w * 0.11f));
+            // soft shine on the lid
+            var shine = ChestImg(parent, null, new Color(1f, 1f, 1f, 0.35f));
+            ChestPlace(shine.rectTransform, new Vector2(-w * 0.24f, w * 0.28f), new Vector2(w * 0.22f, w * 0.09f));
+        }
+
+        static UnityEngine.UI.Image ChestImg(Transform parent, Sprite sprite, Color fallback)
+        {
+            var go = new GameObject("Img", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<UnityEngine.UI.Image>();
+            if (sprite != null) { img.sprite = sprite; img.color = Color.white; }
+            else img.color = fallback;
+            img.raycastTarget = false;
+            return img;
+        }
+
+        static void ChestPlace(RectTransform rt, Vector2 pos, Vector2 size)
+        {
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos; rt.sizeDelta = size;
+        }
     }
 }

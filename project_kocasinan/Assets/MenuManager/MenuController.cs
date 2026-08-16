@@ -76,6 +76,9 @@ public class MenuController : MonoBehaviour
         // disables the static "Background" object itself. We deliberately DON'T override it here anymore — that
         // was a second background fighting the animated one. One source of truth now.
         Localizer.LocalizeScene(); // translate all baked menu text to the saved language
+        // If the "did you like the game?" reminder has already fired, the player opened the app having been asked —
+        // so follow up with the actual prompt here in the menu. No-op when nothing is pending. (see RateUs)
+        RateUs.MaybeShowFromNotification();
     }
 
     void Update() { Refresh(); }
