@@ -37,7 +37,7 @@ namespace BusJam
         [Tooltip("Vehicle size multiplier. 1 = default. Above ~1.1 vehicles may visually overlap neighbours.")]
         [Range(0.6f, 1.4f)] public float vehicleSize = 1f;
 
-        [Header("Bonus night traffic (every 10th level)")]
+        [Header("Bonus night traffic (traffic-dodge rounds)")]
         [Tooltip("Cross-traffic car speed along the road (world units / sec).")]
         [Range(1f, 8f)] public float trafficSpeed = 3f;
 

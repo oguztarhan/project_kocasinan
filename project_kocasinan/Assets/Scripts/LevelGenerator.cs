@@ -51,11 +51,12 @@ namespace BusJam
 
         /// <summary>Procedural levels (used for 6+ and as the fallback). Gets harder
         /// as the level rises: more colors, more buses, more specials.</summary>
-        public static LevelData Generate(int level, LayoutStyle? forceStyle = null, float forceMysteryP = -1f, bool shapeFill = false)
+        public static LevelData Generate(int level, LayoutStyle? forceStyle = null, float forceMysteryP = -1f, bool shapeFill = false, VehicleMix? forceMix = null)
         {
+            VehicleMix mix = forceMix ?? MixForLevel(level); // forceMix pins the vehicle types when the level's own ramp would run ahead of the tutorials
             var rng = new System.Random(level * 9176 + 4242);
 
-            if (BusJamGame.IsTrafficDodgeLevel(level)) return GenerateBonus(level, rng); // traffic-dodge rounds = 4-colour core-boxed-by-ring bonus jam
+            if (BusJamGame.IsTrafficDodgeLevel(level)) return GenerateBonus(level, rng); // traffic-dodge rounds = 2-colour core-boxed-by-ring bonus jam
 
             if (shapeFill && forceStyle.HasValue)
             {
@@ -63,7 +64,7 @@ namespace BusJam
                 // crisply. Car count == the shape's cell count, and the shape style fills those cells first.
                 int carCount = Mathf.Clamp(ShapeCount(6, 9, forceStyle.Value), 12, 26);
                 return Build(rng, level, 2, carCount, 6, 9, BaseSlots, ExtraSlots,
-                             0.10f, 0f, MixForLevel(level), 0f, 4, 4, forceStyle, forceMysteryP, forceAllCars: true);
+                             0.10f, 0f, mix, 0f, 4, 4, forceStyle, forceMysteryP, forceAllCars: true);
             }
 
             // MANY vehicles every level (easy-but-many at L1); difficulty rises via colors/specials/
@@ -89,7 +90,7 @@ namespace BusJam
             int minRun = level < 12 ? 4 : level < 35 ? 3 : level < 70 ? 2 : 1;
 
             return Build(rng, level, colorCount, busCount, 6, 0, BaseSlots, ExtraSlots,
-                         goldenP, mysteryP, MixForLevel(level), specialP, 4, minRun, forceStyle, forceMysteryP);
+                         goldenP, mysteryP, mix, specialP, 4, minRun, forceStyle, forceMysteryP);
         }
 
         // Gentle ramp across the THREE vehicle types: cap-4 cars only at first (easy + many + few people),
@@ -107,7 +108,15 @@ namespace BusJam
         // -> solvable (clear from the outside in to free the middle one).
         static LevelData GenerateBonus(int level, System.Random rng)
         {
-            const int busCount = 32; // MANY mixed vehicles, densely packed (T3 big-jam: fits the W6/H9 board; stress-tested 0/0)
+            // MANY mixed vehicles, densely packed (T3 big-jam: fits the W6/H9 board; stress-tested 0/0). The showcase
+            // round runs a SMALLER jam of only the vehicle types the player has already met: it lands on their second
+            // level, with no joker unlocked until L5. Solvability is by construction (centre-out reverse placement
+            // below) and BuildBonusGrid sizes the board from the actual cell total, so any count >= 2 holds — only
+            // the density changes. The showcase branch is kept separate so the rng stream of the L8+ rounds, and
+            // therefore their verified geometry, is untouched.
+            bool showcase = BusJamGame.IsShowcaseLevel(level);
+            var showcaseMix = MixForLevel(level);
+            int busCount = showcase ? 18 : 32;
             // TWO colours (the classic bonus look): one fill colour everywhere, one different core colour in the
             // middle. Servability with only 2 colours cannot use BuildQueue's distinct-open-colours trick
             // (window=4 > 2 colours), so it is guaranteed structurally instead:
@@ -131,9 +140,14 @@ namespace BusJam
             for (int i = 0; i < busCount; i++)
             {
                 bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after everything else clears)
-                int rt = rng.Next(10);                                                    // spread across all 3 types
-                var type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
+                VehicleType type;
+                if (showcase) type = PickType(showcaseMix, rng);                          // cars only at L2 — the minivan/bus reveals belong to L4 and L7
+                else
+                {
+                    int rt = rng.Next(10);                                                // spread across all 3 types
+                    type = isCore ? VehicleType.Bus                                       // trapped centre piece = a bus
                                   : (rt < 4 ? VehicleType.Car : (rt < 7 ? VehicleType.Minivan : VehicleType.Bus)); // ~40% car, 30% minivan, 30% bus
+                }
                 buses.Add(new BusDef { color = isCore ? CoreColor : FillColor, type = type,
                                        capacity = Vehicles.DefaultCapacity(type), advanceN = 0 });
             }

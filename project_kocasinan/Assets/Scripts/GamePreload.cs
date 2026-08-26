@@ -60,8 +60,14 @@ namespace BusJam
             AddVehicle(VehicleType.Bus, 6);
             var pcat = Resources.Load<PeopleCatalog>("PeopleCatalog");
             if (pcat != null && pcat.prefabs != null)
+            {
+                // With a big cast (20 BusJam people) one warm clone each is plenty — a board only shows ~10
+                // queue + ~21 crowd figures drawn at random from the whole set, so warming 2 of each just
+                // doubles boot instantiates for clones that mostly never get used.
+                int per = (tight || pcat.prefabs.Length > 10) ? 1 : 2;
                 foreach (var pp in pcat.prefabs)
-                    if (pp != null) jobs.Add((pp, tight ? 1 : 2));         // queue + crowd characters
+                    if (pp != null) jobs.Add((pp, per));                    // queue + crowd characters
+            }
 
             int target = 0, made = 0;
             foreach (var j in jobs) target += j.n;

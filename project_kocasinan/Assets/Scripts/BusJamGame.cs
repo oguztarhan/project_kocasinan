@@ -38,8 +38,28 @@ namespace BusJam
         public int Coins => SaveSystem.Coins;
         public enum BonusKind { None, TrafficDodge, CoinRush, TimeAttack, MysteryRush }
         BonusKind bonusKind = BonusKind.None;                          // this level's bonus type (set in StartLevel)
-        const int FirstBonusLevel = 8;  // 1-5 are the AUTHORED tutorial levels and 6-7 teach minivans + diagonals: no bonus before this
-        // Cadence: HALF the levels are bonus rounds once the teaching levels are done — every EVEN level from 8 up,
+        // SHOWCASE PROLOGUE (L1-7): a hand-ordered opening that puts all four bonus types in front of the player
+        // within the first few minutes instead of hiding the first one at L8. The three teaching levels keep their
+        // slots and MUST stay None: L1 runs the core-loop tutorial, L5 the bus-capacity + RECOLOR joker coach
+        // (a forced-joker step cannot run under a countdown), L6 the minivan + diagonals banners.
+        static readonly BonusKind[] Showcase =
+        {
+            BonusKind.None,          // L1 authored — core-loop tutorial
+            BonusKind.TrafficDodge,  // L2 the headline round
+            BonusKind.CoinRush,      // L3
+            BonusKind.MysteryRush,   // L4
+            BonusKind.None,          // L5 authored — bus capacity + RECOLOR joker tutorial
+            BonusKind.None,          // L6 first procedural — minivans + diagonals
+            BonusKind.TimeAttack,    // L7 completes the set
+        };
+        // Level of the FIRST traffic round — where the one-time intro coach fires.
+        static readonly int FirstTrafficDodgeLevel = System.Array.IndexOf(Showcase, BonusKind.TrafficDodge) + 1;
+        /// <summary>Inside the hand-ordered opening. These rounds run lighter (fewer vehicles, a longer clock,
+        /// no vehicle type the player has not met yet) because no joker is unlocked before L5.</summary>
+        public static bool IsShowcaseLevel(int lvl) => lvl >= 1 && lvl <= Showcase.Length;
+
+        const int FirstBonusLevel = 8;  // where the repeating cadence takes over from the showcase prologue above
+        // Cadence from FirstBonusLevel up: HALF the levels are bonus rounds — every EVEN level from 8 up,
         // so each decade splits 5 normal / 5 bonus (11,13,15,17,19 normal vs 12,14,16,18,20 bonus). TrafficDodge is
         // the headline round and takes TWO of every THREE bonus slots (8,10,14,16,20,22,26,28...); the remaining
         // third rotates CoinRush -> TimeAttack -> MysteryRush (12,18,24,30...).
@@ -47,6 +67,7 @@ namespace BusJam
         // IsTrafficDodgeLevel below, so the layout/theme always match the round the player actually gets.
         static BonusKind BonusCadence(int lvl)
         {
+            if (IsShowcaseLevel(lvl)) return Showcase[lvl - 1];
             if (lvl < FirstBonusLevel || lvl % 2 != 0) return BonusKind.None;
             int slot = lvl / 2;                                        // bonus-slot index; 2 of every 3 are traffic rounds
             if (slot % 3 != 0) return BonusKind.TrafficDodge;
@@ -54,7 +75,7 @@ namespace BusJam
         }
         // Remote flag off => None everywhere (every level plays as a normal round).
         static BonusKind LevelBonusKind(int lvl) => GameConfig.FeatureBonusLevels ? BonusCadence(lvl) : BonusKind.None;
-        // Pure cadence, deliberately IGNORING the remote flag: the dense 4-colour jam + night theme stay on these
+        // Pure cadence, deliberately IGNORING the remote flag: the dense 2-colour jam + night theme stay on these
         // levels either way, so switching the flag off only removes the traffic hazard (what %10 used to do).
         public static bool IsTrafficDodgeLevel(int lvl) => BonusCadence(lvl) == BonusKind.TrafficDodge;
         public bool IsBonus => bonusKind == BonusKind.TrafficDodge;    // the night traffic-dodge round (ALL existing bonus logic stays gated on this)
@@ -134,8 +155,10 @@ namespace BusJam
         TutorialCoach coach; bool tutorialActive; int tutorialStep; string[] tutPost; bool tutorialTapSkip;
         int tutorialJokerKind = -1; // which joker (0/1/2) the step-3 coach is forcing; -1 = none
 
-        // ---- Bonus night-mode (every 10th level): countdown + cross-traffic + night headlights ----
+        // ---- Bonus night-mode (traffic-dodge rounds): countdown + cross-traffic + night headlights ----
         const float BonusTime = 60f;        // bonus-only countdown length (1 minute)
+        const float ShowcaseBonusTime = 90f; // the L2 showcase round: no joker is unlocked yet, so give it more room
+        static float BonusTimeFor(int lvl) => IsShowcaseLevel(lvl) ? ShowcaseBonusTime : BonusTime;
         const int BonusReward = 50;         // coins granted for finishing the bonus IN TIME
         const int CoinRushGold = 120;       // Coin Rush bonus: gold granted on clear (on top of the chest)
         const int PerfectBonus = 0;         // optional EXTRA for a no-crash run (opt-in: 0 = off by default)
@@ -1069,6 +1092,7 @@ namespace BusJam
                     if (bus != null)
                     {
                         visible.RemoveAt(0);
+                        u.Express(CharacterLife.Mood.Laugh, 1.4f); // they got their ride
                         int seat = bus.ReserveSeat();
                         OnBoarded(u.golden, BusDoorWorld(bus)); // combo/coins in dispatch order, once each
                         StartCoroutine(BoardWalk(u, bus, seat));
@@ -1225,6 +1249,10 @@ namespace BusJam
             // There is still an OPEN (unlocked & empty) parking slot, so the player can place
             // another bus that might match -> parking is NOT full yet, so this is not a deadlock.
             if (FirstFreeSlot() != null) return;
+
+            // Nothing matches and parking is full: the front passenger is about to be the reason the run
+            // ends, so let them scowl about it just before the lose/fail panel.
+            if (visible.Count > 0 && visible[0] != null) visible[0].Express(CharacterLife.Mood.Mad, 2.5f);
 
             // On a BONUS level a deadlock (stuck: parking full, front passenger matches nothing) = FAILED.
             if (IsBonus) { FinishBonus(false); return; }
@@ -1730,7 +1758,15 @@ namespace BusJam
                 }
                 level = LevelGenerator.Generate(Mathf.Clamp(levelNumber / 4, 3, 5), shape, shapeFill: true);
             }
-            else if (bonusKind == BonusKind.MysteryRush) level = LevelGenerator.Generate(levelNumber, forceMysteryP: 1f);
+            // Mystery Rush inside the prologue stays CARS ONLY: MixForLevel would hand it minivans from L4, and the
+            // authored assets (all cars through L5) are what keeps the minivan reveal for L6's banner.
+            else if (bonusKind == BonusKind.MysteryRush)
+                level = LevelGenerator.Generate(levelNumber, forceMysteryP: 1f,
+                                                forceMix: IsShowcaseLevel(levelNumber) ? VehicleMix.CarsOnly : (VehicleMix?)null);
+            // Traffic-dodge always builds its signature 2-colour core-boxed-by-ring jam. Explicit, because the
+            // showcase round sits on a level that HAS an authored asset and Generate(def) would quietly win,
+            // handing back a plain scatter board with a countdown bolted on.
+            else if (IsBonus) level = LevelGenerator.Generate(levelNumber);
             else level = def != null ? LevelGenerator.Generate(def) : LevelGenerator.Generate(levelNumber);
             totalSlots = level.baseSlots + level.extraSlots;
             boardRoot = new GameObject("Board").transform;
@@ -1754,7 +1790,7 @@ namespace BusJam
                 // Night traffic-dodge bonus: start the 60s countdown + spawn the pooled cross-traffic (T2).
                 crashedThisBonus = false;
                 bonusCombo = 0;
-                bonusTimeLeft = BonusTime;
+                bonusTimeLeft = BonusTimeFor(levelNumber);
                 bonusStarted = false;                                       // frozen until the first tap; the bonus round shows NO coach text
                 ui.SetBonusCountdown(bonusTimeLeft);
                 trafficGo = false; trafficPhaseLeft = BonusRedTime;          // start on RED -> a free safe window to begin
@@ -1779,7 +1815,7 @@ namespace BusJam
             LevelStarted?.Invoke(levelNumber);
             CheckEnd(); // detect an immediately-stuck board (no-op normally: free slots exist at start)
 
-            // (#4/#5) First-time coaches: level 1 teaches the core loop; level 8 introduces the traffic-dodge round
+            // (#4/#5) First-time coaches: level 1 teaches the core loop; the first traffic round introduces itself
             // (the special bonuses explain themselves in the SpecialBonus branch below).
             // Clear any leftover coach state (pulsing pointer ring + step flags) from the previous level first,
             // so a prior level's joker/diagonal coach can't bleed into this one (e.g. Lv5's RECOLOR ring lingering
@@ -1814,10 +1850,10 @@ namespace BusJam
                 StartJokerTutorial(1);
             else if (!IsBonus && !SpecialBonus && levelNumber >= J3UnlockLevel && SaveSystem.Level >= J3UnlockLevel && !SaveSystem.JokerTutDone(2))
                 StartJokerTutorial(2);
-            else if (IsBonus && levelNumber == FirstBonusLevel)
-            {   // FIRST traffic round of the run (Lv8): a small intro explaining it; it vanishes on the first tap (TryTapBus), which also starts the clock
+            else if (IsBonus && levelNumber == FirstTrafficDodgeLevel)
+            {   // FIRST traffic round of the run (Lv2): a small intro explaining it; it vanishes on the first tap (TryTapBus), which also starts the clock
                 if (coach == null) { coach = gameObject.AddComponent<TutorialCoach>(); coach.Build(); }
-                coach.ShowText("Bonus round! A 4-colour jam — clear every vehicle before time runs out, and don't hit the cars crossing the road!");
+                coach.ShowText("Bonus round! Clear every vehicle before time runs out, and don't hit the cars crossing the road!");
             }
             else if (SpecialBonus)
             {
@@ -2030,7 +2066,7 @@ namespace BusJam
             StartCoroutine(ShowBanner("Nice! Here's +1 free joker — use it anytime.", 3f));
         }
 
-        // ---- Bonus night-mode timer + soft end (every 10th level) -----------------------------------------
+        // ---- Bonus night-mode timer + soft end (traffic-dodge rounds) -----------------------------------------
         void TickBonusTimer()
         {
             bonusTimeLeft -= Time.deltaTime;
@@ -2373,15 +2409,39 @@ namespace BusJam
             }
 
             // Tint every non-face material slot to the crowd color (same rule as BuildPersonVisual).
-            Material colorMat = bodyMats[color];
-            var smr = model.GetComponentInChildren<SkinnedMeshRenderer>();
-            if (smr != null)
+            TintModelBody(model, bodyMats[color], out _);
+
+            // Background figures breathe and blink but never emote: expressions are for the queue the
+            // player is actually reading, and a dozen emoting crowd members is just noise (and re-skins).
+            var clife = model.GetComponent<CharacterLife>();
+            if (clife == null) clife = model.AddComponent<CharacterLife>();
+            clife.Init(expressiveMoods: false);
+        }
+
+        // Paint a catalog model's BODY to `colorMat`: every material slot whose name does NOT contain "face"
+        // is replaced, so the figure reads as its queue colour while eyes/mouth/identity accents (Face_* slots)
+        // keep their own materials. Works for BOTH shapes of character model:
+        //   • skinned packs  -> SkinnedMeshRenderer
+        //   • the BusJam people (static, one mesh, Body in slot 0) -> MeshRenderer
+        // Returns the renderer that was tinted (null if the model has neither), and the FIRST tinted slot in
+        // `bodyIndex` — that is the slot LineUnit.Reveal swaps back when a mystery person is revealed, which is
+        // exact for the BusJam people because their export merges all tinted geometry into a single Body slot.
+        static Renderer TintModelBody(GameObject model, Material colorMat, out int bodyIndex)
+        {
+            bodyIndex = -1;
+            if (model == null || colorMat == null) return null;
+            Renderer r = model.GetComponentInChildren<SkinnedMeshRenderer>();
+            if (r == null) r = model.GetComponentInChildren<MeshRenderer>();
+            if (r == null) return null;
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
             {
-                var mats = smr.sharedMaterials;
-                for (int i = 0; i < mats.Length; i++)
-                    if (mats[i] == null || !mats[i].name.ToLowerInvariant().Contains("face")) mats[i] = colorMat;
-                smr.sharedMaterials = mats;
+                if (mats[i] != null && mats[i].name.ToLowerInvariant().Contains("face")) continue;
+                mats[i] = colorMat;
+                if (bodyIndex < 0) bodyIndex = i;
             }
+            r.sharedMaterials = mats;
+            return r;
         }
 
         // Where a new person is born so they appear to step OUT of the building: just in front of the ONE exit
@@ -2443,21 +2503,15 @@ namespace BusJam
 
             // Tint the body (every non-face material slot) to the color; grey first if mystery.
             Material colorMat = mystery ? mysteryMat : bodyMats[color];
-            var smr = model.GetComponentInChildren<SkinnedMeshRenderer>();
-            if (smr != null)
-            {
-                var mats = smr.sharedMaterials;
-                int bodyIndex = -1;
-                for (int i = 0; i < mats.Length; i++)
-                {
-                    if (mats[i] != null && mats[i].name.ToLowerInvariant().Contains("face")) continue;
-                    mats[i] = colorMat;
-                    if (bodyIndex < 0) bodyIndex = i;
-                }
-                smr.sharedMaterials = mats;
-                u.body = smr;
-                u.bodyMaterialIndex = bodyIndex;
-            }
+            u.body = TintModelBody(model, colorMat, out int bodyIndex);
+            u.bodyMaterialIndex = bodyIndex;
+
+            // Breathing + blinking + occasional expressions. Init AFTER the transform is set — it
+            // captures the rest pose, and re-arms the state when a pooled clone comes back round.
+            var life = model.GetComponent<CharacterLife>();
+            if (life == null) life = model.AddComponent<CharacterLife>();
+            life.Init(expressiveMoods: !lowEnd);
+            u.life = life;
 
             float mh = peopleCatalog.markerHeight;
             if (mystery)

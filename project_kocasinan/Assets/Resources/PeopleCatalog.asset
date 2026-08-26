@@ -13,12 +13,26 @@ MonoBehaviour:
   m_Name: PeopleCatalog
   m_EditorClassIdentifier: Assembly-CSharp::BusJam.PeopleCatalog
   prefabs:
-  - {fileID: 2769507199256119399, guid: d01e46ed3905b6e4d96a6458d14fc726, type: 3}
-  - {fileID: 5090587081827196812, guid: 6285cf03d162d9b4d86e7376b1040cc8, type: 3}
-  - {fileID: 7742650942893025642, guid: b508ace33888d604dbf39f6e9cc9413a, type: 3}
-  - {fileID: 5803974896554436073, guid: 9656e14e56297ca4cad1e11d79a7a57e, type: 3}
-  - {fileID: 5818676082942201579, guid: 5ddb42764212839478d512c0afb12cfd, type: 3}
-  - {fileID: 3187384679435710046, guid: c1e7e3c9fe3257f4ea9f080e7208ec3b, type: 3}
+  - {fileID: 919132149155446097, guid: 2100ad197ead8495e9fcdeb9d35e7905, type: 3}
+  - {fileID: 919132149155446097, guid: 6b4b6307701654ec1a3e07cb2f9b435e, type: 3}
+  - {fileID: 919132149155446097, guid: 8df68c059ae0e4ec2aa599887dd97f2d, type: 3}
+  - {fileID: 919132149155446097, guid: 308f488aba8cd4ce8b4513e690152c52, type: 3}
+  - {fileID: 919132149155446097, guid: a40a20016304a4ac48d6aa92f68afda0, type: 3}
+  - {fileID: 919132149155446097, guid: 805650daba42040638905f65d90338aa, type: 3}
+  - {fileID: 919132149155446097, guid: d23f2135afdaf4db08aa6c920bbb8b09, type: 3}
+  - {fileID: 919132149155446097, guid: fa9db5ac8f02845a9a2e3a6b6bb0487e, type: 3}
+  - {fileID: 919132149155446097, guid: 04486f611c2c6471b8e0ef0dec36413b, type: 3}
+  - {fileID: 919132149155446097, guid: c145fd6ec37034981be271496a4eeffa, type: 3}
+  - {fileID: 919132149155446097, guid: 5da0c181dbb3141818be7e60e22afc68, type: 3}
+  - {fileID: 919132149155446097, guid: a0125b1c5750749489b47c4249cfdf4b, type: 3}
+  - {fileID: 919132149155446097, guid: e402165ba44f54a0e9974dbf9ef5e11d, type: 3}
+  - {fileID: 919132149155446097, guid: fe0c1ac9e736b42bd853f4215ded909f, type: 3}
+  - {fileID: 919132149155446097, guid: f3a029ef9a2624b42b0bd51862309f1d, type: 3}
+  - {fileID: 919132149155446097, guid: 43f128777e62a450788a37f4962131ed, type: 3}
+  - {fileID: 919132149155446097, guid: e0fa21b739dd54789adf1fe07f61d1b2, type: 3}
+  - {fileID: 919132149155446097, guid: be21ab81e507d4c72982b2bb22da43d8, type: 3}
+  - {fileID: 919132149155446097, guid: e1192169b711f48648a331ac5048a32c, type: 3}
+  - {fileID: 919132149155446097, guid: 19f1f22f5716e49b2be3d90c5894461d, type: 3}
   modelScale: 0.5
   yaw: 180
   yOffset: 0
