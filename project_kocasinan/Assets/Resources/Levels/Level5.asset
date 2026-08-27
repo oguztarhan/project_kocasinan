@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: Level5
   m_EditorClassIdentifier:
   levelNumber: 5
-  colorCount: 3
-  busCount: 22
+  colorCount: 2
+  busCount: 14
   timeLimit: 300
-  vehicleMix: 3
+  vehicleMix: 2
   gridWidth: 7
   gridHeight: 0
   baseSlots: 5

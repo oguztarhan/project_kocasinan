@@ -6,7 +6,7 @@ using UnityEngine.InputSystem.UI;
 using UnityEditor;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Editor tool that BAKES the main menu into the open scene as real, fully editable

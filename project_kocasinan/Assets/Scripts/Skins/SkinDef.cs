@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     public enum SkinCategory { Vehicle, Passenger, Board }
     public enum SkinRarity { Common, Uncommon, Rare, Epic, Legendary }

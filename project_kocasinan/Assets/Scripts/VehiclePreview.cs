@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Renders a vehicle prefab to a RenderTexture for the garage/wardrobe cards: a small 3/4 "showroom" shot framed to
@@ -15,8 +15,10 @@ namespace BusJam
         const int Layer = 31;     // a spare user layer; the preview camera + light cull to it (and the rig sits far away)
         const int W = 280, H = 200; // RT size — matches the card tile's 210x150 aspect (1.4) so the shot isn't squashed
 
+        static readonly Vector3 CamDir = new Vector3(0.5f, 0.34f, -1f).normalized;
+
         static Camera cam;
-        static Light keyLight;
+        static Light keyLight, fillLight;
         static Transform stage;
         static readonly Dictionary<GameObject, RenderTexture> cache = new Dictionary<GameObject, RenderTexture>();
 
@@ -40,14 +42,26 @@ namespace BusJam
             cam.farClipPlane = 100f;
             cam.enabled = false; // never renders on its own — only the one-shot requests below
 
+            // The camera sits at CamDir from the subject, so the key must travel TOWARD +Z to light the face we
+            // photograph. The old Euler(38,150,0) pointed the key away from the camera and every card came out flat.
             var lightGo = new GameObject("PreviewLight");
             lightGo.transform.SetParent(stage, false);
-            lightGo.transform.localRotation = Quaternion.Euler(38f, 150f, 0f);
+            lightGo.transform.localRotation = Quaternion.LookRotation(new Vector3(-0.34f, -0.56f, 0.76f).normalized);
             keyLight = lightGo.AddComponent<Light>();
             keyLight.type = LightType.Directional;
-            keyLight.intensity = 1.2f;
+            keyLight.intensity = 1.55f;
             keyLight.cullingMask = 1 << Layer; // don't spill onto the gameplay scene (and it's only on during the shot)
             keyLight.enabled = false;
+
+            var fillGo = new GameObject("PreviewFill");
+            fillGo.transform.SetParent(stage, false);
+            fillGo.transform.localRotation = Quaternion.LookRotation(new Vector3(0.72f, -0.28f, 0.63f).normalized);
+            fillLight = fillGo.AddComponent<Light>();
+            fillLight.type = LightType.Directional;
+            fillLight.intensity = 0.55f;
+            fillLight.color = new Color(0.86f, 0.90f, 1f); // cool bounce, keeps the shadow side readable
+            fillLight.cullingMask = 1 << Layer;
+            fillLight.enabled = false;
         }
 
         /// <summary>Cached preview RT for this prefab (rendered on first request). Null if prefab is null.</summary>
@@ -75,16 +89,16 @@ namespace BusJam
             Bounds b = WorldBounds(model, stage.position);
             float radius = Mathf.Max(b.extents.magnitude, 0.05f);
             float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * fill; // fill < 1 = camera closer = vehicle bigger
-            Vector3 dir = new Vector3(0.5f, 0.34f, -1f).normalized; // in front + slightly right + above -> a 3/4 hero shot facing the viewer
+            Vector3 dir = CamDir; // in front + slightly right + above -> a 3/4 hero shot facing the viewer
             cam.transform.position = b.center + dir * dist;
             cam.transform.LookAt(b.center);
 
             rt = new RenderTexture(W, H, 16, RenderTextureFormat.ARGB32) { name = "veh_" + prefab.name, antiAliasing = 4 };
             cam.aspect = (float)W / H;
             cam.targetTexture = rt;
-            keyLight.enabled = true;
+            keyLight.enabled = true; fillLight.enabled = true;
             Render(rt);
-            keyLight.enabled = false;
+            keyLight.enabled = false; fillLight.enabled = false;
             cam.targetTexture = null;
 
             // DestroyImmediate (not Destroy): every garage card renders in the SAME frame, and a deferred Destroy would

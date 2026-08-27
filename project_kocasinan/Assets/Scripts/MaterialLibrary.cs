@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Single source of truth for the game's STABLE materials (same every level).
@@ -115,7 +115,7 @@ namespace BusJam
         /// <summary>
         /// Punches a color toward candy vibrance: HSV saturation (and a touch of value) up.
         /// Greys / near-neutrals (S≈0 — wheels, board, arrow) stay neutral, so only the
-        /// colorful bodies pop. This is the per-material lift; a global grade in BusJamGame's
+        /// colorful bodies pop. This is the per-material lift; a global grade in RideburyGame's
         /// post-processing volume then lifts the whole frame (incl. the baked theme materials).
         /// </summary>
         public static Color Vibrant(Color c)

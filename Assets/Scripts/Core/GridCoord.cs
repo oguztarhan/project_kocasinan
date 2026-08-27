@@ -1,4 +1,4 @@
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>Immutable (row, col) grid address. A readonly struct → no heap allocation, no GC.</summary>
     public readonly struct GridCoord

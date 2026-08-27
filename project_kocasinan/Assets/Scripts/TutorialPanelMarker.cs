@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Tag placed on the user-authored panel that sits BEHIND the tutorial text. When present in the scene,

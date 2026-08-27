@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Bonus-level REWARD flow (partial of <see cref="GameUI"/>). Coin Rush / Mystery Rush / Traffic Dodge finish into
@@ -17,7 +17,7 @@ namespace BusJam
         bool stopTapped;
         System.Action<ChestTier> stopResult;
 
-        // Called by BusJamGame.BonusSuccess. useStopBar == false => Time Attack (tier already decided by finish time).
+        // Called by RideburyGame.BonusSuccess. useStopBar == false => Time Attack (tier already decided by finish time).
         public void ShowBonusReward(bool useStopBar, ChestTier timeTier, System.Action onDone)
         {
             if (useStopBar) ShowStopBar(t => ShowChestWon(t, onDone));

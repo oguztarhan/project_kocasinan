@@ -1,11 +1,11 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Alternates two light objects (a = red, b = blue) on/off for a blinking police-light effect. Driven by
     /// unscaled time so it keeps blinking even if the game is paused, and stays in sync across every police vehicle.
-    /// Added by BusJamGame.BuildSkinExtras when the equipped skin has PoliceLights.
+    /// Added by RideburyGame.BuildSkinExtras when the equipped skin has PoliceLights.
     /// </summary>
     public class BlinkLights : MonoBehaviour
     {

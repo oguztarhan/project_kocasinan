@@ -2,10 +2,10 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
-    /// BusJam ▸ Graphics Tier ▸ Low / Mid / High / Auto — forces the device graphics tier in the EDITOR so you can
+    /// Ridebury ▸ Graphics Tier ▸ Low / Mid / High / Auto — forces the device graphics tier in the EDITOR so you can
     /// preview each budget (Low/Mid/High) in Play mode without the target hardware. The choice is stored in EditorPrefs
     /// (DeviceSetup.EditorTierKey) so it survives entering Play mode, where DeviceSetup.ClassifyTier() reads it. If you
     /// change it WHILE playing, it re-applies live (renderScale/MSAA/shadow distance immediately; toon outlines + shadow
@@ -14,7 +14,7 @@ namespace BusJam
     /// </summary>
     static class GraphicsTierMenu
     {
-        const string Root = "BusJam/Graphics Tier/";
+        const string Root = "Ridebury/Graphics Tier/";
         static int Current => EditorPrefs.GetInt(DeviceSetup.EditorTierKey, -1); // -1 = Auto
 
         [MenuItem(Root + "Low",  priority = 0)] static void SetLow()  => Set((int)DeviceSetup.Tier.Low);

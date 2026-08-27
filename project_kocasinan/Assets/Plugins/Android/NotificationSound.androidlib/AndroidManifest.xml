@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ships res/raw/busjam_chime.mp3 (the notification sound) into the APK. Unity 6 only merges Android resources from
+<!-- Ships res/raw/ridebury_chime.mp3 (the notification sound) into the APK. Unity 6 only merges Android resources from
      a .androidlib folder, so a bare Assets/Plugins/Android/res/raw would be IGNORED. The channel references this clip
-     as android.resource://<package>/raw/busjam_chime — see NotificationService.TryNativeChannelWithSound. -->
+     as android.resource://<package>/raw/ridebury_chime — see NotificationService.TryNativeChannelWithSound. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.intakeentertainment.busjam.notificationsound"
+          package="com.intakeentertainment.ridebury.notificationsound"
           android:versionCode="1"
           android:versionName="1.0">
 </manifest>

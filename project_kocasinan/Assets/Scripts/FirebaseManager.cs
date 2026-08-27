@@ -5,7 +5,7 @@ using Firebase.RemoteConfig;
 using Firebase.Messaging;
 using Firebase.Analytics;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Single entry point for Firebase: initialises the SDK on launch, pulls Remote Config into <see cref="GameConfig"/>,

@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Build-safe sprite registry for the 300Mind UI kit. <see cref="UIKit"/> normally resolves atlas sub-sprites via
     /// AssetDatabase, which exists ONLY in the editor — so in a PLAYER BUILD every code-built UI sprite came back null
     /// and rendered as a default white box ("looks bad/default on device"). This ScriptableObject — baked into
-    /// Resources by "BusJam ▸ Bake UIKit Resources" — holds hard references to every kit sprite by name, so the build
+    /// Resources by "Ridebury ▸ Bake UIKit Resources" — holds hard references to every kit sprite by name, so the build
     /// actually includes the textures and UIKit can look them up at runtime. Re-run the baker if the atlas slicing changes.
     /// </summary>
     public class UIKitAtlas : ScriptableObject

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d3b013ae1e1b664892a4ea46f2538d1, type: 3}
   m_Name: PeopleCatalog
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.PeopleCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.PeopleCatalog
   prefabs:
   - {fileID: 919132149155446097, guid: 2100ad197ead8495e9fcdeb9d35e7905, type: 3}
   - {fileID: 919132149155446097, guid: 6b4b6307701654ec1a3e07cb2f9b435e, type: 3}

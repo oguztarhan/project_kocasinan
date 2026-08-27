@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Testing helper: the garage tutorial (and the pulsing GARAGE-button highlight that leads to it) runs ONCE,
@@ -9,18 +9,18 @@ namespace BusJam
     /// </summary>
     public static class GarageTutorialMenu
     {
-        [MenuItem("BusJam/Reset Garage Tutorial")]
+        [MenuItem("Ridebury/Reset Garage Tutorial")]
         static void ResetGarageTutorial()
         {
             PlayerPrefs.DeleteKey("garage_tut_done");
             PlayerPrefs.Save();
-            Debug.Log("[BusJam] Garage tutorial reset — the HUD GARAGE button will pulse again and the tour runs on the next IN-GAME garage open.");
+            Debug.Log("[Ridebury] Garage tutorial reset — the HUD GARAGE button will pulse again and the tour runs on the next IN-GAME garage open.");
         }
 
         // Clears EVERY one-shot coach/tip flag so the complete first-run flow can be watched again.
         // NOTE: the joker resets also re-grant that joker's free tutorial charge on the next trigger level
         // (5 / 11 / 16) — that's the point of re-watching them, but it does hand out free charges.
-        [MenuItem("BusJam/Reset All Tutorials")]
+        [MenuItem("Ridebury/Reset All Tutorials")]
         static void ResetAllTutorials()
         {
             PlayerPrefs.DeleteKey("garage_tut_done");         // garage pulse + 4-step tour
@@ -30,7 +30,7 @@ namespace BusJam
             PlayerPrefs.DeleteKey("bj_jokertut_1");           // Lv11 SWAP unlock coach (+1 free charge)
             PlayerPrefs.DeleteKey("bj_jokertut_2");           // Lv16 HELI unlock coach (+1 free charge)
             PlayerPrefs.Save();
-            Debug.Log("[BusJam] ALL tutorials reset — Lv1 coach, Lv5/11/16 joker coaches, Lv6 minivan banner and the garage tour will each run once again.");
+            Debug.Log("[Ridebury] ALL tutorials reset — Lv1 coach, Lv5/11/16 joker coaches, Lv6 minivan banner and the garage tour will each run once again.");
         }
     }
 }

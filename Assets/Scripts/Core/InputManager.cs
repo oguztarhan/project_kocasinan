@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Detects mobile touch / mouse taps, identifies the tapped passenger, validates that it is

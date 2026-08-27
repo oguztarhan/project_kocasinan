@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// One-shot fix for dynamic-font uGUI Text that renders BLANK when created during a synchronous build (the level

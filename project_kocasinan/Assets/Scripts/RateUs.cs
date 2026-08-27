@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// "Did you like the game? — rate us" prompt. Self-spawns at launch into a DontDestroyOnLoad object and builds its
@@ -18,7 +18,7 @@ namespace BusJam
     /// silence: YES asks for the rating + comment, NO asks the player to tell us what went wrong in a comment.
     /// Every step carries ASK ME LATER (snooze <see cref="LaterDelayDays"/> days) and NEVER ASK AGAIN (permanent).
     ///
-    /// Delete this one file + its three call sites (BusJamGame.AdvanceAfterWin, MenuController.Start,
+    /// Delete this one file + its three call sites (RideburyGame.AdvanceAfterWin, MenuController.Start,
     /// NotificationService.ScheduleAll) to remove the whole feature.
     /// </summary>
     public class RateUs : MonoBehaviour

@@ -1,10 +1,10 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam.EditorTools
+namespace Ridebury.EditorTools
 {
     /// <summary>
-    /// "BusJam ▸ Make Car Textures Readable" — enables Read/Write on the Low Poly Cars Mega Pack colour atlases so
+    /// "Ridebury ▸ Make Car Textures Readable" — enables Read/Write on the Low Poly Cars Mega Pack colour atlases so
     /// the runtime can recolour ONLY the body-swatch band (keeping windows/bumpers). Run once after pulling.
     /// </summary>
     public static class MakeMegapackTexturesReadable
@@ -17,7 +17,7 @@ namespace BusJam.EditorTools
             "Assets/Low Poly Cars - Mega Pack/Textures/Color_4_Tex.png",
         };
 
-        [MenuItem("BusJam/Make Car Textures Readable")]
+        [MenuItem("Ridebury/Make Car Textures Readable")]
         public static void Run()
         {
             int changed = 0, ok = 0;

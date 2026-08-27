@@ -4,7 +4,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Editor tool that BAKES the in-game shop (the pop-up opened by tapping the coin during

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5f884148b1a2ae64a9b2e35ec07d2767, type: 3}
   m_Name: UIKitAtlas
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.UIKitAtlas
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.UIKitAtlas
   names:
   - UI-pack_Sprite_1_34
   - UI-pack_Sprite_1_74

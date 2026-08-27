@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Behaviour driver for the SCENE-AUTHORED main menu produced by the editor tool

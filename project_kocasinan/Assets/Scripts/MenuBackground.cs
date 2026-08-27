@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// MAIN-MENU animated background — a faithful port of the user's intake_rush_coast_sunset.html canvas scene

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Central localization table. Keyed by the ENGLISH source string; each entry holds one
@@ -213,10 +213,10 @@ public static class Loc
             "ÉPIQUE ou mieux garanti toutes les {0} ouvertures.","ÉPICO ou melhor garantido a cada {0} aberturas.","EPIK atau lebih dijamin setiap {0} kali buka." } },
         { "Privacy options", new[]{
             "Gizlilik seçenekleri","Privacy options","Datenschutzoptionen","Opzioni privacy","Opciones de privacidad","隐私选项","Options de confidentialité","Opções de privacidade","Opsi privasi" } },
-        { "Run BusJam > Build Vehicle Sets", new[]{
-            "Araç setleri yok — BusJam ▸ Build Vehicle Sets çalıştır","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
-            "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets",
-            "Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets","Run BusJam ▸ Build Vehicle Sets" } },
+        { "Run Ridebury > Build Vehicle Sets", new[]{
+            "Araç setleri yok — Ridebury ▸ Build Vehicle Sets çalıştır","Run Ridebury ▸ Build Vehicle Sets","Run Ridebury ▸ Build Vehicle Sets",
+            "Run Ridebury ▸ Build Vehicle Sets","Run Ridebury ▸ Build Vehicle Sets","Run Ridebury ▸ Build Vehicle Sets",
+            "Run Ridebury ▸ Build Vehicle Sets","Run Ridebury ▸ Build Vehicle Sets","Run Ridebury ▸ Build Vehicle Sets" } },
 
         // ---- Daily rewards ----
         { "Daily Rewards", new[]{ "Günlük Ödüller","Daily Rewards","Tägliche Belohnungen","Premi Giornalieri","Recompensas Diarias","每日奖励","Récompenses Quotidiennes","Recompensas Diárias","Hadiah Harian" } },
@@ -310,7 +310,7 @@ public static class Loc
             "Nouveau : les véhicules peuvent maintenant se déplacer en DIAGONALE !","Novo: os veículos agora podem mover-se na DIAGONAL!","Baru: kendaraan kini bisa bergerak DIAGONAL!" } },
         // Traffic-round intro — now the FIRST bonus text anyone sees (the showcase round is L2). The colour count is
         // deliberately NOT named: GenerateBonus builds a 2-colour board (fill + core) and the old "4-colour jam"
-        // wording had drifted out of sync with it. Key must stay byte-identical to the BusJamGame coach.ShowText string.
+        // wording had drifted out of sync with it. Key must stay byte-identical to the RideburyGame coach.ShowText string.
         { "Bonus round! Clear every vehicle before time runs out, and don't hit the cars crossing the road!", new[]{
             "Bonus tur! Süre dolmadan tüm araçları gönder ve yoldan geçen arabalara çarpma!","Bonus round! Clear every vehicle before time runs out, and don't hit the cars crossing the road!","Bonusrunde! Schaffe alle Fahrzeuge, bevor die Zeit abläuft, und ramme nicht die kreuzenden Autos!",
             "Round bonus! Libera tutti i veicoli prima che scada il tempo e non urtare le auto che attraversano!","¡Ronda bonus! ¡Despeja todos los vehículos antes de que acabe el tiempo y no choques con los autos que cruzan!","奖励关！在时间结束前清空所有车辆，别撞上横穿马路的汽车！",

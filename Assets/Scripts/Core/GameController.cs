@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Top-level orchestrator (mediator). It owns level lifecycle and arbitrates the two outcomes

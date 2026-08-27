@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Central access to the game-wide font. The font is chosen in ONE editable asset — Resources/FontConfig.asset:

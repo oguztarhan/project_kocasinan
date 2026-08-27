@@ -1,10 +1,10 @@
-# BusJam.Core — Clean Bus-Jam Architecture
+# Ridebury.Core — Clean Ridebury Architecture
 
 A SOLID, event-driven, ScriptableObject-data-driven implementation of the classic
-"Bus Jam" loop (tap a free passenger → it boards a matching bus or waits in a slot).
+"Ridebury" loop (tap a free passenger → it boards a matching bus or waits in a slot).
 
-This lives in namespace `BusJam.Core` and is **fully independent** of the existing
-`BusJam` game in this project — nothing here touches those files.
+This lives in namespace `Ridebury.Core` and is **fully independent** of the existing
+`Ridebury` game in this project — nothing here touches those files.
 
 ## Files
 
@@ -27,7 +27,7 @@ This lives in namespace `BusJam.Core` and is **fully independent** of the existi
 
 ## Scene setup (10 minutes)
 
-1. **Create data assets** (Project window ▸ right-click ▸ Create ▸ BusJam):
+1. **Create data assets** (Project window ▸ right-click ▸ Create ▸ Ridebury):
    - One `PassengerData`.
    - A few `BusData` (e.g. Red×3, Blue×3, …).
    - One `LevelConfig`: fill the `grid` rows (row 0 = front, nearest the bus),

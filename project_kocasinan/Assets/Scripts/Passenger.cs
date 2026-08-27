@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>A person in the line. May be golden (bonus) or mystery (hidden color).</summary>
     public class Passenger : MonoBehaviour

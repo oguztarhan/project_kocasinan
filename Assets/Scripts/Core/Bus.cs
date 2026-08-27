@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     public enum BusState { Arriving, AtStop, Departing, Done }
 

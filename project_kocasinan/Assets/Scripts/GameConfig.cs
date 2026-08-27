@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Central, remotely-tunable game values. The fields below are the SHIPPED defaults; <see cref="FirebaseManager"/>
@@ -14,7 +14,7 @@ namespace BusJam
     {
         // --- jokers / economy ---
         public static int RecolorCost = 75, SwapCost = 50, HeliCost = 100, SlotUnlockCost = 75, ContinueBaseCost = 150;
-        public static int Joker1Unlock = 5, Joker2Unlock = 10, Joker3Unlock = 15;
+        public static int Joker1Unlock = 6, Joker2Unlock = 10, Joker3Unlock = 15;  // RECOLOR moved 5 -> 6: L2-L5 are the bonus-showcase prologue
         public static int LevelReward = 25, BonusReward = 50;
         public static int DailyGoldScalePct = 100; // scales EVERY daily-login gold payout (100 = the shipped plan in DailyRewards.Plan)
 

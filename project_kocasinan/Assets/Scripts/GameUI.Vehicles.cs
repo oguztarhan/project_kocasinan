@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Vehicle wardrobe ("dolap") panel (partial of <see cref="GameUI"/>): three localized sections
     /// (Cars / Minivans / Buses) showing the player's UNLOCKED vehicles. Tap an owned vehicle to EQUIP it for
     /// that type INDEPENDENTLY (changing the car keeps the same minivan/bus). Locked vehicles show a coin price
     /// that unlocks the whole set. Opened from a button on the Garage screen. Models come from the
-    /// VehicleSetCatalog (built once via "BusJam ▸ Build Vehicle Sets").
+    /// VehicleSetCatalog (built once via "Ridebury ▸ Build Vehicle Sets").
     /// </summary>
     public partial class GameUI
     {
@@ -103,7 +103,7 @@ namespace BusJam
         }
 
 #if UNITY_EDITOR
-        // Editor baker entry (BusJam ▸ Bake Garage Panels): build the wardrobe chrome under `canvas`, return its refs.
+        // Editor baker entry (Ridebury ▸ Bake Garage Panels): build the wardrobe chrome under `canvas`, return its refs.
         public (GameObject panel, Transform content, Text gold, Button close) EditorBakeVehicles(Transform canvas)
         {
             title = UIKit.Title(); num = UIKit.Num(); root = canvas;
@@ -126,7 +126,7 @@ namespace BusJam
 
             if (!VehicleWardrobe.HasCatalog)
             {
-                SectionLabel(vehiclesContent, Loc.T("Run BusJam > Build Vehicle Sets"));
+                SectionLabel(vehiclesContent, Loc.T("Run Ridebury > Build Vehicle Sets"));
                 return;
             }
 
@@ -198,8 +198,10 @@ namespace BusJam
             pv.transform.SetParent(tile.transform, false);
             pv.raycastTarget = false; pv.color = new Color(1, 1, 1, 0); // invisible until its texture is ready
             var pr = pv.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = Vector2.zero; pr.offsetMax = Vector2.zero;
-            float fill = t == VehicleType.Car ? 0.5f : t == VehicleType.Minivan ? 0.6f : 0.72f; // <1 = bigger; tweak per type
-            float yaw  = t == VehicleType.Car ? 215f : 35f; // sedans (FBX) face opposite the .glb vans/buses -> +180 to match
+            // Every model is now an in-house .glb normalised to the same length and nose direction, so ONE fill and
+            // ONE yaw give all three types an identical pose and apparent size. (Cars needed +180 only as FBX.)
+            const float fill = 0.60f; // <1 = camera closer = bigger
+            const float yaw  = 35f;
             Color previewTint = owned ? Color.white : new Color(0.40f, 0.40f, 0.46f, 1f); // locked -> greyed out
             pendingPreviews.Add((pv, set.PrefabFor(t), t != VehicleType.Car, fill, yaw, previewTint));
 

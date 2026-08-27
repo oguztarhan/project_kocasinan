@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Marker placed by the editor tool "Tools ▸ 300Mind UI ▸ Bake In-Game Shop" on the

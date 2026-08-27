@@ -1,13 +1,13 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Designer-authored definition of a single bus in a level's sequence:
     /// what color it accepts, how many it seats, and how it drives.
-    /// Create via: Assets ▸ Create ▸ BusJam ▸ Bus Data.
+    /// Create via: Assets ▸ Create ▸ Ridebury ▸ Bus Data.
     /// </summary>
-    [CreateAssetMenu(fileName = "BusData", menuName = "BusJam/Bus Data", order = 1)]
+    [CreateAssetMenu(fileName = "BusData", menuName = "Ridebury/Bus Data", order = 1)]
     public class BusData : ScriptableObject
     {
         [Header("Identity")]

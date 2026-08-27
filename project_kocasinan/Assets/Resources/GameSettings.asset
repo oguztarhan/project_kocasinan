@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3b2b4f067e50462cbfd094fca4ae359a, type: 3}
   m_Name: GameSettings
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.GameSettings
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.GameSettings
   boardWalkDuration: 0.1
   boardCadence: 0.179
   peopleSize: 1

@@ -2,12 +2,12 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam.EditorTools
+namespace Ridebury.EditorTools
 {
     /// <summary>
-    /// "BusJam ▸ Build Vehicle Sets" — defines the 10 unlockable vehicle SETS and writes them into
-    /// Resources/VehicleSetCatalog.asset. Each set = 1 car (a Low Poly Cars Mega Pack "Stock" sedan) + the
-    /// shared Connect (minivan) + the shared Bus. Set 0 (Royal) is free.
+    /// "Ridebury ▸ Build Vehicle Sets" — defines the unlockable vehicle SETS and writes them into
+    /// Resources/VehicleSetCatalog.asset. Every car/bus/van is now an in-house .glb under Assets/Vehicles;
+    /// the only third-party model still referenced is the Connect (mv_classic), kept on purpose.
     ///
     /// RUN THIS ONCE after pulling these changes: the .glb minivan/bus can only be wired via AssetDatabase
     /// (their internal fileIDs aren't in the .meta), so the asset can't be hand-edited to reference them.
@@ -15,9 +15,8 @@ namespace BusJam.EditorTools
     /// </summary>
     public static class VehicleSetCatalogBuilder
     {
-        const string MegaRoot    = "Assets/Low Poly Cars - Mega Pack/Prefabs/";
-        const string ConnectGlb  = "Assets/Unity Technologies/othercars/connectt.glb";
-        const string BusGlb      = "Assets/Unity Technologies/othercars/bus.glb";
+        const string ConnectGlb  = "Assets/Unity Technologies/othercars/connectt.glb"; // KEEP — "Connect" stays
+        const string CarRoot     = "Assets/Vehicles/Cars/";
         const string MinivanRoot = "Assets/Vehicles/Minivans/";
         const string BusRoot     = "Assets/Vehicles/Buses/";
         const string CatalogPath = "Assets/Resources/VehicleSetCatalog.asset";
@@ -25,19 +24,20 @@ namespace BusJam.EditorTools
         // Every vehicle TYPE is its own collectible item now, in 4 rarity tiers (0 Common, 1 Uncommon, 2 Epic,
         // 3 Legendary). All are WON FROM CHESTS; rarity drives the draw; Legendary only from the Legendary chest.
 
-        // CARS (Mega Pack FBX): (class folder, prefab, rarity). Set 0 (Firenze) is the free starter car.
-        static readonly (string cls, string car, int rarity)[] Cars =
+        // CARS (in-house .glb in Assets/Vehicles/Cars): (name, rarity). Set 0 (Firenze) is the free starter car.
+        // File name is always "car_" + name.ToLower() + ".glb"; the set id stays "set_" + name.ToLower().
+        static readonly (string car, int rarity)[] Cars =
         {
-            ("GT Cars",        "Firenze",    0),
-            ("Muscle Cars",    "Azura",      0),
-            ("Other Vehicles", "Stampede",   0),
-            ("Super Cars",     "Arrow",      1),
-            ("Super Cars",     "Agata",      1),
-            ("Tuned Cars",     "Slipstream", 2),
-            ("Super Cars",     "Poisson",    2),
-            ("Super Cars",     "Centaur",    2),
-            ("Tuned Cars",     "Blacklist",  3),
-            ("Tuned Cars",     "Skywalker",  3),
+            ("Firenze",    0),   // compact hatchback
+            ("Azura",      0),   // family sedan
+            ("Stampede",   0),   // full-size pickup
+            ("Arrow",      1),   // hot hatch
+            ("Agata",      1),   // compact SUV
+            ("Slipstream", 2),   // muscle fastback
+            ("Poisson",    2),   // sports coupe
+            ("Centaur",    2),   // grand tourer
+            ("Blacklist",  3),   // wedge supercar
+            ("Skywalker",  3),   // coupe-SUV
         };
         // MINIVANS (.glb in Assets/Vehicles/Minivans): (file, display name, rarity). "Classic" (Connect) added free.
         static readonly (string file, string name, int rarity)[] Minivans =
@@ -64,7 +64,7 @@ namespace BusJam.EditorTools
             ("bus_silver", "Silver",   3),
         };
 
-        [MenuItem("BusJam/Build Vehicle Sets")]
+        [MenuItem("Ridebury/Build Vehicle Sets")]
         public static void Build()
         {
             if (!AssetDatabase.IsValidFolder("Assets/Resources"))
@@ -80,14 +80,14 @@ namespace BusJam.EditorTools
             }
 
             var connect  = Load(ConnectGlb, "Connect (Classic minivan)");
-            var busModel = Load(BusGlb, "Bus (Classic bus)");
+            var busModel = Load(BusRoot + "bus_classic.glb", "Bus (Classic bus)");
 
             var list = new List<VehicleSetCatalog.VehicleSet>();
 
             // --- CARS (set 0 = Firenze, the free starter car) ---
             foreach (var d in Cars)
             {
-                var car = Load(MegaRoot + d.cls + "/" + d.car + ".prefab", "Car '" + d.car + "'");
+                var car = Load(CarRoot + "car_" + d.car.ToLower() + ".glb", "Car '" + d.car + "'");
                 list.Add(new VehicleSetCatalog.VehicleSet
                 {
                     id = "set_" + d.car.ToLower().Replace("-", ""), displayName = d.car,

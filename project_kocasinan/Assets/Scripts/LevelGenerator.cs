@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     public struct BusDef { public PieceColor color; public VehicleType type; public int capacity; public int advanceN; }
 
@@ -56,7 +56,7 @@ namespace BusJam
             VehicleMix mix = forceMix ?? MixForLevel(level); // forceMix pins the vehicle types when the level's own ramp would run ahead of the tutorials
             var rng = new System.Random(level * 9176 + 4242);
 
-            if (BusJamGame.IsTrafficDodgeLevel(level)) return GenerateBonus(level, rng); // traffic-dodge rounds = 2-colour core-boxed-by-ring bonus jam
+            if (RideburyGame.IsTrafficDodgeLevel(level)) return GenerateBonus(level, rng); // traffic-dodge rounds = 2-colour core-boxed-by-ring bonus jam
 
             if (shapeFill && forceStyle.HasValue)
             {
@@ -97,9 +97,11 @@ namespace BusJam
         // then 6-seat minivans join, then 10-seat buses complete the set. (Tune the level thresholds freely.)
         static VehicleMix MixForLevel(int level)
         {
-            if (level <= 3) return VehicleMix.CarsOnly;        // L1-3: small 4-seat cars
-            if (level <= 6) return VehicleMix.CarsAndMinivans; // L4-6: add 6-seat minivans
-            return VehicleMix.AllThree;                        // L7+: cars + minivans + buses
+            // L1-L6 are all authored boards or showcase bonus rounds, so this only really bites from L7 up; the
+            // early entries still matter for the L2 traffic-dodge showcase, which draws its types from here.
+            if (level <= 5) return VehicleMix.CarsOnly;        // L1-5 (prologue): small 4-seat cars only
+            if (level <= 6) return VehicleMix.CarsAndBuses;    // L6: buses join — the "Buses seat 10 people!" banner
+            return VehicleMix.AllThree;                        // L7+: cars + minivans + buses ("Minivans seat 6" banner)
         }
 
         // ---- BONUS levels (the traffic-dodge rounds): a DENSELY-PACKED jam of mixed cars/minivans/buses in TWO colours:
@@ -114,7 +116,7 @@ namespace BusJam
             // below) and BuildBonusGrid sizes the board from the actual cell total, so any count >= 2 holds — only
             // the density changes. The showcase branch is kept separate so the rng stream of the L8+ rounds, and
             // therefore their verified geometry, is untouched.
-            bool showcase = BusJamGame.IsShowcaseLevel(level);
+            bool showcase = RideburyGame.IsShowcaseLevel(level);
             var showcaseMix = MixForLevel(level);
             int busCount = showcase ? 18 : 32;
             // TWO colours (the classic bonus look): one fill colour everywhere, one different core colour in the
@@ -141,7 +143,7 @@ namespace BusJam
             {
                 bool isCore = (i == busCount - 1); // LAST index = center, extracted LAST (after everything else clears)
                 VehicleType type;
-                if (showcase) type = PickType(showcaseMix, rng);                          // cars only at L2 — the minivan/bus reveals belong to L4 and L7
+                if (showcase) type = PickType(showcaseMix, rng);                          // cars only at L2 — the bus/minivan reveals belong to L6 and L7
                 else
                 {
                     int rt = rng.Next(10);                                                // spread across all 3 types
@@ -316,7 +318,7 @@ namespace BusJam
             float pack = levelNumber <= 21
                 ? Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f))   // more slack early, denser later
                 : Mathf.Lerp(1.35f, 1.2f, Mathf.Clamp01((levelNumber - 21) / 60f)); // late game: denser still
-            bool allowDiagonals = levelNumber >= 6 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 6+ = 8-way (remote flag off => 4-way everywhere)
+            bool allowDiagonals = levelNumber >= 7 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 7+ = 8-way, matching the L7 "DIAGONALLY" banner (remote flag off => 4-way everywhere)
             // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
             // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
             // level layouts are byte-for-byte unchanged.

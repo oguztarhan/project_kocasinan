@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Cheap idle life: bobs along an axis, or pulses scale. Put it on a
     /// VISUAL CHILD (never on a transform that gameplay also moves).</summary>

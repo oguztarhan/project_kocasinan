@@ -3,10 +3,10 @@ using UnityEngine.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
-    /// "BusJam ▸ Bake Garage Panels" — bakes the Garage + Vehicles (wardrobe) WINDOW CHROME into the open scene as
+    /// "Ridebury ▸ Bake Garage Panels" — bakes the Garage + Vehicles (wardrobe) WINDOW CHROME into the open scene as
     /// real, Inspector-editable GameObjects (so you can reposition / restyle them in the Hierarchy WITHOUT entering
     /// Play mode), and tags them with an <see cref="InGameGarage"/> marker. At runtime <see cref="GameUI"/> adopts
     /// the baked panels instead of building them in code — same adopt-or-build pattern as the HUD / Settings bakes.
@@ -16,7 +16,7 @@ namespace BusJam
     /// </summary>
     public static class GarageUIBaker
     {
-        [MenuItem("BusJam/Bake Garage Panels")]
+        [MenuItem("Ridebury/Bake Garage Panels")]
         static void Bake()
         {
             // replace any previous bake so re-running is idempotent
@@ -68,16 +68,16 @@ namespace BusJam
                       "GameUI adopts them automatically at runtime.");
         }
 
-        // "BusJam ▸ Bake Garage Cards" — adds 3 DRAGGABLE slot boxes on the garage panel (chest area, chest-open popup,
+        // "Ridebury ▸ Bake Garage Cards" — adds 3 DRAGGABLE slot boxes on the garage panel (chest area, chest-open popup,
         // shard counter). Position/resize them in the Hierarchy; at runtime the cards fill them. Run AFTER "Bake Garage
         // Panels". Re-running only creates MISSING slots (keeps ones you already positioned). SAVE the scene afterwards.
-        [MenuItem("BusJam/Bake Garage Cards")]
+        [MenuItem("Ridebury/Bake Garage Cards")]
         static void BakeCards()
         {
             var marker = Object.FindFirstObjectByType<InGameGarage>(FindObjectsInactive.Include);
             if (marker == null || marker.garageRoot == null)
             {
-                EditorUtility.DisplayDialog("Bake Garage Cards", "Run 'BusJam ▸ Bake Garage Panels' first (no InGameGarage / garage panel found).", "OK");
+                EditorUtility.DisplayDialog("Bake Garage Cards", "Run 'Ridebury ▸ Bake Garage Panels' first (no InGameGarage / garage panel found).", "OK");
                 return;
             }
             var parent = marker.garageRoot.transform; // slots live on the garage panel so they show/hide with it
@@ -98,12 +98,12 @@ namespace BusJam
                       "Chests stay in the scroll list (tune size/spacing/columns on InGameGarage). Press Play to check.");
         }
 
-        // "BusJam ▸ Bake Garage HUD Button" — bakes the in-game HUD GARAGE button into the scene as a real,
+        // "Ridebury ▸ Bake Garage HUD Button" — bakes the in-game HUD GARAGE button into the scene as a real,
         // Inspector-editable GameObject (edit its sprite / colour / size / position in the Hierarchy) and assigns
         // it to InGameHud.garageButton. At runtime GameUI ADOPTS it instead of building the orange default: it
         // only wires the click, localizes the label TEXT and runs the first-time pulse — the look stays yours.
         // Re-running when the button already exists just selects it. SAVE the scene (Ctrl+S) afterwards.
-        [MenuItem("BusJam/Bake Garage HUD Button")]
+        [MenuItem("Ridebury/Bake Garage HUD Button")]
         static void BakeGarageButton()
         {
             var hud = Object.FindFirstObjectByType<InGameHud>(FindObjectsInactive.Include);

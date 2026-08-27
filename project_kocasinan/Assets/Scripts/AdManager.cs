@@ -1,6 +1,6 @@
 // =============================================================================
 //  AdManager — the SINGLE home for all AdMob (Google Mobile Ads) logic.
-//  BusJamGame / GameUI never touch GoogleMobileAds types; they call only the clean
+//  RideburyGame / GameUI never touch GoogleMobileAds types; they call only the clean
 //  public methods below (ShowBanner/HideBanner/ShowInterstitialIfEligible/
 //  ShowRewarded/AddInterstitialWin/AddInterstitialLoss/ForceInterstitial).
 //
@@ -19,7 +19,7 @@ using System.Collections.Generic;
 using GoogleMobileAds.Api;
 using GoogleMobileAds.Ump.Api;
 #endif
-using BusJam;
+using Ridebury;
 
 public class AdManager : MonoBehaviour
 {
@@ -55,7 +55,7 @@ public class AdManager : MonoBehaviour
 #endif
 
     public static AdManager Instance { get; private set; }
-    BusJamGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
+    RideburyGame _game;                       // for eligibility (CurrentLevel / IsBonus); may be null in the menu scene
     bool _adsEnabled = ADS_ENABLED;         // gates BANNER + INTERSTITIAL. refined in Awake with SaveSystem.AdsRemoved (PlayerPrefs can't be read in a field initializer)
     bool _bannerEnabled = true;             // BANNER-ONLY gate (remove_banner IAP): off => no banner, but interstitial/rewarded still show; refined in Awake
     bool _rewardedEnabled = ADS_ENABLED;    // REWARDED (opt-in) gate — deliberately NOT reduced by Remove-Ads: a no-ads buyer can STILL choose to watch a rewarded ad for x2 coins / free coins / continue
@@ -80,8 +80,8 @@ public class AdManager : MonoBehaviour
     bool           _mobileAdsInited;
 #endif
 
-    // Create (once) from BusJamGame.Start(); persists across scene loads.
-    public static AdManager Ensure(BusJamGame game = null)
+    // Create (once) from RideburyGame.Start(); persists across scene loads.
+    public static AdManager Ensure(RideburyGame game = null)
     {
         if (Instance == null)
         {

@@ -3,22 +3,22 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Self-contained Level Select screen on its OWN canvas. Shows levels 1..N where
     /// N = SaveSystem.Level (highest unlocked); locked levels are shown but not tappable.
     /// Opened from the IN-GAME Settings → LEVELS (no on-screen button). Tapping a level
-    /// calls BusJamGame.LoadLevel. Build(game) + Open()/Close().
+    /// calls RideburyGame.LoadLevel. Build(game) + Open()/Close().
     /// </summary>
     public class LevelSelect : MonoBehaviour
     {
-        BusJamGame game;
+        RideburyGame game;
         Font font;
         GameObject panel;
-        GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); gated by the BusJam ▸ LEVELS Test Button toggle
+        GameObject jumpBtn;             // on-screen LEVELS jump button (level testing); gated by the Ridebury ▸ LEVELS Test Button toggle
 
-        // Level-testing switch, toggled from the editor menu "BusJam ▸ LEVELS Test Button". Controls BOTH the
+        // Level-testing switch, toggled from the editor menu "Ridebury ▸ LEVELS Test Button". Controls BOTH the
         // Settings-panel LEVELS button (GameUI reads this) and the unlock-first-100 grid. Defaults OFF — and
         // PlayerPrefs never ship in a build, so a device install always starts with this off (release-safe).
         public static bool DebugLevels => PlayerPrefs.GetInt("bj_debug_levels", 0) == 1;
@@ -30,7 +30,7 @@ namespace BusJam
         const int LockedPreview = 4;   // how many locked levels to show past your progress
         const int MinShown = 12;
 
-        public void Build(BusJamGame g)
+        public void Build(RideburyGame g)
         {
             game = g;
             font = GameFont.UGUI;
@@ -151,7 +151,7 @@ namespace BusJam
             for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
 
             int unlocked = Mathf.Max(1, SaveSystem.Level);
-            // TESTING: with the "BusJam ▸ LEVELS Test Button" toggle ON, the first 100 levels are ALL tappable so you
+            // TESTING: with the "Ridebury ▸ LEVELS Test Button" toggle ON, the first 100 levels are ALL tappable so you
             // can jump anywhere. Off (the default) = normal progression: only up to the unlocked level.
             bool debugUnlockAll = DebugLevels;
             int total = debugUnlockAll ? 100 : Mathf.Max(unlocked + LockedPreview, MinShown); // first 100 levels for testing

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Inspector-editable config for the (code-built) garage + wardrobe (vehicles) windows. <see cref="GameUI"/>
@@ -80,9 +80,9 @@ namespace BusJam
         public Vector2 revealSize    = new Vector2(820, 980); // chest-open popup size
         public Vector2 revealPos     = Vector2.zero;           // chest-open popup offset from screen centre
 
-        // Optional DRAGGABLE slots created by "BusJam ▸ Bake Garage Cards". Drag/resize them in the Hierarchy to place
+        // Optional DRAGGABLE slots created by "Ridebury ▸ Bake Garage Cards". Drag/resize them in the Hierarchy to place
         // the chests / popup / shard counter; the runtime fills them. Leave empty to keep the default (Inspector) layout.
-        [Header("Baked card slots (optional — 'BusJam ▸ Bake Garage Cards')")]
+        [Header("Baked card slots (optional — 'Ridebury ▸ Bake Garage Cards')")]
         public RectTransform chestArea;    // CHEST section (chests + legendary + free) is generated inside this box
         public RectTransform revealCard;   // chest-open popup takes this object's position + size
         public RectTransform shardSlot;    // shard counter chip is placed inside this object

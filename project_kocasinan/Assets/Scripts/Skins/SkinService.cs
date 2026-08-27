@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Resolves the equipped vehicle skin and loads its car models (cached). Cars pick a RANDOM model from
-    /// the equipped theme for on-screen variety; the actual build/tint lives in BusJamGame.</summary>
+    /// the equipped theme for on-screen variety; the actual build/tint lives in RideburyGame.</summary>
     public static class SkinService
     {
         public static SkinDef EquippedVehicleSkin()

@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Lightweight "juice": scale punches and cube-based particle bursts.
     /// Particles are plain cubes (no shader/material asset dependencies).</summary>

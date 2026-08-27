@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     public enum BusState { Queued, Staging, MovingToSlot, Parked, Leaving, Done }
 
@@ -17,7 +17,7 @@ namespace BusJam
         public bool crossMeshed; // T3 bonus: set by DriveBonusApproach when THIS vehicle overlaps a traffic car mid-cross (per-vehicle so concurrent crossings don't race)
         [System.NonSerialized] public int exitSeq; // exit dispatch order — LOWER = started earlier = right-of-way. In-flight vehicles yield ONLY to lower-seq peers, so the earliest always progresses (no deadlock).
 
-        // Engine-sound movement tracking: BusJamGame compares position frame-to-frame to know if THIS vehicle is
+        // Engine-sound movement tracking: RideburyGame compares position frame-to-frame to know if THIS vehicle is
         // physically moving, so the looping engine plays while ANY vehicle moves and stops the instant all stop.
         [System.NonSerialized] public Vector3 sfxLastPos;
         [System.NonSerialized] public bool sfxPosInit;

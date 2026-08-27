@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Car crafting: spend shards (duplicate cars melt into them when a chest is opened — see ChestService) to forge a

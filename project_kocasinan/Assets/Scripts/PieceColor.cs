@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Team colors. The first N entries are used for an N-color level, so they are ORDERED for maximum
     /// distinctness as colors are added (Red+Blue at 2, +Yellow at 3, +Green at 4, ...) — early levels never pair

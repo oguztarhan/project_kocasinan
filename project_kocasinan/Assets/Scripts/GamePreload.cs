@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Warms the HEAVY gameplay assets while the boot loading screen / main menu is showing, so the first PLAY doesn't
     /// stall loading them (that was the ~20s freeze). It async-loads the vehicle catalog — which pulls in every vehicle
     /// prefab and its mesh + texture tree — and HOLDS a reference to it so UnloadUnusedAssets (fired by the menu->game
-    /// scene swap) can't drop them. Then BusJamGame's Resources.Load returns the already-loaded copy and just instantiates.
+    /// scene swap) can't drop them. Then RideburyGame's Resources.Load returns the already-loaded copy and just instantiates.
     ///
     /// Self-spawns at launch into the MainMenu (no scene/Inspector wiring). BootSplash reads Progress/Done to pace its
     /// bar so the menu only appears once everything is warm. Fully safe: if it never runs (or the catalog is missing),
@@ -61,7 +61,7 @@ namespace BusJam
             var pcat = Resources.Load<PeopleCatalog>("PeopleCatalog");
             if (pcat != null && pcat.prefabs != null)
             {
-                // With a big cast (20 BusJam people) one warm clone each is plenty — a board only shows ~10
+                // With a big cast (20 Ridebury people) one warm clone each is plenty — a board only shows ~10
                 // queue + ~21 crowd figures drawn at random from the whole set, so warming 2 of each just
                 // doubles boot instantiates for clones that mostly never get used.
                 int per = (tight || pcat.prefabs.Length > 10) ? 1 : 2;

@@ -1,14 +1,14 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Hand-authorable level data. These are DIFFICULTY PARAMETERS fed into the same
     /// solvable-by-construction generator (see <see cref="LevelGenerator.Generate(LevelDefinition)"/>),
     /// so any values you set still produce a solvable level. Put assets under
-    /// Assets/Resources/Levels/Level{n} so BusJamGame loads them automatically.
+    /// Assets/Resources/Levels/Level{n} so RideburyGame loads them automatically.
     /// </summary>
-    [CreateAssetMenu(fileName = "Level", menuName = "BusJam/Level Definition")]
+    [CreateAssetMenu(fileName = "Level", menuName = "Ridebury/Level Definition")]
     public class LevelDefinition : ScriptableObject
     {
         [Min(1)] public int levelNumber = 1;

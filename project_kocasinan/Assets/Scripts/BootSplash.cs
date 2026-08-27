@@ -4,12 +4,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// App-launch sequence — recreated in Unity from the HTML mockups:
     ///   1) INTAKE ENTERTAINMENT splash (logo + sweeping speedometer gauge) ~2.2s
-    ///   2) BUS JAM "loading" screen (synthwave backdrop + colourful title + progress bar) ~3s
+    ///   2) RIDEBURY "loading" screen (synthwave backdrop + colourful title + progress bar) ~3s
     ///   3) fade away to reveal the existing MainMenu scene underneath.
     ///
     /// SELF-SPAWNS via [RuntimeInitializeOnLoadMethod] on the FIRST app launch into MainMenu — no scene
@@ -243,7 +243,7 @@ namespace BusJam
         }
 
         // =====================================================================================
-        //  LOADING  (Bus Jam Traffic Rush)
+        //  LOADING  (Ridebury)
         // =====================================================================================
         Image progFill; Text pctLabel, loadLabel; float barW;
         CanvasGroup loadContent;   // title + progress bar group — faded out BEFORE the backdrop so the title never blends over the menu
@@ -271,9 +271,8 @@ namespace BusJam
             loadContent = contentGo.AddComponent<CanvasGroup>();
             var content = contentGo.GetComponent<RectTransform>();
 
-            // ---------- BUS JAM / TRAFFIC RUSH title ----------
-            TitleRow(content, "BUS JAM", 720, 122, 0);
-            TitleRow(content, "TRAFFIC RUSH", 572, 134, 7);
+            // ---------- RIDEBURY title (single row) ----------
+            TitleRow(content, "RIDEBURY", 646, 140, 0);
 
             // ---------- progress bar (bottom) ----------
             barW = 720f;

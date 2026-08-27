@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Owns the bus queue and the single active stop. Responsibilities (SRP):

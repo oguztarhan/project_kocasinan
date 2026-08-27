@@ -1,17 +1,17 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Holds the character models used for the queue and the background crowd. Built/refreshed by the
-    /// editor menu "BusJam ▸ Build People Catalog" and loaded at runtime from Resources; BusJamGame picks
+    /// editor menu "Ridebury ▸ Build People Catalog" and loaded at runtime from Resources; RideburyGame picks
     /// one AT RANDOM per figure, so every round is a fresh mix of the whole set. If empty/missing,
-    /// BusJamGame falls back to the code-built person.
+    /// RideburyGame falls back to the code-built person.
     ///
-    /// The BusJam people are all exported exactly 2.30 model-units tall, so ONE modelScale fits all of
+    /// The Ridebury people are all exported exactly 2.30 model-units tall, so ONE modelScale fits all of
     /// them and markerHeight lands above every head.
     /// </summary>
-    [CreateAssetMenu(fileName = "PeopleCatalog", menuName = "BusJam/People Catalog")]
+    [CreateAssetMenu(fileName = "PeopleCatalog", menuName = "Ridebury/People Catalog")]
     public class PeopleCatalog : ScriptableObject
     {
         [Tooltip("Character prefabs; one is chosen at random per queue person.")]

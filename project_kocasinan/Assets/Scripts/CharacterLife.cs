@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Ambient life for a queue/crowd character. There is no rig and no animation clips — this drives the

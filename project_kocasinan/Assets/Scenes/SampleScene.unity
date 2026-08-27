@@ -232,8 +232,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -4, y: -4}
-  m_SizeDelta: {x: 72, y: 72}
+  m_AnchoredPosition: {x: -3, y: -3}
+  m_SizeDelta: {x: 60, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &26551941
 MonoBehaviour:
@@ -383,7 +383,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7bed697f71165de47847b744d9dc7442, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameGarage
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameGarage
   garageWindowSprite: {fileID: -4088049390063211046, guid: 39e0242329775814891ef673e48ae932, type: 3}
   garageWindowColor: {r: 1, g: 1, b: 1, a: 0}
   vehiclesWindowSprite: {fileID: -4088049390063211046, guid: 39e0242329775814891ef673e48ae932, type: 3}
@@ -776,10 +776,10 @@ RectTransform:
   - {fileID: 1015231043}
   m_Father: {fileID: 212227616}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 0, y: 255}
-  m_SizeDelta: {x: 180, y: 180}
+  m_AnchorMin: {x: 1, y: 0}
+  m_AnchorMax: {x: 1, y: 0}
+  m_AnchoredPosition: {x: -95, y: 440}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &87303695
 CanvasRenderer:
@@ -1157,9 +1157,9 @@ RectTransform:
   - {fileID: 447796400}
   m_Father: {fileID: 212227616}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 1}
-  m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -430, y: -285}
+  m_AnchorMin: {x: 1, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: -170, y: -110}
   m_SizeDelta: {x: 300, y: 96}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &127533180
@@ -1390,7 +1390,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 0
   amount: 0
 --- !u!114 &138980139
@@ -2375,7 +2375,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 170, y: 60}
+  m_SizeDelta: {x: 142, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &286300478
 MonoBehaviour:
@@ -3188,7 +3188,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 180, y: 180}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &349800182
 MonoBehaviour:
@@ -3278,7 +3278,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &349921333
@@ -3399,10 +3399,10 @@ RectTransform:
   - {fileID: 26551940}
   m_Father: {fileID: 212227616}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 260, y: 255}
-  m_SizeDelta: {x: 180, y: 180}
+  m_AnchorMin: {x: 1, y: 0}
+  m_AnchorMax: {x: 1, y: 0}
+  m_AnchoredPosition: {x: -95, y: 610}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &351155375
 CanvasRenderer:
@@ -3728,7 +3728,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 7
   amount: 40
 --- !u!114 &392895133
@@ -5091,7 +5091,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 1
   amount: 0
 --- !u!114 &544018725
@@ -5207,7 +5207,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 015e63d03429ef04ea4e6496d68969a8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanels
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanels
   settings: {fileID: 400636743}
   continuePanel: {fileID: 1318641905}
   failed: {fileID: 1418259240}
@@ -5679,7 +5679,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 170, y: 60}
+  m_SizeDelta: {x: 142, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &600417143
 MonoBehaviour:
@@ -5773,7 +5773,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 112, y: 112}
+  m_SizeDelta: {x: 93, y: 93}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &605133947
 CanvasRenderer:
@@ -6017,7 +6017,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 6
   amount: 0
 --- !u!114 &626913841
@@ -6152,7 +6152,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &627954317
@@ -6334,7 +6334,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2c9d95d88d45c2840a335d810011fbc1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShop
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShop
   panel: {fileID: 959977768}
 --- !u!114 &645560509
 MonoBehaviour:
@@ -6546,7 +6546,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 1000
 --- !u!114 &669356667
@@ -6667,7 +6667,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 180, y: 180}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &697458767
 MonoBehaviour:
@@ -6896,7 +6896,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 500
 --- !u!114 &719000832
@@ -7126,7 +7126,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &732065067
@@ -7432,7 +7432,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 5000
 --- !u!114 &779350589
@@ -8572,7 +8572,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &921535378
@@ -8841,7 +8841,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 2
   amount: 0
 --- !u!114 &959977770
@@ -9333,7 +9333,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 72, y: 50}
+  m_SizeDelta: {x: 60, y: 42}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &995998284
 MonoBehaviour:
@@ -9748,8 +9748,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -4, y: -4}
-  m_SizeDelta: {x: 72, y: 72}
+  m_AnchoredPosition: {x: -3, y: -3}
+  m_SizeDelta: {x: 60, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1015231044
 MonoBehaviour:
@@ -9934,7 +9934,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 2
   amount: 0
 --- !u!114 &1033095805
@@ -10145,7 +10145,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 1
   amount: 0
 --- !u!114 &1042508366
@@ -10546,7 +10546,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 10000
 --- !u!114 &1103717047
@@ -10818,10 +10818,10 @@ RectTransform:
   - {fileID: 1898227388}
   m_Father: {fileID: 212227616}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: -260, y: 255}
-  m_SizeDelta: {x: 180, y: 180}
+  m_AnchorMin: {x: 1, y: 0}
+  m_AnchorMax: {x: 1, y: 0}
+  m_AnchoredPosition: {x: -95, y: 270}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1133942294
 CanvasRenderer:
@@ -11035,7 +11035,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 5
   amount: 0
 --- !u!114 &1150265883
@@ -11267,7 +11267,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &1166001150
@@ -11383,7 +11383,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7caa171a754a11489dfacfeb40dedee, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameHud
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameHud
   hudRoot: {fileID: 212227615}
   coinText: {fileID: 447796403}
   levelText: {fileID: 1101960024}
@@ -12892,10 +12892,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 212227616}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 1}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -90, y: -100}
-  m_SizeDelta: {x: 120, y: 120}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 86, y: -110}
+  m_SizeDelta: {x: 96, y: 96}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1263679166
 MonoBehaviour:
@@ -14133,7 +14133,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &1389002709
@@ -14577,7 +14577,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 170, y: 60}
+  m_SizeDelta: {x: 142, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1432446049
 MonoBehaviour:
@@ -15078,7 +15078,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 3
   amount: 0
 --- !u!114 &1459267692
@@ -15729,7 +15729,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 180, y: 180}
+  m_SizeDelta: {x: 150, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1496130085
 MonoBehaviour:
@@ -16303,7 +16303,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 110, y: -210}
+  m_AnchoredPosition: {x: 250, y: -210}
   m_SizeDelta: {x: 260, y: 36}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1571234277
@@ -16822,7 +16822,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 4
   amount: 0
 --- !u!114 &1670914417
@@ -16958,7 +16958,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 100
 --- !u!114 &1681053142
@@ -17466,7 +17466,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 112, y: 112}
+  m_SizeDelta: {x: 93, y: 93}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1740034211
 CanvasRenderer:
@@ -17557,7 +17557,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 2000
 --- !u!114 &1777537857
@@ -17753,7 +17753,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 72, y: 50}
+  m_SizeDelta: {x: 60, y: 42}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1787464636
 MonoBehaviour:
@@ -18501,7 +18501,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 7
   amount: 20
 --- !u!114 &1844119726
@@ -19120,8 +19120,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -4, y: -4}
-  m_SizeDelta: {x: 72, y: 72}
+  m_AnchoredPosition: {x: -3, y: -3}
+  m_SizeDelta: {x: 60, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1898227389
 MonoBehaviour:
@@ -19429,7 +19429,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 0
   amount: 0
 --- !u!114 &1910308963
@@ -20284,7 +20284,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &1951404882
@@ -20883,7 +20883,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 110, y: -110}
+  m_AnchoredPosition: {x: 250, y: -110}
   m_SizeDelta: {x: 170, y: 170}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1977353823
@@ -21535,7 +21535,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 112, y: 112}
+  m_SizeDelta: {x: 93, y: 93}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2054751131
 CanvasRenderer:
@@ -21668,7 +21668,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 72, y: 50}
+  m_SizeDelta: {x: 60, y: 42}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2082319940
 GameObject:
@@ -21817,7 +21817,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &2099855795
@@ -22147,7 +22147,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a22ea891a7013f94cb3d480cc00d643e, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.TutorialPanelMarker
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.TutorialPanelMarker
 --- !u!114 &2126511358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22197,7 +22197,7 @@ GameObject:
   - component: {fileID: 8800000001}
   - component: {fileID: 8800000002}
   m_Layer: 0
-  m_Name: BusJamGame
+  m_Name: RideburyGame
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Rasterises the EXACT Intake Entertainment wordmark (the INTAKE letters with the triangle-A, + ENTERTAINMENT +

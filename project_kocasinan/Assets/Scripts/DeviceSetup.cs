@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// One-time device setup that runs at APP LAUNCH (before any scene loads) via [RuntimeInitializeOnLoadMethod], so
@@ -56,7 +56,7 @@ namespace BusJam
         {
             if (ForceTier.HasValue) return ForceTier.Value;           // code override (see above)
 #if UNITY_EDITOR
-            int menuTier = UnityEditor.EditorPrefs.GetInt(EditorTierKey, -1); // BusJam ▸ Graphics Tier menu (persists across Play)
+            int menuTier = UnityEditor.EditorPrefs.GetInt(EditorTierKey, -1); // Ridebury ▸ Graphics Tier menu (persists across Play)
             if (menuTier >= 0) return (Tier)menuTier;
 #endif
             if (!Application.isMobilePlatform) return Tier.High;       // editor / desktop / console
@@ -71,11 +71,11 @@ namespace BusJam
 
         /// <summary>Apply the per-tier RENDER budget to the URP asset + QualitySettings, ONCE at launch. This is the
         /// STARTING quality; PerfGovernor still adaptively drops renderScale at runtime to defend the 60-fps floor, and
-        /// BusJamGame reads DeviceTier to gate the two biggest gameplay-board costs (the inverted-hull TOON OUTLINE,
+        /// RideburyGame reads DeviceTier to gate the two biggest gameplay-board costs (the inverted-hull TOON OUTLINE,
         /// which draws every vehicle twice, and the shadowmap pass).
-        ///   • Low : shadows OFF, MSAA off, renderScale 0.80, 0 pixel lights   (BusJamGame: no outlines, no VFX)
-        ///   • Mid : HARD shadows @28 m, MSAA off, renderScale 0.90, 1 light    (BusJamGame: no outlines)
-        ///   • High: SOFT shadows @50 m, 2x MSAA, renderScale 1.00, 2 lights    (BusJamGame: outlines on)</summary>
+        ///   • Low : shadows OFF, MSAA off, renderScale 0.80, 0 pixel lights   (RideburyGame: no outlines, no VFX)
+        ///   • Mid : HARD shadows @28 m, MSAA off, renderScale 0.90, 1 light    (RideburyGame: no outlines)
+        ///   • High: SOFT shadows @50 m, 2x MSAA, renderScale 1.00, 2 lights    (RideburyGame: outlines on)</summary>
         public static void ApplyQuality()
         {
             QualitySettings.antiAliasing = 0;   // URP owns MSAA via the asset below, not QualitySettings
@@ -99,7 +99,7 @@ namespace BusJam
         }
 
 #if UNITY_EDITOR
-        public const string EditorTierKey = "BusJam.ForceTier"; // EditorPrefs key shared with the Graphics Tier menu
+        public const string EditorTierKey = "Ridebury.ForceTier"; // EditorPrefs key shared with the Graphics Tier menu
         // Re-classify (re-reads the menu EditorPrefs) and re-apply live. renderScale / MSAA / shadow distance update
         // instantly; the toon outlines + sun-shadow style apply on the NEXT level build (they're set when a level is
         // built), so reload the gameplay scene / press Retry to see those change.

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Tags a button inside a baked in-game panel (Settings / Continue / Failed) so

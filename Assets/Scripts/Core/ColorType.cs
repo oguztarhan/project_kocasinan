@@ -1,4 +1,4 @@
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// The set of passenger / bus colors used for matching.

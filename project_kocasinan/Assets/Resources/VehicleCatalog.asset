@@ -11,12 +11,12 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 43279e2d5f649f4488459bc0538b0a1e, type: 3}
   m_Name: VehicleCatalog
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.VehicleCatalog
-  carPrefab: {fileID: 5111360760994950977, guid: 23aa1164faad9e648a7f4de22c49c31d, type: 3}
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.VehicleCatalog
+  carPrefab: {fileID: 5199075935451974374, guid: de8c70c7894d668311f6b1cea105c2ef, type: 3}
   minivanPrefab: {fileID: -8098169881513260187, guid: ea443afc4a36022418073101b5cb1993, type: 3}
-  busPrefab: {fileID: -8098169881513260187, guid: e32a9a838f8c05345895e18cc942c711, type: 3}
+  busPrefab: {fileID: 5199075935451974374, guid: d386894805123244e86beee2090dd13c, type: 3}
   fitFactor: 1
-  yaw: 180
+  yaw: 0
   yOffset: 0
   yawMinivan: 0
   yawBus: 0

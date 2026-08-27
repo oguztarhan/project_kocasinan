@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// All game audio in one editable asset (Resources/SoundCatalog.asset). Assign clips + tune volumes here.
@@ -12,7 +12,7 @@ namespace BusJam
     /// MUSIC: the menu track plus one track PER THEME (night themes get a night track, etc.). The per-theme list
     /// auto-lists every theme with a sensible default already assigned — replace or revolume any of them freely.
     /// </summary>
-    [CreateAssetMenu(fileName = "SoundCatalog", menuName = "BusJam/Sound Catalog")]
+    [CreateAssetMenu(fileName = "SoundCatalog", menuName = "Ridebury/Sound Catalog")]
     public class SoundCatalog : ScriptableObject
     {
         // One in-game music track for a theme. `theme` is an auto-filled label that matches a Theme name.

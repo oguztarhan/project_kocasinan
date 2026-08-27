@@ -1,11 +1,11 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Runtime access to the vehicle "dolap": resolves the model the player has EQUIPPED for each vehicle type
     /// (from its unlocked set) and unlocks a set with coins. The catalog (10 sets) is built by
-    /// "BusJam ▸ Build Vehicle Sets" and loaded from Resources. If the catalog is missing, callers fall back to
+    /// "Ridebury ▸ Build Vehicle Sets" and loaded from Resources. If the catalog is missing, callers fall back to
     /// the plain VehicleCatalog default.
     /// </summary>
     public static class VehicleWardrobe

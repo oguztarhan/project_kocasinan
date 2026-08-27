@@ -1,4 +1,4 @@
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Vehicle shapes. Capacity (seat count) AND grid footprint differ per type:
     /// a vehicle occupies <see cref="Vehicles.CellLength"/> cells in a line along its exit

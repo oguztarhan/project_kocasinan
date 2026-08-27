@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// The ONE place that decides the game-wide font. Lives as an editable asset at Resources/FontConfig.asset:
@@ -11,7 +11,7 @@ namespace BusJam
     /// Leave <see cref="tmpFont"/> empty to auto-generate a matching TMP (SDF) font from uiFont at runtime, or assign
     /// a hand-made TMP Font Asset for crisper TMP text.
     /// </summary>
-    [CreateAssetMenu(fileName = "FontConfig", menuName = "BusJam/Font Config")]
+    [CreateAssetMenu(fileName = "FontConfig", menuName = "Ridebury/Font Config")]
     public class FontConfig : ScriptableObject
     {
         [Tooltip("Game-wide uGUI (legacy Text) font. Drag any .ttf/.otf here to change EVERY text in the project.")]

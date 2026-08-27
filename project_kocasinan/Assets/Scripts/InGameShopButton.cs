@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Tags a button inside the baked in-game shop so <see cref="GameUI"/> can wire its

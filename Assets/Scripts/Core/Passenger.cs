@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>The four lifecycle states of a passenger.</summary>
     public enum PassengerState

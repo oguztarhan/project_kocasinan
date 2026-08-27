@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>A single person waiting in the queue.</summary>
     public class LineUnit : MonoBehaviour

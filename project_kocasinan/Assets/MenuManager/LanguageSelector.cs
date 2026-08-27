@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Self-contained driver for a language pop-up: auto-discovers its <see cref="LanguageOption"/>

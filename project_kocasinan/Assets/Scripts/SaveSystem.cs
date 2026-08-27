@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Tiny PlayerPrefs-backed persistence for coins, level and settings.</summary>
     public static class SaveSystem
@@ -135,7 +135,7 @@ namespace BusJam
         }
 
         // Color-blind mode: when on, Palette.ToColor returns a colorblind-safe team palette. Flipped from the in-game
-        // Settings toggle, which then rebuilds the board (BusJamGame.ApplyColorBlindMode) so it applies live.
+        // Settings toggle, which then rebuilds the board (RideburyGame.ApplyColorBlindMode) so it applies live.
         public static bool ColorBlind
         {
             get => PlayerPrefs.GetInt("bj_colorblind", 0) == 1;
@@ -202,7 +202,7 @@ namespace BusJam
             return true;
         }
 
-        // (#6) One-time "mandatory" free joker: granted the first time RECOLOR unlocks (level 5).
+        // (#6) One-time "mandatory" free joker: granted the first time RECOLOR unlocks (level 6).
         public static bool FreeJokerGranted
         {
             get => PlayerPrefs.GetInt("bj_freejoker_granted", 0) == 1;

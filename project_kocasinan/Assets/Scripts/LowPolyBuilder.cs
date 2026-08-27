@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Builds low-poly visuals. Buses run lengthwise along +Z and point
     /// their arrow toward -Z (down the screen, toward the parking row).</summary>
@@ -49,7 +49,7 @@ namespace BusJam
         }
 
         // Car = short & tall, Bus = standard. Roof heads (boarded passengers) are built separately by
-        // BusJamGame.BuildRoofHeads, unified across both render paths.
+        // RideburyGame.BuildRoofHeads, unified across both render paths.
         public static void BuildVehicle(Transform root, VehicleType type, float cellSize,
             Material body, Material glass, Material wheel, Material light, Material arrowMat)
         {
@@ -326,7 +326,7 @@ namespace BusJam
         // ---- Helicopter (joker) -------------------------------------------------
         // A mini low-poly rescue chopper built from primitives, matching the toy look of the vehicles.
         // Nose points +Z so LookRotation(travelDir) aims it forward. The main + tail rotors auto-spin
-        // (Spinner). The lift cable + hook are NOT built here — BusJamGame creates+animates them in world
+        // (Spinner). The lift cable + hook are NOT built here — RideburyGame creates+animates them in world
         // space so they hang straight down regardless of how the body banks. Returns the body root.
         public static GameObject BuildHelicopter(Transform parent, Material body, Material glass, Material rotor, Material accent)
         {

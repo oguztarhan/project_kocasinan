@@ -1,10 +1,10 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
-    /// "BusJam ▸ LEVELS Test Button" — a CHECKED menu toggle for the level-testing tools: the on-screen LEVELS
+    /// "Ridebury ▸ LEVELS Test Button" — a CHECKED menu toggle for the level-testing tools: the on-screen LEVELS
     /// jump button + the unlock-first-100 level grid (both read the same PlayerPrefs flag in LevelSelect).
     /// Editor PlayerPrefs never ship in a build, so a device install always has this OFF — nothing to revert
     /// for release. Takes effect on the next Play (the button is created during scene build).
@@ -12,7 +12,7 @@ namespace BusJam
     public static class LevelsButtonMenu
     {
         const string Key = "bj_debug_levels";
-        const string Path = "BusJam/LEVELS Test Button";
+        const string Path = "Ridebury/LEVELS Test Button";
 
         [MenuItem(Path)]
         static void Toggle()
@@ -21,7 +21,7 @@ namespace BusJam
             PlayerPrefs.SetInt(Key, on ? 1 : 0);
             PlayerPrefs.Save();
             Menu.SetChecked(Path, on);
-            Debug.Log("[BusJam] LEVELS test button " + (on ? "ON — the jump button appears and the first 100 levels are tappable on the next Play."
+            Debug.Log("[Ridebury] LEVELS test button " + (on ? "ON — the jump button appears and the first 100 levels are tappable on the next Play."
                                                           : "OFF — no jump button, normal level progression."));
         }
 

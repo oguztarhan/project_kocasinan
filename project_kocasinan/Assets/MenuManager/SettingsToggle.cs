@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Sound / Music on-off toggle for the baked main-menu Settings panel. The toggle is a

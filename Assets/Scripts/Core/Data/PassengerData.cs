@@ -1,14 +1,14 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Designer-authored tuning for passenger behaviour/visuals. One asset can be shared by
     /// thousands of passengers (flyweight) — they hold a reference, not a copy, so changing the
     /// asset retunes every passenger with zero code changes.
-    /// Create via: Assets ▸ Create ▸ BusJam ▸ Passenger Data.
+    /// Create via: Assets ▸ Create ▸ Ridebury ▸ Passenger Data.
     /// </summary>
-    [CreateAssetMenu(fileName = "PassengerData", menuName = "BusJam/Passenger Data", order = 0)]
+    [CreateAssetMenu(fileName = "PassengerData", menuName = "Ridebury/Passenger Data", order = 0)]
     public class PassengerData : ScriptableObject
     {
         [Header("Movement")]

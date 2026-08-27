@@ -4,7 +4,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Forces EVERY uGUI Text and TMP_Text in each loaded scene to the game font (<see cref="GameFont"/>),

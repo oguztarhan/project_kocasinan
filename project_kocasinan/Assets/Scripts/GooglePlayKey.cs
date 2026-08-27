@@ -1,4 +1,4 @@
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// This app's Google Play LICENSE (public) key, used by <see cref="IAPManager"/>'s receipt validator to confirm a

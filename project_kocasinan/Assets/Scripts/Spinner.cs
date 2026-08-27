@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Continuously spins a transform about a local axis — used for the helicopter joker's
     /// main + tail rotors. Self-contained (no wiring); add it and call Set(axis, degPerSec).</summary>

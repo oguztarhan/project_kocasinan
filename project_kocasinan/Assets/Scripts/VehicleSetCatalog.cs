@@ -1,15 +1,15 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// The unlockable vehicle "sets" (the wardrobe / "dolap"). Each set bundles ONE model per vehicle type
     /// (car + minivan + bus). The player UNLOCKS a whole set with coins, then EQUIPS per type independently
-    /// (e.g. change the car but keep the same minivan/bus). Built/refreshed by "BusJam ▸ Build Vehicle Sets"
+    /// (e.g. change the car but keep the same minivan/bus). Built/refreshed by "Ridebury ▸ Build Vehicle Sets"
     /// and loaded at runtime from Resources. Set 0 is the free default (Royal + Connect + Bus); its models
     /// mirror the VehicleCatalog defaults so a fresh save looks identical until the player changes something.
     /// </summary>
-    [CreateAssetMenu(fileName = "VehicleSetCatalog", menuName = "BusJam/Vehicle Set Catalog")]
+    [CreateAssetMenu(fileName = "VehicleSetCatalog", menuName = "Ridebury/Vehicle Set Catalog")]
     public class VehicleSetCatalog : ScriptableObject
     {
         [System.Serializable]

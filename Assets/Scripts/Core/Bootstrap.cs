@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// ZERO-SETUP LAUNCHER. Press Play and the whole game builds itself — camera, lighting, ground,
@@ -11,7 +11,7 @@ namespace BusJam.Core
     /// prefabs, no ScriptableObject assets to author.
     ///
     /// It hooks in via <see cref="RuntimeInitializeOnLoadMethod"/>, so it runs no matter which scene
-    /// is open. The procedurally-built game lives under one "BusJamGame" root; this launcher persists
+    /// is open. The procedurally-built game lives under one "RideburyGame" root; this launcher persists
     /// and rebuilds that root on demand (win / lose → tap to play again).
     ///
     /// This is intentionally a "composition root": the one place allowed to know about every manager
@@ -24,7 +24,7 @@ namespace BusJam.Core
         private static void AutoStart()
         {
             if (FindFirstObjectByType<Bootstrap>() != null) return;
-            var go = new GameObject("BusJamBootstrap");
+            var go = new GameObject("RideburyBootstrap");
             go.AddComponent<Bootstrap>();
         }
 
@@ -115,7 +115,7 @@ namespace BusJam.Core
         {
             _gameEnded = false;
             _banner.text = "";
-            _root = new GameObject("BusJamGame");
+            _root = new GameObject("RideburyGame");
 
             Camera cam = SetupCamera();
             SetupLight();

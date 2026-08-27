@@ -3,19 +3,19 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
-    /// <summary>Collects the BusJam queue characters (Assets/Characters/BusJamPeople/*.fbx) into
+    /// <summary>Collects the Ridebury queue characters (Assets/Characters/RideburyPeople/*.fbx) into
     /// Resources/PeopleCatalog.asset, which the game loads at runtime and draws from AT RANDOM for
     /// every queue person and background crowd figure — so each round is a fresh mix of the whole set.
-    /// Re-run from "BusJam ▸ Build People Catalog" after adding/removing models; it also self-heals on
+    /// Re-run from "Ridebury ▸ Build People Catalog" after adding/removing models; it also self-heals on
     /// editor load when the catalog is missing or its entries are all gone.</summary>
     public static class PeopleCatalogBuilder
     {
-        const string PeopleFolder = "Assets/Characters/BusJamPeople";
+        const string PeopleFolder = "Assets/Characters/RideburyPeople";
         const string CatalogPath  = "Assets/Resources/PeopleCatalog.asset";
 
-        [MenuItem("BusJam/Build People Catalog")]
+        [MenuItem("Ridebury/Build People Catalog")]
         public static void Build() { Build(true); }
 
         // Self-heal: a fresh clone (or a catalog whose models were replaced) gets a populated list without
@@ -40,7 +40,7 @@ namespace BusJam
 
             if (!AssetDatabase.IsValidFolder(PeopleFolder))
             {
-                Debug.LogWarning($"[BusJam] People models not found at {PeopleFolder}. " +
+                Debug.LogWarning($"[Ridebury] People models not found at {PeopleFolder}. " +
                                  "Point this at your model folder, or assign prefabs on the catalog by hand.");
                 return;
             }
@@ -69,7 +69,7 @@ namespace BusJam
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"[BusJam] People catalog {(created ? "created" : "updated")} with {list.Count} characters at {CatalogPath}.");
+            Debug.Log($"[Ridebury] People catalog {(created ? "created" : "updated")} with {list.Count} characters at {CatalogPath}.");
         }
     }
 }

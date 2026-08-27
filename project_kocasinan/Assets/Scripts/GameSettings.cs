@@ -1,17 +1,17 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Editable runtime tuning knobs (people/bus speed, sizes, turn feel). Loaded at runtime from
-    /// Resources by BusJamGame — tweak the GameSettings.asset in the Inspector any time. If the asset
-    /// is missing, BusJamGame falls back to these same defaults, so nothing breaks.
+    /// Resources by RideburyGame — tweak the GameSettings.asset in the Inspector any time. If the asset
+    /// is missing, RideburyGame falls back to these same defaults, so nothing breaks.
     ///
     /// Layout-critical values — CellSize, grid size, band Z positions, camera, and the vehicle COUNT —
     /// are intentionally NOT here: they are fitted + stress-tested in code, and changing them would
     /// silently break the framing / solvability. Ask to expose any of those and we re-verify.
     /// </summary>
-    [CreateAssetMenu(fileName = "GameSettings", menuName = "BusJam/Game Settings")]
+    [CreateAssetMenu(fileName = "GameSettings", menuName = "Ridebury/Game Settings")]
     public class GameSettings : ScriptableObject
     {
         [Header("People")]

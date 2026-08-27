@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Background music. Plays ONE looping track at a time, chosen by context:
@@ -57,16 +57,16 @@ namespace BusJam
 
 #if UNITY_IOS && !UNITY_EDITOR
         [System.Runtime.InteropServices.DllImport("__Internal")]
-        static extern void _BusJamSetAudioSessionPlayback();
+        static extern void _RideburySetAudioSessionPlayback();
 #endif
 
         // iOS only: force the AVAudioSession category to .Playback so music/SFX are NOT silenced by the hardware
         // silent/mute switch (Android has no such switch — that's why music played there but not on iOS). Compiles to
-        // nothing on Android / in the editor. Native side: Assets/Plugins/iOS/BusJamAudioSession.mm.
+        // nothing on Android / in the editor. Native side: Assets/Plugins/iOS/RideburyAudioSession.mm.
         static void ApplyIosAudioSession()
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            try { _BusJamSetAudioSessionPlayback(); } catch { /* audio must never break startup */ }
+            try { _RideburySetAudioSessionPlayback(); } catch { /* audio must never break startup */ }
 #endif
         }
 

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7c4f2a9e8d6451c93f0a2b1c4d5e6f7, type: 3}
   m_Name: SoundCatalog
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.SoundCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.SoundCatalog
   vehicleSlidesOutOfJam: {fileID: 0}
   vehicleSlidesOutVolume: 0.177
   vehicleArrivesAtStop: {fileID: 0}

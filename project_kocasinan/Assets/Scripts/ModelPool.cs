@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Prefab-clone POOL for the expensive runtime models: high-poly vehicles, skinned queue characters, env decor

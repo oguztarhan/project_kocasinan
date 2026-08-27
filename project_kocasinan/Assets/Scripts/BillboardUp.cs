@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>Keeps a world-space label screen-aligned (parallel to the camera plane) so it is
     /// always readable and never mirrored, regardless of how its parent vehicle is rotated.</summary>

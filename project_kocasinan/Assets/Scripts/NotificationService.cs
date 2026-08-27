@@ -9,7 +9,7 @@ using System.Collections;
 using System.Collections.Generic; // List<DateTime> in BuildSlots
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Local (offline) re-engagement notifications. Self-spawns at launch into a DontDestroyOnLoad object — no scene or
@@ -21,13 +21,13 @@ namespace BusJam
     /// </summary>
     public class NotificationService : MonoBehaviour
     {
-        // v3: bumped from "busjam_reengage2" to carry the CUSTOM SOUND (busjam_chime). Android locks a channel's sound
-        // at CREATION and an app can NEVER change it afterwards — exactly the same rule that forced the v1->v2 bump
-        // (importance couldn't be raised either). So a new sound REQUIRES a new id; the old channels are deleted in Start.
-        const string AndroidChannel = "busjam_reengage3";
-        // res/raw/busjam_chime.mp3, shipped by Plugins/Android/NotificationSound.androidlib. Android resource names are
+        // First channel under the Ridebury name. Android locks a channel's sound and importance at CREATION and an app
+        // can NEVER change them afterwards, so every such change REQUIRES a fresh id; the superseded channels are
+        // deleted in Start (they keep their OLD literal ids there — that is what exists on already-shipped devices).
+        const string AndroidChannel = "ridebury_reengage1";
+        // res/raw/ridebury_chime.mp3, shipped by Plugins/Android/NotificationSound.androidlib. Android resource names are
         // [a-z0-9_] and may NOT start with a digit, which is why the original "352669__foolboymedia__up-chime-4" was renamed.
-        const string SoundRes = "busjam_chime";
+        const string SoundRes = "ridebury_chime";
 
         // ---- Reminder schedule shape ------------------------------------------
         const int FirstNudgeH = 2;  // day 0: first "come back and play" nudge at +2h — deliberately BELOW the chest floor
@@ -89,8 +89,11 @@ namespace BusJam
         void Start()
         {
 #if UNITY_ANDROID
+            // Legacy ids, kept VERBATIM — these are the channels sitting on already-shipped devices, and deleting them
+            // is what clears the old app name out of the system notification settings.
             AndroidNotificationCenter.DeleteNotificationChannel("busjam_reengage");  // retire the old SILENT (Default) channel
-            AndroidNotificationCenter.DeleteNotificationChannel("busjam_reengage2"); // retire v2 (device default sound) -> v3 has busjam_chime
+            AndroidNotificationCenter.DeleteNotificationChannel("busjam_reengage2"); // retire v2 (device default sound)
+            AndroidNotificationCenter.DeleteNotificationChannel("busjam_reengage3"); // retire v3 (last channel under the old name)
             EnsureChannel();
             // Android 13+ (API 33) needs a runtime POST_NOTIFICATIONS grant or EVERY notification is silently dropped.
             // Request it HERE so local reminders work even when Firebase never initialises — do NOT rely on
@@ -122,15 +125,15 @@ namespace BusJam
             AndroidNotificationCenter.RegisterNotificationChannel(new AndroidNotificationChannel
             {
                 Id = AndroidChannel,
-                Name = "BusJam",
+                Name = "Ridebury",
                 Importance = Importance.High, // High = sound + heads-up banner; Default delivers SILENTLY (testers never noticed)
-                Description = "BusJam reminders",
+                Description = "Ridebury reminders",
                 CanShowBadge = true,
                 EnableVibration = true,
             });
         }
 
-        // JNI: new NotificationChannel(id, name, IMPORTANCE_HIGH).setSound(android.resource://<pkg>/raw/busjam_chime, attrs).
+        // JNI: new NotificationChannel(id, name, IMPORTANCE_HIGH).setSound(android.resource://<pkg>/raw/ridebury_chime, attrs).
         // Only ever takes effect on the FIRST creation of this channel id on a device (Android locks the sound after that)
         // — that is why AndroidChannel was bumped to v3. Failure is never fatal: EnsureChannel's Unity register still
         // creates the channel, just with the device default sound.
@@ -143,12 +146,12 @@ namespace BusJam
                 using (var player   = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
                 using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
                 using (var nm       = activity.Call<AndroidJavaObject>("getSystemService", "notification"))
-                using (var ch       = new AndroidJavaObject("android.app.NotificationChannel", AndroidChannel, "BusJam", 4)) // 4 = IMPORTANCE_HIGH
+                using (var ch       = new AndroidJavaObject("android.app.NotificationChannel", AndroidChannel, "Ridebury", 4)) // 4 = IMPORTANCE_HIGH
                 using (var uriCls   = new AndroidJavaClass("android.net.Uri"))
                 using (var attrB    = new AndroidJavaObject("android.media.AudioAttributes$Builder"))
                 {
                     string pkg = activity.Call<string>("getPackageName");
-                    ch.Call("setDescription", "BusJam reminders");
+                    ch.Call("setDescription", "Ridebury reminders");
                     ch.Call("enableVibration", true);
                     ch.Call("setShowBadge", true);
                     using (var uri = uriCls.CallStatic<AndroidJavaObject>("parse", "android.resource://" + pkg + "/raw/" + SoundRes))
@@ -247,8 +250,8 @@ namespace BusJam
                 Title = txt.title,
                 Text = txt.body,
                 FireTime = when,
-                SmallIcon = "busjam_notify", // white bus silhouette in the status bar — must match the Mobile Notifications icon Id
-                LargeIcon = "busjam_large",  // full-colour app icon shown inside the expanded notification (optional)
+                SmallIcon = "ridebury_notify", // white bus silhouette in the status bar — must match the Mobile Notifications icon Id
+                LargeIcon = "ridebury_large",  // full-colour app icon shown inside the expanded notification (optional)
             }, AndroidChannel);
 #elif UNITY_IOS
             double secs = (when - DateTime.Now).TotalSeconds;
@@ -303,8 +306,8 @@ namespace BusJam
                 Title = txt.title,
                 Text = txt.body,
                 FireTime = DateTime.Now.AddSeconds(5),
-                SmallIcon = "busjam_notify",
-                LargeIcon = "busjam_large",
+                SmallIcon = "ridebury_notify",
+                LargeIcon = "ridebury_large",
             }, AndroidChannel);
             // NOTE: deliberately DO NOT call AndroidNotificationCenter.GetNotificationChannel() to read back the channel
             // importance — on this Mobile Notifications native lib it throws a JNI NoSuchFieldError ("field 'id' in class

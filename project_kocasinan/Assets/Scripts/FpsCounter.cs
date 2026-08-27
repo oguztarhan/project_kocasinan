@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// On-screen FPS counter (DEV ONLY). HIDDEN by default — set <see cref="Show"/> = true to show the pill while

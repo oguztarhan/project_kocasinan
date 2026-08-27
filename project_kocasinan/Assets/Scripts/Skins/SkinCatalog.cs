@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>The static skin list. v3 = TEXTURE skins: each is a code-generated pattern (accent-coloured,
     /// transparent background) laid over the default vehicle as a roof decal or a full wrap. The body keeps the

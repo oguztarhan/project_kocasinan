@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>A parking bay. Extra bays start locked; one opens by watching an ad, the rest cost coins.</summary>
     public class ParkingSlot : MonoBehaviour

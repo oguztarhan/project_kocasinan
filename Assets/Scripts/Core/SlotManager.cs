@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Manages the limited holding area — a fixed set of slot Transforms where passengers wait

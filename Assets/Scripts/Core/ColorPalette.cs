@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Maps a <see cref="ColorType"/> to a renderable Unity <see cref="Color"/>.

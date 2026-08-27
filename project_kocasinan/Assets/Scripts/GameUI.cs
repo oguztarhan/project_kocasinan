@@ -4,7 +4,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Runtime-built in-game HUD + Settings / Shop / Continue / Failed / Success panels,
@@ -17,10 +17,10 @@ namespace BusJam
     {
         public System.Action OnMenu, OnRecolor, OnSwap, OnHeli;
         public System.Action OnHome, OnReplay, OnLevels;
-        public System.Action OnColorBlindToggle; // Settings COLOR BLIND toggle -> BusJamGame.ApplyColorBlindMode
+        public System.Action OnColorBlindToggle; // Settings COLOR BLIND toggle -> RideburyGame.ApplyColorBlindMode
         public System.Action<int> OnClaimReward;
         public System.Action OnContinueAd, OnContinuePay, OnContinueDeclined;
-        public System.Action<int> OnFreeCoins; // +coins rewarded button -> BusJamGame grants coins & fires CoinsChanged
+        public System.Action<int> OnFreeCoins; // +coins rewarded button -> RideburyGame grants coins & fires CoinsChanged
 
         static readonly Color White = Color.white;
         static readonly Color Gold  = new Color(1f, 0.85f, 0.30f);
@@ -44,7 +44,14 @@ namespace BusJam
 
         // Bottom space reserved for the AdMob adaptive banner so the joker row never sits under it (T3). Tunable.
         const float BannerReservePx = 190f;
-        const float JokerBaseBottom = 70f;  // original bottom offset of the joker row
+        // Booster RAIL (was a row across the bottom-centre, sitting on the busiest part of the jam and right on top
+        // of the banner). A column hugging the RIGHT edge keeps the whole board width free for dragging and stays in
+        // the thumb zone. It grazes the right escape lane, but away-arrow vehicles clear that band in well under a
+        // second. Mirror any change here in the baked HUD (SampleScene ▸ Hud ▸ Joker_*) — that is the shipped path.
+        const float RailX      = -95f;                   // button centre, in from the right edge
+        const float RailBottom = BannerReservePx + 80f;  // lowest button, clear of the adaptive banner
+        const float RailStep   = 170f;                   // centre-to-centre gap
+        const float RailSize   = 150f;                   // button edge (~54pt on a 393pt-wide phone; Apple's floor is 44pt)
         const int   FreeCoinsReward = 50;   // coins granted by the "+coins" rewarded button (T5)
 
         struct Joker
@@ -164,7 +171,7 @@ namespace BusJam
         }
 
         // Builds a Joker record + wires the button: when you OWN one, pressing uses it
-        // (BusJamGame consumes a charge); when out of stock, pressing opens the buy panel.
+        // (RideburyGame consumes a charge); when out of stock, pressing opens the buy panel.
         Joker MakeJoker(Button btn, Image bg, Image icon, GameObject lockGo, GameObject counterGo, Text counterText, int cost, int unlock, int kind, System.Action use)
         {
             Sprite iconSprite = icon != null ? icon.sprite : null;
@@ -192,26 +199,28 @@ namespace BusJam
             hudPanel = Panel("Hud", new Color(0, 0, 0, 0));
             hudPanel.GetComponent<Image>().raycastTarget = false;
 
-            // LEVEL badge: TOP-LEFT, rounded blue-purple button (atlas1_25), white text.
+            // LEVEL badge: TOP-LEFT, rounded blue-purple button (atlas1_25), white text. Shifted right of the gear,
+            // which now owns the corner itself (see the corner swap on the coin bar below).
             var badge = Img(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f));
-            Place(badge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(110, -110), new Vector2(170, 170));
+            Place(badge.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(250, -110), new Vector2(170, 170));
             badge.raycastTarget = false;
             Label(badge.transform, "LEVEL", num, new Vector2(0, 42), new Vector2(160, 36), 24, White);
             hudLevel = Label(badge.transform, "1", title, new Vector2(0, -16), new Vector2(160, 90), 64, White);
             levelBadgeGo = badge.gameObject; // (#6) hidden while the shop is open
-            hudTheme = Label(hudPanel.transform, "", num, new Vector2(110, -210), new Vector2(260, 36), 22, new Color(0.85f, 0.9f, 1f));
+            hudTheme = Label(hudPanel.transform, "", num, new Vector2(250, -210), new Vector2(260, 36), 22, new Color(0.85f, 0.9f, 1f));
             hudTheme.rectTransform.anchorMin = hudTheme.rectTransform.anchorMax = new Vector2(0, 1);
-            hudTheme.rectTransform.anchoredPosition = new Vector2(110, -210);
+            hudTheme.rectTransform.anchoredPosition = new Vector2(250, -210);
 
-            // COIN display: TOP-CENTER (atlas1_20 bar), opens the in-game shop.
-            var coinBtn = Btn(hudPanel.transform, UIKit.CoinBar(), Dark, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(300, 96), ShowShop);
+            // COIN display: TOP-RIGHT (atlas1_20 bar), opens the in-game shop. Currency-right / settings-left is the
+            // mirror of the stock template corner assignment; it also frees the top-centre strip for the bonus timer.
+            var coinBtn = Btn(hudPanel.transform, UIKit.CoinBar(), Dark, new Vector2(1, 1), new Vector2(-170, -110), new Vector2(300, 96), ShowShop);
             coinBarGo = coinBtn.gameObject; // (#6) hidden while the garage is open (the garage shows its own gold)
             var ci = Img(coinBtn.transform, UIKit.Coin(), Gold); ci.raycastTarget = false;
             Place(ci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(74, 74));
             hudCoins = Label(coinBtn.transform, "0", num, new Vector2(35, 0), new Vector2(180, 60), 44, White);
 
-            // SETTINGS gear: TOP-RIGHT.
-            gearGo = Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(1, 1), new Vector2(-90, -100), new Vector2(120, 120), ShowSettings).gameObject; // (#6)
+            // SETTINGS gear: TOP-LEFT corner, smaller (it is the least-pressed button on the screen).
+            gearGo = Btn(hudPanel.transform, UIKit.Gear(), new Color(0.7f, 0.72f, 0.78f), new Vector2(0, 1), new Vector2(86, -110), new Vector2(96, 96), ShowSettings).gameObject; // (#6)
 
             // (#1) The watch-ad / +coins button was removed from the in-game HUD per request.
 
@@ -220,30 +229,28 @@ namespace BusJam
             comboText = Label(hudPanel.transform, "", title, new Vector2(0, 360), new Vector2(900, 100), 70, Gold);
             comboText.gameObject.SetActive(false);
 
-            // 3 jokers across the bottom (atlas1_25 buttons + atlas1_34 count badges).
-            jRecolor = JokerButton(-260, UIKit.JokerRecolor(), recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
-            jSwap    = JokerButton(0,    UIKit.JokerSwap(),    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
-            jHeli    = JokerButton(260,  UIKit.JokerHeli(),    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
+            // 3 jokers in a right-edge rail (atlas1_25 buttons + atlas1_34 count badges), stacked bottom-up in
+            // unlock order so the one the player gets first is the one nearest the thumb.
+            jRecolor = JokerButton(RailBottom,                 UIKit.JokerRecolor(), recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
+            jSwap    = JokerButton(RailBottom + RailStep,      UIKit.JokerSwap(),    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
+            jHeli    = JokerButton(RailBottom + RailStep * 2f, UIKit.JokerHeli(),    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
             RefreshJokers();
             AddGarageButton(hudPanel.transform);
             BuildBonusCountdown();
         }
 
-        Joker JokerButton(float x, Sprite icon, int cost, int unlock, int kind, System.Action use)
+        Joker JokerButton(float y, Sprite icon, int cost, int unlock, int kind, System.Action use)
         {
-            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(0.5f, 0), new Vector2(x, JokerBaseBottom + BannerReservePx), new Vector2(180, 180), null);
-            var rt = btn.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0); rt.pivot = new Vector2(0.5f, 0);
-            rt.anchoredPosition = new Vector2(x, JokerBaseBottom + BannerReservePx);
+            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(1, 0), new Vector2(RailX, y), new Vector2(RailSize, RailSize), null);
             var bg = btn.GetComponent<Image>();
             var ico = Img(btn.transform, icon, White); ico.raycastTarget = false;
-            Center(ico.rectTransform, new Vector2(112, 112));
+            Center(ico.rectTransform, new Vector2(93, 93));
             var lk = Img(btn.transform, null, new Color(0, 0, 0, 0.55f)); lk.raycastTarget = false;
-            Center(lk.rectTransform, new Vector2(180, 180));
-            Label(lk.transform, "LV " + unlock, num, Vector2.zero, new Vector2(170, 60), 34, White);
+            Center(lk.rectTransform, new Vector2(RailSize, RailSize));
+            Label(lk.transform, "LV " + unlock, num, Vector2.zero, new Vector2(142, 50), 34, White);
             var cb = Img(btn.transform, UIKit.A(34), new Color(0.95f, 0.78f, 0.20f)); cb.raycastTarget = false;
-            Place(cb.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-4, -4), new Vector2(72, 72));
-            var ct = Label(cb.transform, "0", num, Vector2.zero, new Vector2(72, 50), 32, White);
+            Place(cb.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-3, -3), new Vector2(60, 60));
+            var ct = Label(cb.transform, "0", num, Vector2.zero, new Vector2(60, 42), 32, White);
             return MakeJoker(btn, bg, ico, lk.gameObject, cb.gameObject, ct, cost, unlock, kind, use);
         }
 
@@ -477,7 +484,7 @@ namespace BusJam
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
             AddPrivacyOptionsButton(settingsPanel != null ? settingsPanel.transform : null);
             // DEBUG: the LEVELS jump button now lives HERE in Settings (off the play screen / out of screenshots),
-            // shown only while the "BusJam ▸ LEVELS Test Button" editor toggle is ON. Device builds never see it.
+            // shown only while the "Ridebury ▸ LEVELS Test Button" editor toggle is ON. Device builds never see it.
             if (LevelSelect.DebugLevels) AddLevelsButton(settingsPanel != null ? settingsPanel.transform : null);
         }
 
@@ -532,7 +539,7 @@ namespace BusJam
         // the every-10th bonus levels without grinding to them. Call it from SetupSettings to switch it on, and flip
         // LevelSelect.debugUnlockAll to true alongside it (otherwise the map only shows levels you have actually reached).
         // Both are OFF for release: together they let a first-time player skip straight to level 100.
-        // BusJamGame wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order is free.
+        // RideburyGame wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order is free.
         // Placement: its OWN top-most canvas + raycaster. A plain child of the settings card does NOT receive taps (the
         // card's own overrideSorting canvas swallows them) — this is the placement proven to work on-device.
         void AddLevelsButton(Transform panel)
@@ -1307,7 +1314,7 @@ namespace BusJam
             }
         }
 
-        // True while any modal pop-up (settings / shop / continue / failed / success) is open. BusJamGame uses
+        // True while any modal pop-up (settings / shop / continue / failed / success) is open. RideburyGame uses
         // this to hide the tutorial coach so nothing tutorial-related shows on top of a panel.
         public bool AnyPanelOpen() =>
             IsShown(settingsPanel) || IsShown(shopPanel) || IsShown(continuePanel) || IsShown(failedPanel) || IsShown(successPanel);
@@ -1363,7 +1370,7 @@ namespace BusJam
             brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 1f); // top-centre
             brt.anchoredPosition = new Vector2(0, -210);          // just below the notch, above the passenger queue
             bonusCountdown.gameObject.SetActive(false);
-            // NOTE: the red/green traffic light is now a real in-world prop on both road sides (BusJamGame.BuildTrafficLights),
+            // NOTE: the red/green traffic light is now a real in-world prop on both road sides (RideburyGame.BuildTrafficLights),
             // not a HUD widget — so the player reads stop/go straight off the road.
         }
         // TimeAttack count-UP stopwatch (reuses the bonus label): shows elapsed m:ss coloured by PACE, so the player

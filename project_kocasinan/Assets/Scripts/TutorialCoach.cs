@@ -1,15 +1,15 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Lightweight, self-contained on-screen coach for the early tutorials (#4 level-1; reused by #5/#6).
     /// Builds its OWN overlay canvas with NO GraphicRaycaster, and every graphic has raycastTarget=false,
-    /// so taps pass straight through to the game board underneath (BusJamGame reads taps via a physics
+    /// so taps pass straight through to the game board underneath (RideburyGame reads taps via a physics
     /// raycast + EventSystem.IsPointerOverGameObject, which this must never intercept).
     ///
-    /// Driven by BusJamGame: ShowText(...) sets the bottom banner; PointAt(screen)/HidePointer() move a
+    /// Driven by RideburyGame: ShowText(...) sets the bottom banner; PointAt(screen)/HidePointer() move a
     /// pulsing "tap here" ring. Build() once, then Show/Hide freely. No scene/baker edits, no assets.
     /// </summary>
     public class TutorialCoach : MonoBehaviour
@@ -140,7 +140,7 @@ namespace BusJam
 
         // Temporarily hide the WHOLE tutorial overlay (banner + text + pointer) while a panel/menu is open
         // (settings, level select, shop, success/fail, …), WITHOUT losing the current step: when the panel
-        // closes (on=false) the banner + pointer restore exactly as they were. Driven each frame by BusJamGame.
+        // closes (on=false) the banner + pointer restore exactly as they were. Driven each frame by RideburyGame.
         public void Suppress(bool on)
         {
             if (suppressed == on) return;

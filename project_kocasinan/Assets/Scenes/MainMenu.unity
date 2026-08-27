@@ -3490,7 +3490,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &222851220
@@ -4501,7 +4501,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 2
   amount: 0
 --- !u!114 &269847273
@@ -7014,7 +7014,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2c9d95d88d45c2840a335d810011fbc1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShop
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShop
   panel: {fileID: 1438054538}
 --- !u!114 &497609181
 MonoBehaviour:
@@ -7611,7 +7611,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 2000
 --- !u!114 &534686734
@@ -19539,7 +19539,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 500
 --- !u!114 &1427432412
@@ -19809,7 +19809,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 2
   amount: 0
 --- !u!114 &1438054540
@@ -21698,7 +21698,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 1000
 --- !u!114 &1565405349
@@ -23309,7 +23309,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 10000
 --- !u!114 &1695937008
@@ -23526,7 +23526,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &1699437626
@@ -24660,7 +24660,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 100
 --- !u!114 &1770424147
@@ -25273,7 +25273,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &1798560944
@@ -26355,7 +26355,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fe53bcc76407d44a792f7a770dc6ca, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGamePanelButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGamePanelButton
   action: 2
   amount: 0
 --- !u!114 &1902654058
@@ -27533,7 +27533,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 1
   amount: 0
 --- !u!114 &1986966286
@@ -28493,7 +28493,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3284609f441fbb84c84252bce6c49ed4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.InGameShopButton
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameShopButton
   action: 0
   amount: 5000
 --- !u!114 &2124240801

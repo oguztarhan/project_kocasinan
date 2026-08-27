@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Loader + semantic map for the "300Mind / 2D Game UI Kit" sprite atlases and
@@ -27,7 +27,7 @@ namespace BusJam
         static Font _title, _num;
 
         // Build-safe sprite source: in a player build AssetDatabase is compiled out, so sprites come from this baked
-        // ScriptableObject (Resources/UIKitAtlas.asset, produced by "BusJam ▸ Bake UIKit Resources"). Loaded once.
+        // ScriptableObject (Resources/UIKitAtlas.asset, produced by "Ridebury ▸ Bake UIKit Resources"). Loaded once.
         static UIKitAtlas _atlas; static bool _atlasTried;
         static UIKitAtlas Atlas
         {

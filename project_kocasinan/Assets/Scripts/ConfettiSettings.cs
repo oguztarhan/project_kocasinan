@@ -1,11 +1,11 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Inspector-editable tuning for the win-celebration confetti. Lives as a serialized
-    /// field on <see cref="BusJamGame"/>, so you can tweak amount / size / speed / gravity /
-    /// lifetime straight from the BusJamGame component in the gameplay scene.
+    /// field on <see cref="RideburyGame"/>, so you can tweak amount / size / speed / gravity /
+    /// lifetime straight from the RideburyGame component in the gameplay scene.
     /// </summary>
     [System.Serializable]
     public class ConfettiSettings

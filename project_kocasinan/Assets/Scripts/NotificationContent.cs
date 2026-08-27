@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     public struct NotifText { public string title; public string body; }
 
@@ -57,7 +57,7 @@ namespace BusJam
             new[]{ "Bir sonraki seviyeyi geçebilir misin?","Can you beat the next level?","Schaffst du das nächste Level?","Riesci a superare il prossimo livello?","¿Puedes pasar el siguiente nivel?","你能通过下一关吗？","Peux-tu réussir le niveau suivant ?","Você consegue passar o próximo nível?","Bisakah kamu menaklukkan level berikutnya?" }, // 9
             new[]{ "O bölümü bu sefer geçeceksin, hadi dene!","You'll beat that level this time — give it a go!","Diesmal schaffst du das Level — versuch's!","Stavolta superi quel livello, riprova!","Esta vez pasarás ese nivel, ¡inténtalo!","这次你一定能过关，再试一次！","Cette fois tu vas réussir ce niveau, essaie !","Desta vez você passa esse nível, tente!","Kali ini kamu pasti lolos, coba lagi!" }, // 10
             new[]{ "Süreli bonus ve ekstra ödüller seni bekliyor!","A timed bonus and extra rewards await!","Ein Zeit-Bonus und Extra-Belohnungen warten!","Un bonus a tempo ed extra premi ti aspettano!","¡Un bonus por tiempo y premios extra te esperan!","限时奖励和额外大奖在等你！","Un bonus chronométré et des récompenses t'attendent !","Um bônus por tempo e prêmios extras esperam!","Bonus berbatas waktu dan hadiah ekstra menunggu!" }, // 11
-            new[]{ "5 dakikan mı var? Tam BusJam zamanı!","Got 5 minutes? Perfect for some BusJam!","5 Minuten Zeit? Perfekt für BusJam!","Hai 5 minuti? Perfetti per BusJam!","¿Tienes 5 minutos? ¡Ideal para BusJam!","有5分钟吗？正好玩把BusJam！","5 minutes de libre ? Parfait pour BusJam !","Tem 5 minutos? Perfeito para BusJam!","Punya 5 menit? Pas buat main BusJam!" }, // 12
+            new[]{ "5 dakikan mı var? Tam Ridebury zamanı!","Got 5 minutes? Perfect for some Ridebury!","5 Minuten Zeit? Perfekt für Ridebury!","Hai 5 minuti? Perfetti per Ridebury!","¿Tienes 5 minutos? ¡Ideal para Ridebury!","有5分钟吗？正好玩把Ridebury！","5 minutes de libre ? Parfait pour Ridebury !","Tem 5 minutos? Perfeito para Ridebury!","Punya 5 menit? Pas buat main Ridebury!" }, // 12
             new[]{ "Bize puan ver ve bir yorum bırak — 10 saniye sürüyor!","Rate us and leave a comment — it takes 10 seconds!","Bewerte uns und schreib einen Kommentar — 10 Sekunden!","Valutaci e lascia un commento: bastano 10 secondi!","¡Valóranos y deja un comentario, solo toma 10 segundos!","给我们打个分并留下评论吧，只要10秒！","Note-nous et laisse un commentaire — 10 secondes !","Avalie e deixe um comentário — leva 10 segundos!","Beri rating dan tulis komentar — cuma 10 detik!" }, // 13 (rate us)
         };
     }

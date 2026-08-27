@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Runtime claim logic for the baked Daily-Reward cards. One reward can be claimed per

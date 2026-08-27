@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
-using BusJam;
+using Ridebury;
 
 /// <summary>
 /// Bakes the TUTORIAL banner — its BACKGROUND PANEL and its TEXT — into the open scene as real, editable

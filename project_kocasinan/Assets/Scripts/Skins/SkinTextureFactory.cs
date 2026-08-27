@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Generates skin pattern textures in code (no art files). Each pattern is drawn in the skin's accent colour on a

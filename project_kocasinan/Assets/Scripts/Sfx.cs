@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Procedurally synthesized sound effects, overridable by Resources/SoundCatalog.asset.

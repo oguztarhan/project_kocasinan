@@ -1,17 +1,17 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;   // required to reload / switch scenes
-using BusJam;                         // BusJamGame and SaveSystem live in this namespace.
-                                      // THIS 'using' is what fixes the "BusJamGame not found"
+using Ridebury;                         // RideburyGame and SaveSystem live in this namespace.
+                                      // THIS 'using' is what fixes the "RideburyGame not found"
                                       // (red squiggly) compile error.
 
 /// <summary>
 /// Drives the custom failure UI flow in the gameplay scene:
-///   * Listens to BusJamGame.OnGameOver -> shows the Continue panel.
-///   * Continue buttons resume the level (+1 parking spot) via BusJamGame.ContinueLevel().
+///   * Listens to RideburyGame.OnGameOver -> shows the Continue panel.
+///   * Continue buttons resume the level (+1 parking spot) via RideburyGame.ContinueLevel().
 ///   * "No Thanks" closes Continue and shows the definitive Failed panel.
 ///   * Failed panel's Restart reloads the level; Main Menu returns to the menu scene.
 /// IMPORTANT: this component must live in the GAMEPLAY scene (SampleScene), in the same
-/// scene as BusJamGame — otherwise it can't find the game and the panels won't trigger.
+/// scene as RideburyGame — otherwise it can't find the game and the panels won't trigger.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -26,15 +26,15 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     // Reference to the core game loop so we can react to its events and resume play.
-    private BusJamGame game;
+    private RideburyGame game;
 
     void Awake()
     {
-        // BusJamGame is the single gameplay controller in this scene.
-        game = FindAnyObjectByType<BusJamGame>();
+        // RideburyGame is the single gameplay controller in this scene.
+        game = FindAnyObjectByType<RideburyGame>();
         if (game == null)
-            Debug.LogWarning("GameManager: BusJamGame not found. Place this GameManager in the " +
-                             "gameplay scene (SampleScene) alongside BusJamGame.");
+            Debug.LogWarning("GameManager: RideburyGame not found. Place this GameManager in the " +
+                             "gameplay scene (SampleScene) alongside RideburyGame.");
     }
 
     void OnEnable()
@@ -56,9 +56,9 @@ public class GameManager : MonoBehaviour
         if (failedPanel != null) failedPanel.SetActive(false);
     }
 
-    // Called automatically by BusJamGame the moment the player fails.
+    // Called automatically by RideburyGame the moment the player fails.
     // NOTE: the Continue/Failed UI is now owned by GameUI (runtime-built and styled with the
-    // Colorful UI pack), driven directly from BusJamGame.Lose(). We deliberately do NOTHING here
+    // Colorful UI pack), driven directly from RideburyGame.Lose(). We deliberately do NOTHING here
     // so a second (scene-wired) Continue panel never appears on top of it.
     private void HandleGameOver(string reason)
     {
@@ -106,7 +106,7 @@ public class GameManager : MonoBehaviour
     public void RestartGame()
     {
         Debug.Log("GameManager: restarting the level...");
-        // Reloading the active gameplay scene fully resets the board. BusJamGame
+        // Reloading the active gameplay scene fully resets the board. RideburyGame
         // auto-starts the saved level on load, so the player replays the same level.
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }

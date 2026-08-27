@@ -1,14 +1,14 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>One-click generator: writes the stable materials as editable .mat assets
     /// into Assets/Resources/Materials so they can be tweaked in the Inspector. Existing
     /// assets are kept (your edits are never overwritten). Re-run any time to add new ones.</summary>
     public static class MaterialAssetGenerator
     {
-        [MenuItem("BusJam/Generate Material Assets")]
+        [MenuItem("Ridebury/Generate Material Assets")]
         public static void Generate()
         {
             if (!AssetDatabase.IsValidFolder("Assets/Resources"))
@@ -33,7 +33,7 @@ namespace BusJam
             }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log($"[BusJam] Material assets ready in {MaterialLibrary.AssetFolder} — {created} created, {kept} kept.");
+            Debug.Log($"[Ridebury] Material assets ready in {MaterialLibrary.AssetFolder} — {created} created, {kept} kept.");
         }
     }
 }

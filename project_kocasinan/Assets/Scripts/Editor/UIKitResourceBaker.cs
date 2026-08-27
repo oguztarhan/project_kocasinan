@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Bakes every 300Mind UI-kit atlas sub-sprite (+ the external audio icons) into Resources/UIKitAtlas.asset so they
     /// survive a PLAYER BUILD. Without this, code-built UI (garage, runtime-added buttons, the code-fallback panels)
     /// renders with null sprites on device because UIKit's editor-only AssetDatabase loader is compiled out of builds.
     ///
-    /// Run after first setup and whenever the atlas textures or their slicing change:  BusJam ▸ Bake UIKit Resources.
+    /// Run after first setup and whenever the atlas textures or their slicing change:  Ridebury ▸ Bake UIKit Resources.
     /// </summary>
     public static class UIKitResourceBaker
     {
@@ -21,7 +21,7 @@ namespace BusJam
             "Assets/MenuManager/Icons/Icon_Music.png",
         };
 
-        [MenuItem("BusJam/Bake UIKit Resources")]
+        [MenuItem("Ridebury/Bake UIKit Resources")]
         public static void Bake()
         {
             var names = new List<string>();

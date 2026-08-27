@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// A port of the &lt;canvas&gt; in loadingscreenfinal.html — the synthwave beach + traffic scene — rendered as

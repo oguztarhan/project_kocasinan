@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Runtime marker added by <see cref="GlobalFontApplier"/> to each text it scales. It remembers the text's

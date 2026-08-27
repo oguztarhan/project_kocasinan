@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Purchasing;
 using UnityEngine.Purchasing.Security;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// In-app purchases (Google Play). SIX consumable coin packs + TWO non-consumable no-ads tiers. Self-spawns at

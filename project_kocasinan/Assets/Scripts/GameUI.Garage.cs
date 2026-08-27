@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Garage screen (partial of <see cref="GameUI"/>): browse vehicle skins (owned / locked), equip them, open the
@@ -17,7 +17,7 @@ namespace BusJam
         public System.Action OnReskin; // equip -> rebuild the live board so the newly-equipped MODEL is shown
         public static bool OpenGarageOnLoad; // set by the main-menu Garage button before it loads the game scene
         bool garageFromMenu;                  // opened straight from the menu -> closing the garage returns to the menu
-        public bool GarageFromMenu => garageFromMenu; // BusJamGame reads this to SKIP building a level (garage-only screen)
+        public bool GarageFromMenu => garageFromMenu; // RideburyGame reads this to SKIP building a level (garage-only screen)
 
         GameObject garagePanel, revealPanel, chestOddsPanel;
         Transform garageContent;
@@ -47,7 +47,7 @@ namespace BusJam
         void AddGarageButton(Transform hud)
         {
             if (hud == null) return;
-            // Baked, Inspector-editable button ("BusJam ▸ Bake Garage HUD Button"): ADOPT it — sprite / colour /
+            // Baked, Inspector-editable button ("Ridebury ▸ Bake Garage HUD Button"): ADOPT it — sprite / colour /
             // shape / position are fully yours in the Inspector; code only wires the click, localizes the label
             // TEXT (font/size/colour stay as authored) and runs the same first-time pulse.
             var baked = InGameHud.Instance != null ? InGameHud.Instance.garageButton : null;
@@ -205,7 +205,7 @@ namespace BusJam
         }
 
 #if UNITY_EDITOR
-        // Editor baker entry (BusJam ▸ Bake Garage Panels): build the garage chrome under `canvas` and hand back its
+        // Editor baker entry (Ridebury ▸ Bake Garage Panels): build the garage chrome under `canvas` and hand back its
         // refs. No runtime wiring / no dynamic content — those happen at play time when GameUI adopts the marker.
         public (GameObject panel, Transform content, Text gold, Button close) EditorBakeGarage(Transform canvas)
         {
@@ -608,8 +608,8 @@ namespace BusJam
             revealPanel.SetActive(true);
             if (revealCo != null) StopCoroutine(revealCo);
             // same per-type framing + yaw as the wardrobe cards (sedans flipped 180 to match the vans/buses)
-            float fill = car.type == VehicleType.Car ? 0.6f : car.type == VehicleType.Minivan ? 0.72f : 0.85f;
-            float yaw  = car.type == VehicleType.Car ? 215f : 35f;
+            const float fill = 0.72f;
+            const float yaw  = 35f;
             Texture preview = VehiclePreview.Get(car.PrefabFor(car.type), yaw, car.type != VehicleType.Car, fill);
             revealCo = StartCoroutine(RevealAnim(TierColor(car.rarity), Mathf.Clamp01(car.rarity / 3f), preview, car.displayName, sub, keyDropped, keyTier, car.rarity));
         }
@@ -783,7 +783,7 @@ namespace BusJam
             hideBonusTimer = true; HideBonusCountdown(); // (#2) don't duplicate the bonus countdown over the garage (it keeps ticking underneath)
             RefreshGarage();
             Toggle(garagePanel, true);
-            // From the MENU this is a garage-only SCREEN: BusJamGame skips building a level entirely (GarageFromMenu)
+            // From the MENU this is a garage-only SCREEN: RideburyGame skips building a level entirely (GarageFromMenu)
             // and the backdrop goes fully OPAQUE — there is no game behind it at all.
             var bg = garagePanel != null ? garagePanel.GetComponent<Image>() : null;
             if (bg) bg.color = garageFromMenu ? new Color(0.07f, 0.06f, 0.10f, 1f) : new Color(0, 0, 0, 0.62f);

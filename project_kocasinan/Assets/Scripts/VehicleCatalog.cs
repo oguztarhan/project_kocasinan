@@ -1,13 +1,13 @@
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Maps each vehicle type to an imported model prefab + fit tuning. Built/refreshed
-    /// by "BusJam ▸ Build Vehicle Catalog" and loaded at runtime from Resources. If a
-    /// type's prefab is missing, BusJamGame falls back to the code-built vehicle.
+    /// by "Ridebury ▸ Build Vehicle Catalog" and loaded at runtime from Resources. If a
+    /// type's prefab is missing, RideburyGame falls back to the code-built vehicle.
     /// </summary>
-    [CreateAssetMenu(fileName = "VehicleCatalog", menuName = "BusJam/Vehicle Catalog")]
+    [CreateAssetMenu(fileName = "VehicleCatalog", menuName = "Ridebury/Vehicle Catalog")]
     public class VehicleCatalog : ScriptableObject
     {
         [Header("Model per type")]

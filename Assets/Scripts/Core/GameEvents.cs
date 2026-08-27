@@ -1,6 +1,6 @@
 using System;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// Static, type-safe event bus. This is the ONLY channel managers use to notify

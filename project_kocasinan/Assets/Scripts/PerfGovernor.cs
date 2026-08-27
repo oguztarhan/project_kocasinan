@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Frame-rate GOVERNOR enforcing the 60-min / 90-max window. Self-boots (no scene wiring); delete to remove.

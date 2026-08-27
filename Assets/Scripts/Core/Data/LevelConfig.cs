@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam.Core
+namespace Ridebury.Core
 {
     /// <summary>
     /// A complete, data-driven level definition. Designers build levels as assets — no code,
     /// no scene surgery — which is what makes the game <i>scalable</i> to hundreds of levels.
-    /// Create via: Assets ▸ Create ▸ BusJam ▸ Level Config.
+    /// Create via: Assets ▸ Create ▸ Ridebury ▸ Level Config.
     /// </summary>
-    [CreateAssetMenu(fileName = "Level_", menuName = "BusJam/Level Config", order = 2)]
+    [CreateAssetMenu(fileName = "Level_", menuName = "Ridebury/Level Config", order = 2)]
     public class LevelConfig : ScriptableObject
     {
         /// <summary>

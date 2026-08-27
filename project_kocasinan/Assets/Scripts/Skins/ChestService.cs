@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BusJam
+namespace Ridebury
 {
     public enum ChestTier { Bronze, Silver, Gold, Legendary }
 
@@ -157,7 +157,7 @@ namespace BusJam
         }
 
         // Pick a random car of `tier`; if that tier has none, fall to a lower one (safety only). Cars come from the
-        // wardrobe catalog (built by "BusJam ▸ Build Vehicle Sets"). The free starter can be re-rolled -> a dupe.
+        // wardrobe catalog (built by "Ridebury ▸ Build Vehicle Sets"). The free starter can be re-rolled -> a dupe.
         static VehicleSetCatalog.VehicleSet RollCar(int tier)
         {
             var cat = VehicleWardrobe.Catalog;

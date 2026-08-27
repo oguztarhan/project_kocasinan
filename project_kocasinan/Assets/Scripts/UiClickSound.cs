@@ -4,7 +4,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-namespace BusJam
+namespace Ridebury
 {
     /// <summary>
     /// Plays the catalog "UI Button Click" on press of ANY interactable uGUI Button — every button in
