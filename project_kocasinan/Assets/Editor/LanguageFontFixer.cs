@@ -18,7 +18,11 @@ public static class LanguageFontFixer
     const string AssetPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/GROBOLD SDF.asset";
 
     [MenuItem("Tools/300Mind UI/Fix Language Label Font")]
-    static void Fix()
+    static void Fix() => UIPrefabBaker.EditScene(FixNow);
+
+    // The fix itself. It runs on copies of the UI prefabs checked out into the open scene;
+    // UIPrefabBaker.EditScene saves them back into Resources/UI afterwards.
+    static void FixNow()
     {
         var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetPath);
         if (fa == null) fa = CreateFontAsset();
@@ -38,7 +42,7 @@ public static class LanguageFontFixer
 
         if (fixedCount == 0) { Debug.LogWarning("[LanguageFontFixer] No 'Language' TMP text found in the open scene."); return; }
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        Debug.Log($"[LanguageFontFixer] Fixed {fixedCount} 'Language' label(s) -> GROBOLD, black. SAVE the scene (Ctrl+S).");
+        Debug.Log($"[LanguageFontFixer] Fixed {fixedCount} 'Language' label(s) -> GROBOLD, black. The prefab is saved for you.");
     }
 
     static TMP_FontAsset CreateFontAsset()

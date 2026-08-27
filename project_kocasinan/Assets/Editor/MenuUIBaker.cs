@@ -15,7 +15,7 @@ using Ridebury;
 /// it you can select any element in the Hierarchy and change its colour / size / position /
 /// font in the Inspector — exactly like hand-built UI. Re-running clears the previous bake.
 ///
-/// Menu:  Tools ▸ 300Mind UI ▸ Bake Main Menu (into open scene)
+/// Menu:  Tools ▸ 300Mind UI ▸ Bake Main Menu (rebuild prefab)
 /// </summary>
 public static class MenuUIBaker
 {
@@ -33,8 +33,12 @@ public static class MenuUIBaker
     const string IconSoundPath = "Assets/MenuManager/Icons/Icon_Sound.png";
     const string IconMusicPath = "Assets/MenuManager/Icons/Icon_Music.png";
 
-    [MenuItem("Tools/300Mind UI/Bake Main Menu (into open scene)")]
-    static void BakeMenu()
+    [MenuItem("Tools/300Mind UI/Bake Main Menu (rebuild prefab)")]
+    static void BakeMenu() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, BakeMenuNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void BakeMenuNow()
     {
         // Clear any previous bake.
         var old = GameObject.Find("MenuUI_Baked");
@@ -65,7 +69,9 @@ public static class MenuUIBaker
 
         // ---- Panels (built first so the bar/nav sit on top) ----
         ctrl.dailyPanel     = BuildPanel(root, "Panel_Daily", "DAILY REWARDS", ctrl);
-        ctrl.shopPanel      = BuildPanel(root, "Panel_Shop", "SHOP", ctrl);
+        // NO shop panel here: there is ONE shop for the whole game — the ShopUI prefab
+        // (Resources/UI/ShopPanel), spawned at runtime by MenuController and GameUI alike.
+        // Bake/edit it with "Tools ▸ 300Mind UI ▸ Bake Shop Prefab".
         ctrl.profilePanel   = BuildPanel(root, "Panel_Profile", "PROFILE", ctrl);
         ctrl.settingsPanel  = BuildPanel(root, "Panel_Settings", "SETTINGS", ctrl);
         AddSettingsContent(FindChild(ctrl.settingsPanel.transform, "Card"));
@@ -113,7 +119,7 @@ public static class MenuUIBaker
         EditorUtility.SetDirty(ctrl);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = rootGo;
-        Debug.Log("[MenuUIBaker] Baked main menu into the scene. Edit any element in the Inspector, then SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Baked main menu into the scene. Edit any element in the Inspector — the prefab is saved for you.");
     }
 
     // ============================================================================
@@ -121,7 +127,11 @@ public static class MenuUIBaker
     // reference). Touches nothing else in the scene.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Rebuild Daily Rewards (transparent)")]
-    static void RebuildDaily()
+    static void RebuildDaily() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, RebuildDailyNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void RebuildDailyNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -227,138 +237,16 @@ public static class MenuUIBaker
     }
 
     // ============================================================================
-    // Rebuild the Shop panel as a SCROLLABLE list (drag up/down). Add your own
-    // products under the "Content" object — the list grows and scrolls automatically.
-    // ============================================================================
-    [MenuItem("Tools/300Mind UI/Rebuild Shop (scrollable)")]
-    static void RebuildShop()
-    {
-        var rootGo = GameObject.Find("MenuUI_Baked");
-        if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
-        var ctrl = rootGo.GetComponent<MenuController>();
-        var panelT = FindChild(rootGo.transform, "Panel_Shop");
-        if (!panelT) { Debug.LogError("[MenuUIBaker] Panel_Shop not found - re-bake the menu."); return; }
-        var panel = panelT.gameObject;
-        for (int i = panel.transform.childCount - 1; i >= 0; i--)
-            Object.DestroyImmediate(panel.transform.GetChild(i).gameObject);
-
-        var bg = panel.GetComponent<Image>();
-        bg.sprite = null; bg.color = new Color(0, 0, 0, 0.6f); bg.raycastTarget = true;
-        var pbtn = panel.GetComponent<Button>(); if (!pbtn) pbtn = panel.AddComponent<Button>();
-        pbtn.transition = Selectable.Transition.None; pbtn.onClick = new Button.ButtonClickedEvent();
-        UnityEventTools.AddPersistentListener(pbtn.onClick, ctrl.CloseAll);
-
-        var card = Img(panel.transform, "Card", UIKit.PanelTall(), new Color(0.30f, 0.25f, 0.55f));
-        Center(card.rectTransform, new Vector2(960, 1500));
-        Label(card.transform, "Title", "SHOP", Title, new Vector2(0, 680), new Vector2(700, 120), 74, White);
-        var close = Btn(card.transform, "Close", UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-40, -40), new Vector2(96, 96));
-        UnityEventTools.AddPersistentListener(close.onClick, ctrl.CloseAll);
-
-        // ---- Scroll view ----
-        var svGo = new GameObject("ScrollView", typeof(RectTransform));
-        svGo.transform.SetParent(card.transform, false);
-        var svRt = svGo.GetComponent<RectTransform>();
-        svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
-        svRt.anchoredPosition = new Vector2(0, 20); svRt.sizeDelta = new Vector2(880, 1120);
-        var scroll = svGo.AddComponent<ScrollRect>();
-        scroll.horizontal = false; scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Elastic; scroll.scrollSensitivity = 28;
-
-        var vpGo = new GameObject("Viewport", typeof(RectTransform));
-        vpGo.transform.SetParent(svGo.transform, false);
-        var vpRt = vpGo.GetComponent<RectTransform>();
-        vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one; vpRt.offsetMin = Vector2.zero; vpRt.offsetMax = Vector2.zero;
-        var vpImg = vpGo.AddComponent<Image>(); vpImg.color = new Color(1, 1, 1, 0.01f); // catches drags over empty space
-        vpGo.AddComponent<RectMask2D>();
-
-        var ctGo = new GameObject("Content", typeof(RectTransform));
-        ctGo.transform.SetParent(vpGo.transform, false);
-        var ctRt = ctGo.GetComponent<RectTransform>();
-        ctRt.anchorMin = new Vector2(0, 1); ctRt.anchorMax = new Vector2(1, 1); ctRt.pivot = new Vector2(0.5f, 1); ctRt.anchoredPosition = Vector2.zero; ctRt.sizeDelta = Vector2.zero;
-        var vlg = ctGo.AddComponent<VerticalLayoutGroup>();
-        vlg.spacing = 24; vlg.padding = new RectOffset(15, 15, 15, 15);
-        vlg.childAlignment = TextAnchor.UpperCenter;
-        vlg.childControlWidth = true; vlg.childControlHeight = true;
-        vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
-        var fit = ctGo.AddComponent<ContentSizeFitter>();
-        fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-
-        scroll.viewport = vpRt; scroll.content = ctRt;
-
-        // 1) Remove-ads bar FIRST (atlas1_44 background): no-ads icon on the dark-orange
-        //    left, the PURCHASE button (price, atlas1_36) on the right. The price button
-        //    does NOT navigate anywhere — it is the purchase button (wire a real IAP later).
-        var adsRow = Img(ctGo.transform, "RemoveAds", UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
-        var adsLe = adsRow.gameObject.AddComponent<LayoutElement>(); adsLe.preferredHeight = 160; adsLe.minHeight = 160;
-        var adsIco = Img(adsRow.transform, "Icon", UIKit.NoAds(), new Color(0.85f, 0.3f, 0.3f)); adsIco.raycastTarget = false;
-        Place(adsIco.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(95, 0), new Vector2(110, 110));
-        var adsPrice = Img(adsRow.transform, "PriceBg", UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = true;
-        Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
-        var adsBuy = adsPrice.gameObject.AddComponent<Button>(); adsBuy.targetGraphic = adsPrice; // purchase button: no navigation, wire IAP later
-        Label(adsPrice.transform, "Price", "TRY 249,99", Title, Vector2.zero, new Vector2(360, 60), 36, White);
-
-        // 2) Gold purchases (3-column grid, icons in order: atlas1 11,12,13,29,30,31).
-        var gridGo = new GameObject("CoinGrid", typeof(RectTransform));
-        gridGo.transform.SetParent(ctGo.transform, false);
-        var gl = gridGo.AddComponent<GridLayoutGroup>();
-        gl.cellSize = new Vector2(275, 360);
-        gl.spacing = new Vector2(15, 20);
-        gl.childAlignment = TextAnchor.UpperCenter;
-        gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        gl.constraintCount = 3;
-        CoinCard(gridGo.transform, "Pack_100",   UIKit.ShopCoinA(),     "100",   "$ 100");
-        CoinCard(gridGo.transform, "Pack_500",   UIKit.ShopCoinB(),     "500",   "$ 250");
-        CoinCard(gridGo.transform, "Pack_1000",  UIKit.ShopCoinC(),     "1000",  "$ 500");
-        CoinCard(gridGo.transform, "Pack_2000",  UIKit.ShopGold(),      "2000",  "$ 800");
-        CoinCard(gridGo.transform, "Pack_5000",  UIKit.CoinPackSmall(), "5000",  "$ 1200");
-        CoinCard(gridGo.transform, "Pack_10000", UIKit.CoinPackBig(),   "10000", "$ 2100");
-
-        // 3) Joker bars LAST (atlas1_44 style): icon on the dark-orange left, buy for 100 gold.
-        JokerBar(ctGo.transform, "Bar_Shuffle", UIKit.JokerRecolor(), ctrl); // shuffle
-        JokerBar(ctGo.transform, "Bar_Swap",    UIKit.JokerSwap(),    ctrl); // swap
-        JokerBar(ctGo.transform, "Bar_Heli",    UIKit.JokerHeli(),    ctrl); // helicopter (atlas2_14 placeholder)
-
-        EditorUtility.SetDirty(ctrl);
-        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        Selection.activeGameObject = ctGo;
-        Debug.Log("[MenuUIBaker] Rebuilt Shop: 6 coin packs (icons 11,12,13,29,30,31), scrollable grid. SAVE the scene (Ctrl+S).");
-    }
-
-    // One purple coin-pack card (atlas1_56) holding a coin icon, an amount and a green
-    // price button. Placed inside the scroll grid.
-    static void CoinCard(Transform parent, string name, Sprite icon, string amount, string price)
-    {
-        var card = Img(parent, name, UIKit.ShopIconBgA(), new Color(0.55f, 0.40f, 0.78f)); // purple card
-        var ico = Img(card.transform, "Icon", icon, Gold); ico.raycastTarget = false;
-        Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(150, 150));
-        Label(card.transform, "Amount", amount, Num, new Vector2(0, 132), new Vector2(255, 50), 34, White);
-        var buy = Btn(card.transform, "Buy", UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(245, 92));
-        Label(buy.transform, "Price", price, Num, Vector2.zero, new Vector2(245, 56), 32, White);
-    }
-
-    // A full-width joker bar (atlas1_44 bg): icon centered on the dark-orange left + a
-    // "100 gold" buy button (atlas1_36) on the right, just like the Remove-Ads bar.
-    static void JokerBar(Transform parent, string name, Sprite icon, MenuController ctrl)
-    {
-        var row = Img(parent, name, UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
-        var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 160; le.minHeight = 160;
-        var ico = Img(row.transform, "Icon", icon, White); ico.raycastTarget = false;
-        Place(ico.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(120, 120));
-        var buy = Btn(row.transform, "Buy", UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
-        UnityEventTools.AddPersistentListener(buy.onClick, ctrl.BuyFor100);
-        var bc = Img(buy.transform, "Coin", UIKit.Coin(), Gold); bc.raycastTarget = false;
-        Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(56, 56));
-        Label(buy.transform, "Price", "100", Num, new Vector2(30, 0), new Vector2(360, 60), 36, White);
-    }
-
-    // ============================================================================
     // Rebuild the Settings panel content: SOUND + MUSIC on/off toggles (logo + a red
     // "no" sign overlay when OFF, with a pop animation) and 3 empty atlas1_36 buttons.
     // Re-running only replaces these items; the title / close / your other edits stay.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Rebuild Settings (sound-music + 3 buttons)")]
-    static void RebuildSettings()
+    static void RebuildSettings() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, RebuildSettingsNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void RebuildSettingsNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -378,7 +266,7 @@ public static class MenuUIBaker
         EditorUtility.SetDirty(ctrl);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = card.gameObject;
-        Debug.Log("[MenuUIBaker] Rebuilt Settings: SOUND/MUSIC toggles + 3 empty buttons. SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Rebuilt Settings: SOUND/MUSIC toggles + 3 empty buttons. The prefab is saved for you.");
     }
 
     // SOUND + MUSIC toggles (top) + three empty atlas1_36 buttons (bottom).
@@ -416,7 +304,11 @@ public static class MenuUIBaker
     // atlas1_36 "watch" button and a red close). Re-running replaces just these two.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Rebuild Ad-Reward (button + panel)")]
-    static void RebuildAdReward()
+    static void RebuildAdReward() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, RebuildAdRewardNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void RebuildAdRewardNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -431,7 +323,7 @@ public static class MenuUIBaker
         EditorUtility.SetDirty(ctrl);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = ctrl.adRewardPanel;
-        Debug.Log("[MenuUIBaker] Rebuilt Ad-Reward: button (above no-ads) + atlas2_0 panel. SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Rebuilt Ad-Reward: button (above no-ads) + atlas2_0 panel. The prefab is saved for you.");
     }
 
     static void BuildAdReward(Transform root, MenuController ctrl)
@@ -475,7 +367,11 @@ public static class MenuUIBaker
     // none of your other edits are touched. Uses Assets/MenuBackground.png.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Add Menu Background")]
-    static void AddMenuBackground()
+    static void AddMenuBackground() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, AddMenuBackgroundNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void AddMenuBackgroundNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -484,7 +380,7 @@ public static class MenuUIBaker
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         var bgT = FindChild(rootGo.transform, "Background");
         if (bgT) Selection.activeGameObject = bgT.gameObject;
-        Debug.Log("[MenuUIBaker] Menu Background added/updated (behind everything). SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Menu Background added/updated (behind everything). The prefab is saved for you.");
     }
 
     // Full-screen background Image at the very back of the menu (Assets/MenuBackground.png).
@@ -505,7 +401,11 @@ public static class MenuUIBaker
     // Panel_Language and Btn_Empty1, leaves every other menu element as-is.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Add Language (main menu)")]
-    static void AddLanguageMainMenu()
+    static void AddLanguageMainMenu() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, AddLanguageMainMenuNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void AddLanguageMainMenuNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -531,7 +431,7 @@ public static class MenuUIBaker
         EditorUtility.SetDirty(ctrl);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = ctrl.languagePanel;
-        Debug.Log("[MenuUIBaker] Added Language pop-up + wired Btn_Empty1 = LANGUAGE. SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Added Language pop-up + wired Btn_Empty1 = LANGUAGE. The prefab is saved for you.");
     }
 
     // The language pop-up: dim backdrop (tap to close) + tall card + one row per language.
@@ -592,7 +492,11 @@ public static class MenuUIBaker
     // only touches Social_Row. Paste the URLs on the MenuController in the Inspector.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Add Social Media (main menu)")]
-    static void AddSocialMedia()
+    static void AddSocialMedia() => UIPrefabBaker.Edit(UIPrefabBaker.Menu, AddSocialMediaNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void AddSocialMediaNow()
     {
         var rootGo = GameObject.Find("MenuUI_Baked");
         if (!rootGo) { Debug.LogError("[MenuUIBaker] Run 'Bake Main Menu' first."); return; }
@@ -618,7 +522,7 @@ public static class MenuUIBaker
         EditorUtility.SetDirty(ctrl);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = row;
-        Debug.Log("[MenuUIBaker] Added social-media row (Facebook / X / Instagram). Paste links on the MenuController. SAVE the scene (Ctrl+S).");
+        Debug.Log("[MenuUIBaker] Added social-media row (Facebook / X / Instagram). Paste links on the MenuController. The prefab is saved for you.");
     }
 
     static void SocialButton(Transform row, string name, string iconAsset, float x, UnityAction onClick)

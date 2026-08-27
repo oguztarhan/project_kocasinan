@@ -247,6 +247,7 @@ namespace Ridebury
             SetupPostFX();
 
             sfx = Sfx.Ensure(); // ONE persistent SFX voice for the whole game (no mixing); UiClickSound clicks every button
+            UIPrefabs.EnsureGameplay(); // HUD / pop-ups / garage / tutorial banner from Resources/UI (no-op if already spawned) — GameUI adopts them below
             ui = gameObject.AddComponent<GameUI>();
             var ad = AdManager.Ensure(this); // AdMob singleton (DontDestroyOnLoad); created from the gameplay scene
             ui.OnMenu = () => { PauseRequested?.Invoke(); }; // click handled globally by UiClickSound

@@ -13,7 +13,7 @@ using Ridebury;
 /// marker and keeps driving the dynamic values (coins/level/people/joker locks). Edit any
 /// element's colour / size / sprite / font in the Inspector. Re-running clears the bake.
 ///
-/// Menu:  Tools ▸ 300Mind UI ▸ Bake In-Game HUD (into open scene)
+/// Menu:  Tools ▸ 300Mind UI ▸ Bake In-Game HUD (rebuild prefab)
 /// </summary>
 public static class HudBaker
 {
@@ -25,8 +25,12 @@ public static class HudBaker
     static Font Title => UIKit.Title();
     static Font Num => UIKit.Num();
 
-    [MenuItem("Tools/300Mind UI/Bake In-Game HUD (into open scene)")]
-    static void Bake()
+    [MenuItem("Tools/300Mind UI/Bake In-Game HUD (rebuild prefab)")]
+    static void Bake() => UIPrefabBaker.Edit(UIPrefabBaker.Hud, BakeNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void BakeNow()
     {
         foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
             if (go.name == "InGameHud_Baked") Object.DestroyImmediate(go);
@@ -92,7 +96,7 @@ public static class HudBaker
         EditorUtility.SetDirty(hud);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = rootGo;
-        Debug.Log("[HudBaker] Baked in-game HUD. Edit it in the Inspector, then SAVE the scene (Ctrl+S).");
+        Debug.Log("[HudBaker] Baked in-game HUD. Edit it in the Inspector — the prefab is saved for you.");
     }
 
     static HudJoker JokerButton(Transform parent, string name, float x, Sprite icon, int unlock)

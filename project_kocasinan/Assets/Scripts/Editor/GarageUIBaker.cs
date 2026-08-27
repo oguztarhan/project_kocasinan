@@ -12,12 +12,16 @@ namespace Ridebury
     /// the baked panels instead of building them in code — same adopt-or-build pattern as the HUD / Settings bakes.
     ///
     /// Run it once. Re-running replaces the previous bake. The chest / vehicle cards INSIDE the scroll area are still
-    /// generated at runtime, so the baked "Content" object stays empty by design. SAVE the scene (Ctrl+S) afterwards.
+    /// generated at runtime, so the baked "Content" object stays empty by design. The prefab is saved for you.
     /// </summary>
     public static class GarageUIBaker
     {
         [MenuItem("Ridebury/Bake Garage Panels")]
-        static void Bake()
+        static void Bake() => UIPrefabBaker.Edit(UIPrefabBaker.Garage, BakeNow);
+
+        // The bake itself. It works on a copy of the prefab checked out into the open scene;
+        // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+        static void BakeNow()
         {
             // replace any previous bake so re-running is idempotent
             var old = Object.FindFirstObjectByType<InGameGarage>(FindObjectsInactive.Include);
@@ -64,15 +68,19 @@ namespace Ridebury
             Selection.activeGameObject = canvasGo;
             EditorGUIUtility.PingObject(canvasGo);
             Debug.Log("[GarageUIBaker] Baked 'InGameGarageCanvas' (Garage + Vehicles panels) into the scene. " +
-                      "Organize them in the Hierarchy (tick a panel active to edit, untick when done), then SAVE the scene (Ctrl+S). " +
+                      "Organize them in the Hierarchy (tick a panel active to edit, untick when done) — the prefab is saved for you. " +
                       "GameUI adopts them automatically at runtime.");
         }
 
         // "Ridebury ▸ Bake Garage Cards" — adds 3 DRAGGABLE slot boxes on the garage panel (chest area, chest-open popup,
         // shard counter). Position/resize them in the Hierarchy; at runtime the cards fill them. Run AFTER "Bake Garage
-        // Panels". Re-running only creates MISSING slots (keeps ones you already positioned). SAVE the scene afterwards.
+        // Panels". Re-running only creates MISSING slots (keeps ones you already positioned). The prefab is saved for you.
         [MenuItem("Ridebury/Bake Garage Cards")]
-        static void BakeCards()
+        static void BakeCards() => UIPrefabBaker.Edit(UIPrefabBaker.Garage, BakeCardsNow);
+
+        // The bake itself. It works on a copy of the prefab checked out into the open scene;
+        // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+        static void BakeCardsNow()
         {
             var marker = Object.FindFirstObjectByType<InGameGarage>(FindObjectsInactive.Include);
             if (marker == null || marker.garageRoot == null)
@@ -94,7 +102,7 @@ namespace Ridebury
             Selection.activeGameObject = marker.revealCard.gameObject;
             EditorGUIUtility.PingObject(marker.revealCard.gameObject);
             Debug.Log("[GarageUIBaker] Baked draggable slots: Slot_RevealPopup (chest-open popup) + Slot_ShardCounter on the garage panel. " +
-                      "Tick the garage panel active in the Hierarchy, drag/resize them, untick, then SAVE the scene (Ctrl+S). " +
+                      "Tick the garage panel active in the Hierarchy, drag/resize them, untick — the prefab is saved for you. " +
                       "Chests stay in the scroll list (tune size/spacing/columns on InGameGarage). Press Play to check.");
         }
 
@@ -102,9 +110,13 @@ namespace Ridebury
         // Inspector-editable GameObject (edit its sprite / colour / size / position in the Hierarchy) and assigns
         // it to InGameHud.garageButton. At runtime GameUI ADOPTS it instead of building the orange default: it
         // only wires the click, localizes the label TEXT and runs the first-time pulse — the look stays yours.
-        // Re-running when the button already exists just selects it. SAVE the scene (Ctrl+S) afterwards.
+        // Re-running when the button already exists just selects it. The prefab is saved for you.
         [MenuItem("Ridebury/Bake Garage HUD Button")]
-        static void BakeGarageButton()
+        static void BakeGarageButton() => UIPrefabBaker.Edit(UIPrefabBaker.Hud, BakeGarageButtonNow);
+
+        // The bake itself. It works on a copy of the prefab checked out into the open scene;
+        // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+        static void BakeGarageButtonNow()
         {
             var hud = Object.FindFirstObjectByType<InGameHud>(FindObjectsInactive.Include);
             if (hud == null || hud.hudRoot == null)
@@ -154,7 +166,7 @@ namespace Ridebury
             Selection.activeGameObject = go;
             EditorGUIUtility.PingObject(go);
             Debug.Log("[GarageUIBaker] Baked 'Btn_Garage' onto the HUD and assigned InGameHud.garageButton. " +
-                      "Edit its sprite / colour / size / position in the Inspector, then SAVE the scene (Ctrl+S). " +
+                      "Edit its sprite / colour / size / position in the Inspector — the prefab is saved for you. " +
                       "GameUI adopts it automatically at runtime (click + localized label + first-time pulse).");
         }
 

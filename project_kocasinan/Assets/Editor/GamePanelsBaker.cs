@@ -31,7 +31,11 @@ public static class GamePanelsBaker
     const string IconMusicPath = "Assets/MenuManager/Icons/Icon_Music.png";
 
     [MenuItem("Tools/300Mind UI/Bake In-Game Panels (settings/continue/failed/success)")]
-    static void Bake()
+    static void Bake() => UIPrefabBaker.Edit(UIPrefabBaker.Panels, BakeNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void BakeNow()
     {
         foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
             if (go.name == "InGamePanels_Baked") Object.DestroyImmediate(go);
@@ -65,7 +69,7 @@ public static class GamePanelsBaker
         EditorUtility.SetDirty(marker);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = rootGo;
-        Debug.Log("[GamePanelsBaker] Baked Settings / Continue / Failed / Success (hidden in editor). SAVE the scene (Ctrl+S). Tick a panel active to edit it.");
+        Debug.Log("[GamePanelsBaker] Baked Settings / Continue / Failed / Success (hidden in editor). The prefab is saved for you. Tick a panel active to edit it.");
     }
 
     // ---- Settings: #A12929 card, blue title tile, SOUND/MUSIC toggles, empty + HOME/REPLAY ----
@@ -248,7 +252,11 @@ public static class GamePanelsBaker
     // the empty settings button to open it.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Add Language (in-game)")]
-    static void AddLanguageInGame()
+    static void AddLanguageInGame() => UIPrefabBaker.Edit(UIPrefabBaker.Panels, AddLanguageInGameNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void AddLanguageInGameNow()
     {
         var rootGo = GameObject.Find("InGamePanels_Baked");
         if (!rootGo) { Debug.LogError("[GamePanelsBaker] Run 'Bake In-Game Panels' first."); return; }
@@ -259,7 +267,7 @@ public static class GamePanelsBaker
         EditorUtility.SetDirty(marker);
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         Selection.activeGameObject = marker.language;
-        Debug.Log("[GamePanelsBaker] Added in-game Language pop-up. SAVE the scene (Ctrl+S).");
+        Debug.Log("[GamePanelsBaker] Added in-game Language pop-up. The prefab is saved for you.");
     }
 
     static GameObject BuildLanguagePanel(Transform root)
@@ -303,7 +311,11 @@ public static class GamePanelsBaker
     // colour to Swap + Heli). Only touches the backdrop Image colour, nothing else.
     // ============================================================================
     [MenuItem("Tools/300Mind UI/Fix Joker Buy Backdrops")]
-    static void FixJokerBuyBackdrops()
+    static void FixJokerBuyBackdrops() => UIPrefabBaker.Edit(UIPrefabBaker.Panels, FixJokerBuyBackdropsNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void FixJokerBuyBackdropsNow()
     {
         var rootGo = GameObject.Find("InGamePanels_Baked");
         if (!rootGo) { Debug.LogError("[GamePanelsBaker] InGamePanels_Baked not found - bake first."); return; }
@@ -318,7 +330,7 @@ public static class GamePanelsBaker
             if (img != null) { img.color = refColor; n++; }
         }
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        Debug.Log($"[GamePanelsBaker] Matched {n} joker-buy backdrop(s) to Recolor's. SAVE the scene (Ctrl+S).");
+        Debug.Log($"[GamePanelsBaker] Matched {n} joker-buy backdrop(s) to Recolor's. The prefab is saved for you.");
     }
 
     // ---- Object builders (persistent, named) ----

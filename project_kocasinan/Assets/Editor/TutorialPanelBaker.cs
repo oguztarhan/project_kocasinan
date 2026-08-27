@@ -16,12 +16,16 @@ using Ridebury;
 /// your styling. To start clean, delete "TutorialPanel_Baked" in the Hierarchy and run it again.
 ///
 /// Open SampleScene (the gameplay scene) before running. Menu:
-///   Tools ▸ 300Mind UI ▸ Bake Tutorial Panel (into open scene)
+///   Tools ▸ 300Mind UI ▸ Bake Tutorial Panel (rebuild prefab)
 /// </summary>
 public static class TutorialPanelBaker
 {
-    [MenuItem("Tools/300Mind UI/Bake Tutorial Panel (into open scene)")]
-    static void Bake()
+    [MenuItem("Tools/300Mind UI/Bake Tutorial Panel (rebuild prefab)")]
+    static void Bake() => UIPrefabBaker.Edit(UIPrefabBaker.Tutorial, BakeNow);
+
+    // The bake itself. It works on a copy of the prefab checked out into the open scene;
+    // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
+    static void BakeNow()
     {
         var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
 
@@ -95,7 +99,7 @@ public static class TutorialPanelBaker
         EditorSceneManager.MarkSceneDirty(scene);
         Selection.activeGameObject = txt.gameObject;
         Debug.Log("[TutorialPanelBaker] Tutorial banner ready under 'TutorialPanel_Baked': 'TutorialBanner' (background) " +
-                  "+ 'TutorialText' (text). Adjust both in the Inspector, then SAVE the scene (Ctrl+S). Re-running keeps " +
+                  "+ 'TutorialText' (text). Adjust both in the Inspector — the prefab is saved for you. Re-running keeps " +
                   "your styling. At play, the coach shows them during the tutorial and fills in the wording per step.");
     }
 }

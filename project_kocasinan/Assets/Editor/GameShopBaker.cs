@@ -1,22 +1,20 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using Ridebury;
 
 /// <summary>
-/// Editor tool that BAKES the in-game shop (the pop-up opened by tapping the coin during
-/// gameplay) into the open scene as real, fully editable GameObjects — exactly like the
-/// main-menu shop (Remove-Ads bar → gold packs grid → joker bars, scrollable).
+/// Editor tool that BAKES THE shop — the single shop used by BOTH the main menu and
+/// gameplay — as the prefab <c>Assets/Resources/UI/ShopPanel.prefab</c>: real, fully
+/// editable GameObjects (Remove-Ads bar → gold packs grid → joker bars, scrollable).
 ///
-/// At play time <see cref="GameUI"/> finds this baked shop via the <see cref="InGameShop"/>
-/// marker and uses it instead of building one in code, wiring each tagged button's action
-/// (<see cref="InGameShopButton"/>). Select any element in the Hierarchy and change its
-/// colour / size / position / font in the Inspector. Re-running clears the previous bake.
+/// There is only this one shop hierarchy. Both scenes spawn the prefab at runtime
+/// (<see cref="ShopUI.Ensure"/>) and <see cref="ShopUI"/> wires every button to the live
+/// actions, so editing the prefab changes the shop everywhere. Open the prefab and change
+/// any element's colour / size / position / font in the Inspector; re-running this tool
+/// rebuilds it from scratch and DISCARDS those edits.
 ///
-/// Menu:  Tools ▸ 300Mind UI ▸ Bake In-Game Shop (into open scene)
+/// Menu:  Tools ▸ 300Mind UI ▸ Bake Shop Prefab (the one shop)
 /// </summary>
 public static class GameShopBaker
 {
@@ -26,35 +24,26 @@ public static class GameShopBaker
     static Font Title => UIKit.Title();
     static Font Num => UIKit.Num();
 
-    [MenuItem("Tools/300Mind UI/Bake In-Game Shop (into open scene)")]
+    [MenuItem("Tools/300Mind UI/Bake Shop Prefab (the one shop)")]
     static void BakeShop()
     {
-        // Clear ALL previous bakes, including INACTIVE ones (GameObject.Find skips inactive
-        // objects, which let disabled copies pile up). Scan the scene's root objects instead.
-        foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
-            if (go.name == "InGameShop_Baked") Object.DestroyImmediate(go);
+        if (!EditorUtility.DisplayDialog("Bake the shop prefab?",
+            "This REBUILDS " + ShopUnifier.PrefabPath + " from scratch.\n\nAny Inspector edits you made to the shop prefab are lost. Both the menu shop and the in-game shop use it.",
+            "Rebuild", "Cancel")) return;
 
-        var rootGo = new GameObject("InGameShop_Baked");
+        var rootGo = new GameObject(ShopUnifier.PrefabName);
         var canvas = rootGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50; // above the code-built HUD canvas (0)
+        canvas.sortingOrder = 200; // above every other UI canvas (menu 100, in-game panels 60, HUD 10)
         var scaler = rootGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 0f;   // match WIDTH (portrait): fits the screen width on any aspect
         rootGo.AddComponent<GraphicRaycaster>();
-        var marker = rootGo.AddComponent<InGameShop>();
+        var marker = rootGo.AddComponent<ShopUI>();
         var root = rootGo.transform;
 
-        if (Object.FindAnyObjectByType<EventSystem>() == null)
-        {
-            var es = new GameObject("EventSystem");
-            es.transform.SetParent(root, false);
-            es.AddComponent<EventSystem>();
-            es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
-        }
-
-        // ---- Dim backdrop (tap to close) = the panel GameUI shows/hides ----
+        // ---- Dim backdrop (tap to close) = the panel ShopUI shows/hides ----
         var panel = Img(root, "Panel_GameShop", null, new Color(0, 0, 0, 0.6f));
         Stretch(panel.rectTransform); panel.raycastTarget = true;
         var pbtn = panel.gameObject.AddComponent<Button>();
@@ -128,16 +117,13 @@ public static class GameShopBaker
         JokerBar(ctGo.transform, "Bar_Swap",    UIKit.JokerSwap());
         JokerBar(ctGo.transform, "Bar_Heli",    UIKit.JokerHeli());
 
-        // Bake the panel INACTIVE so it doesn't cover the screen in the editor (the root
-        // canvas stays active). It still works at runtime: GameUI adopts it via the
-        // InGameShop marker and opens it on the coin tap. To edit it, tick Panel_GameShop
-        // active in the Hierarchy, then untick it (or just leave it — it auto-hides on Play).
+        // The panel starts INACTIVE: the shop canvas is spawned at scene start and only the
+        // panel is switched on when the player opens the shop.
         panel.gameObject.SetActive(false);
 
-        EditorUtility.SetDirty(marker);
-        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        Selection.activeGameObject = card.gameObject;
-        Debug.Log("[GameShopBaker] Baked in-game shop (panel hidden in editor). SAVE the scene (Ctrl+S). Opens on the coin tap at runtime; tick Panel_GameShop active to edit it.");
+        ShopUnifier.SavePrefab(rootGo);
+        Object.DestroyImmediate(rootGo);
+        Debug.Log("[GameShopBaker] Baked the shop prefab -> " + ShopUnifier.PrefabPath + ". Open it to edit; the menu and the game both use it.");
     }
 
     // One purple coin-pack card (atlas1_56): coin icon + amount + green price button.

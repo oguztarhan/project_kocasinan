@@ -3,13 +3,11 @@ using UnityEngine;
 namespace Ridebury
 {
     /// <summary>
-    /// Marker placed by the editor tool "Tools ▸ 300Mind UI ▸ Bake In-Game Shop" on the
-    /// scene-authored shop's root canvas. At play start it registers itself and hides the
-    /// shop <see cref="panel"/>, so <see cref="GameUI"/> adopts this Inspector-editable
-    /// shop (opened by tapping the coin during gameplay) instead of building one in code.
-    ///
-    /// Keep the root canvas (this GameObject) ACTIVE in the editor — to hide the shop while
-    /// editing the rest of the scene, disable the child "Panel_GameShop", NOT the canvas.
+    /// LEGACY marker from the old two-shop setup (a shop baked into each scene). The game now
+    /// has ONE shop — the <see cref="ShopUI"/> prefab at Resources/UI/ShopPanel — so this only
+    /// survives so that a scene still holding a baked shop keeps working, and so
+    /// "Tools ▸ 300Mind UI ▸ Unify Shop" can find those bakes and migrate them.
+    /// Nothing new should use it.
     /// </summary>
     public class InGameShop : MonoBehaviour
     {

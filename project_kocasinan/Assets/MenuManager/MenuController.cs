@@ -47,6 +47,8 @@ public class MenuController : MonoBehaviour
     GameObject[] homeOnly;
     // Bottom-nav buttons (Nav_Daily / Nav_Home / Nav_Shop); hidden while the SHOP is open (player exits via the ✕).
     GameObject[] navButtons;
+    // THE shop (shared with the game scene) — see ShopUI.
+    ShopUI shop;
 
     void Start()
     {
@@ -64,10 +66,9 @@ public class MenuController : MonoBehaviour
         navButtons = new[] { FindByName("Nav_Daily"), FindByName("Nav_Home"), FindByName("Nav_Shop") };
         CloseAll();
         Refresh();
-        WireShop();            // the baked menu shop's coin/joker buttons have NO listeners in this scene -> wire them now
+        SetupShop();           // spawn + hook THE shop (the shared ShopUI prefab, same one the game scene uses)
         WireRemoveAdsPanel();  // the dedicated Remove-Ads popup's offer graphics have NO listeners -> wire them to IAP
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
-        EnsureShopClose();     // (Shop pop-up) add a red ✕ close button — the bottom nav is hidden while the shop is open
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
         if (Object.FindAnyObjectByType<BootSplash>() == null)
@@ -135,52 +136,6 @@ public class MenuController : MonoBehaviour
         go.GetComponent<Button>().onClick.AddListener(ShowHome);
     }
 
-    // (Shop pop-up) Close ✕ for the shop — the bottom nav is hidden while the shop is open, so this is the way out.
-    // PREFERS a BAKED button: put an object named "ShopClose" (or "Close") inside the shop panel in the editor, place
-    // it freely, and it is wired to ShowHome here. Only if none exists, a runtime ✕ (CloseX sprite) is built — anchored
-    // to the PANEL's top-right, NOT the Card (the Card's corner can sit OFF-SCREEN on tall phones, which pushed the
-    // old runtime ✕ out of view).
-    void EnsureShopClose()
-    {
-        if (shopPanel == null) return;
-
-        // (a) Baked button in the scene (preferred — position it freely in the editor). NAME-TOLERANT: "ShopClose",
-        // "Shop Close", "shop close", "Shop_Close" … all match, so the exact spelling in the hierarchy doesn't matter.
-        Transform baked = null;
-        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
-        {
-            if (t == shopPanel.transform) continue;
-            string n = t.name.Replace(" ", "").Replace("_", "").ToLowerInvariant();
-            if (n == "shopclose") { baked = t; break; }
-        }
-        if (baked == null) baked = FindInPanel(shopPanel.transform, "Close");
-        if (baked != null)
-        {
-            var bimg = baked.GetComponent<Image>();
-            if (bimg != null) bimg.raycastTarget = true;
-            var bbtn = baked.GetComponent<Button>();
-            if (bbtn == null) bbtn = baked.gameObject.AddComponent<Button>();
-            if (bimg != null) bbtn.targetGraphic = bimg;
-            bbtn.interactable = true;
-            bbtn.onClick.RemoveListener(ShowHome); // idempotent across Starts
-            bbtn.onClick.AddListener(ShowHome);
-            return;
-        }
-
-        // (b) Runtime fallback: top-right of the full-screen PANEL, inset enough to clear notches/rounded corners.
-        if (FindInPanel(shopPanel.transform, "ShopCloseBtn_Runtime") != null) return;
-        var go = new GameObject("ShopCloseBtn_Runtime", typeof(RectTransform), typeof(Image), typeof(Button));
-        go.transform.SetParent(shopPanel.transform, false);
-        go.transform.SetAsLastSibling(); // render on top of everything in the shop
-        var rt = (RectTransform)go.transform;
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-45f, -90f);
-        rt.sizeDelta = new Vector2(96f, 96f);
-        var img = go.GetComponent<Image>();
-        img.sprite = UIKit.CloseX(); img.color = Color.white; img.preserveAspect = true; // the SAME red ✕ sprite the in-game shop uses
-        go.GetComponent<Button>().onClick.AddListener(ShowHome);
-    }
-
     void Set(GameObject g, bool on) { if (g) g.SetActive(on); }
 
     void HidePanels()
@@ -234,7 +189,7 @@ public class MenuController : MonoBehaviour
     public void CloseAll()      { HidePanels(); SetHomeOnly(true); SetNav(true); Sel(navHomeSel); }
     public void ShowHome()      { CloseAll(); }
     public void OpenDaily()     { Open(dailyPanel, navDailySel); }
-    public void OpenShop()      { Open(shopPanel, null); SetNav(false); RefreshShopPromoPrices(); } // nav hidden; re-pull localized prices on open (IAP is ready by now — at Start it may not be)
+    public void OpenShop()      { HidePanels(); SetHomeOnly(false); Sel(null); SetNav(false); var s = Shop(); if (s != null) s.Open(); else Set(shopPanel, true); } // nav hidden; the ✕ is the way out
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
     public void OpenRemoveAds() { Open(removeAdsPanel, null); RefreshRemoveAdsPanelPrices(); } // pull REAL localized prices on every open (at Start IAP wasn't ready yet, so the baked $ labels stayed forever)
@@ -320,167 +275,26 @@ public class MenuController : MonoBehaviour
     // Spend 100 gold (joker purchase). Returns silently if not enough.
     public void BuyFor100() { if (SaveSystem.TrySpend(100)) Refresh(); }
 
-    // Wire the baked menu shop. Unlike the in-game shop (which GameUI.WireSceneShop hooks up), the menu baker
-    // leaves the coin packs and the no-ads price button WITHOUT any purchase listener, so taps did nothing
-    // ("purchases don't work in the main menu shop"). We wire them here:
-    //   • coin packs  -> real Google Play IAP (matched by the baked "Pack_<amount>" card name)
-    //   • no-ads bars -> ONLY the green price button buys; tapping the orange bar does nothing
-    // Joker bars already carry a baked BuyFor100 listener and Close carries CloseAll, so those are left alone.
-    // We also make the shop card block taps so tapping a package can't fall through to the dim backdrop (close).
-    void WireShop()
+    // THE shop — one hierarchy, one wiring path, shared with the game scene: the ShopUI prefab
+    // (Resources/UI/ShopPanel, baked by "Tools ▸ 300Mind UI ▸ Bake Shop Prefab"). ShopUI wires every
+    // button itself (coin packs -> real IAP products, no-ads/banner bars, per-joker prices, restore,
+    // tap handling), so the menu shop and the in-game shop can never drift apart. The menu only tells
+    // it what to do with the menu's own chrome while it is open.
+    // The shop, re-hooked if needed: a domain reload (editing a script while in Play) drops the
+    // delegates set in SetupShop, and the ✕ would then leave the menu without its bottom nav.
+    ShopUI Shop()
     {
-        if (shopPanel == null) return;
-
-        // (a) Any InGameShopButton-tagged buttons (kept for forward-compat; today's menu bake has none).
-        foreach (var b in shopPanel.GetComponentsInChildren<InGameShopButton>(true))
-        {
-            var btn = b.GetComponent<Button>();
-            if (btn == null) continue;
-            switch (b.action)
-            {
-                case InGameShopButton.Act.GrantCoins:
-                    break; // coin packs are mapped to the real CoinPacks below via GameUI.MapShopCoinButtons
-                case InGameShopButton.Act.SpendJoker:
-                    btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(100)) Refresh(); });
-                    break;
-            }
-        }
-
-        // (b) Coin packs: map every "Pack_<amount>" card onto the REAL IAP products (relabels amount + price, wires the
-        // right product) — the SAME helper the in-game shop uses, so the two can never drift from IAPManager.CoinPacks.
-        GameUI.MapShopCoinButtons(shopPanel.transform, true);
-
-        // (c) No-ads bars: wire ONLY the green price button so tapping the orange bar does nothing.
-        RefreshShopPromoPrices(); // wires the no-ads/banner bars + writes their (localized) prices; re-run on every shop open
-
-        // (c2) Joker bars: charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100) AND grant the joker.
-        // The baker wired all three to BuyFor100 (spend 100, grant nothing) -> override here. Handles duplicates.
-        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
-        {
-            int jkind = JokerBarKind(t.name);
-            if (jkind >= 0) WireMenuJoker(t, jkind);
-        }
-
-        // (c3) The baked menu shop has TWO coin-pack sets (12 cards). Keep only the canonical 6 that match the in-game
-        // shop (200/500/1300/2500/4000/5500), once each; HIDE the extra standard set + duplicates. Non-destructive
-        // (SetActive false) — the cards stay in the scene, just hidden at runtime.
-        int[] keepPacks = { 200, 500, 1300, 2500, 4000, 5500 };
-        var seenPacks = new System.Collections.Generic.List<int>();
-        foreach (var t in shopPanel.GetComponentsInChildren<Transform>(true))
-        {
-            if (t == null || !t.name.StartsWith("Pack_") || !int.TryParse(t.name.Substring(5), out int packCoins)) continue;
-            bool showPack = System.Array.IndexOf(keepPacks, packCoins) >= 0 && !seenPacks.Contains(packCoins);
-            if (showPack) seenPacks.Add(packCoins);
-            t.gameObject.SetActive(showPack);
-        }
-
-        // (d) Only the empty black backdrop (and the Home/Daily nav) close the shop. Force every background/card/
-        // row image to catch taps so tapping a package (the red/orange cards) can't fall through to the close-
-        // backdrop. Buttons and the icons/labels parented under them are left alone so they still work.
-        BlockShopBackgroundTaps(shopPanel.transform);
+        if (shop == null || shop.onClosed == null) SetupShop();
+        return shop;
     }
 
-    // (Shop close) Make every non-button background/card/row image in the shop a raycast target, so a tap on a
-    // package can't pass through to the dim backdrop that closes the shop. A button graphic — and an icon/label
-    // parented DIRECTLY under a button — is skipped so its taps still reach the button.
-    void BlockShopBackgroundTaps(Transform shopRoot)
+    void SetupShop()
     {
-        foreach (var img in shopRoot.GetComponentsInChildren<Image>(true))
-        {
-            if (img.transform == shopRoot) continue;
-            var p = img.transform.parent;
-            if (p != null && p != shopRoot && p.GetComponent<Button>() != null && img.GetComponent<Button>() == null)
-                continue;
-            img.raycastTarget = true;
-        }
-
-        // THE REAL FIX: a click on a card with NO handler bubbles up to the first ancestor handler — the dim
-        // backdrop's CloseAll Button — closing the shop (raycastTarget on the card does NOT stop the bubble). Put a
-        // no-op click consumer on each scroll Viewport and on the Card so taps inside the shop are swallowed there
-        // and never bubble to the backdrop. Drags still scroll (the ScrollRect handles those separately).
-        foreach (var sr in shopRoot.GetComponentsInChildren<ScrollRect>(true))
-        {
-            var vp = sr.viewport != null ? sr.viewport : sr.transform.Find("Viewport") as RectTransform;
-            if (vp != null) AddClickConsumer(vp.gameObject);
-        }
-        var cardT = FindInPanel(shopRoot, "Card");
-        if (cardT != null) AddClickConsumer(cardT.gameObject);
-    }
-
-    // Swallow a click that bubbled up to this object so it can't reach the dim backdrop's CloseAll above it. A
-    // Button with no onClick listeners consumes the click and does nothing else; a near-invisible raycast image is
-    // added if the object has no graphic. Does NOT block ScrollRect dragging.
-    void AddClickConsumer(GameObject go)
-    {
-        if (go == null || go.GetComponent<Selectable>() != null) return;
-        var g = go.GetComponent<Graphic>();
-        if (g == null) { var img = go.AddComponent<Image>(); img.color = new Color(1f, 1f, 1f, 0.004f); g = img; }
-        g.raycastTarget = true;
-        var btn = go.AddComponent<Button>();
-        btn.transition = Selectable.Transition.None;
-        btn.targetGraphic = g;
-    }
-
-    // Wire ONLY the green price button ("PriceBg" child) of a no-ads bar to its purchase, leaving the orange bar
-    // background as a plain tap-blocker (so tapping it neither buys nor closes the shop). Safe if row/child absent.
-    void WireMenuPromo(string rowName, string productId, string fallbackPrice, System.Action onBuy)
-    {
-        if (shopPanel == null) return;
-        var row = FindInPanel(shopPanel.transform, rowName);
-        if (row == null) return;
-        var rowImg = row.GetComponent<Image>();
-        if (rowImg != null) rowImg.raycastTarget = true;
-        var rowBtn = row.GetComponent<Button>();
-        if (rowBtn != null) rowBtn.onClick = new Button.ButtonClickedEvent();  // the whole bar must never buy
-        var priceT = FindInPanel(row, "PriceBg");
-        var target = priceT != null ? priceT : row;                           // fallback: keep buying working
-        var pImg = target.GetComponent<Image>();
-        if (pImg != null) pImg.raycastTarget = true;
-        var pBtn = target.GetComponent<Button>();
-        if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
-        if (pImg != null) pBtn.targetGraphic = pImg;
-        pBtn.onClick = new Button.ButtonClickedEvent();
-        pBtn.onClick.AddListener(() => onBuy());
-
-        // Show the REAL localized store price on the "Price" label (the menu baker left it static -> never localized,
-        // unlike the coin packs). Runs alongside GameUI.MapShopCoinButtons in WireShop, so IAP is already ready here.
-        string real = null;
-#if !UNITY_EDITOR
-        real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
-#endif
-        string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
-        if (!string.IsNullOrEmpty(shown))
-        {
-            var pl = FindInPanel(row, "Price");
-            if (pl != null) { var t = pl.GetComponent<Text>() ?? pl.GetComponentInChildren<Text>(true); if (t != null) t.text = shown; }
-        }
-    }
-
-    // A shop joker bar -> joker kind by row name ("Bar_Shuffle"=Recolor 0, "Bar_Swap"=Swap 1, "Bar_Heli"=Heli 2).
-    static int JokerBarKind(string name)
-    {
-        if (string.IsNullOrEmpty(name) || !name.StartsWith("Bar_")) return -1;
-        var n = name.ToLowerInvariant();
-        if (n.Contains("heli")) return 2;
-        if (n.Contains("swap")) return 1;
-        if (n.Contains("shuffle") || n.Contains("recolor")) return 0;
-        return -1;
-    }
-
-    // Charge the correct per-joker price (Recolor 75 / Swap 50 / Heli 100 from GameConfig) and GRANT the joker. The
-    // menu baker had wired every joker bar to BuyFor100 (spend 100, grant nothing); this replaces that and updates
-    // the price label. The granted joker is stored in SaveSystem and shows on the in-game HUD.
-    void WireMenuJoker(Transform row, int kind)
-    {
-        var buyT = FindInPanel(row, "Buy");
-        var buy = buyT != null ? buyT.GetComponent<Button>() : null;
-        if (buy == null) return;
-        int cost = kind == 1 ? GameConfig.SwapCost : kind == 2 ? GameConfig.HeliCost : GameConfig.RecolorCost;
-        var priceT = FindInPanel(buy.transform, "Price");
-        var priceTxt = priceT != null ? priceT.GetComponent<Text>() : null;
-        if (priceTxt != null) priceTxt.text = cost.ToString();
-        buy.onClick = new Button.ButtonClickedEvent();                     // drop the baked BuyFor100
-        buy.onClick.AddListener(() => { if (SaveSystem.TrySpend(cost)) { SaveSystem.AddFreeJoker(kind, 1); Refresh(); } });
+        shop = ShopUI.Ensure();
+        if (shop == null) return;
+        shopPanel = shop.panel;                  // HidePanels()/CloseAll() still hide it like any other pop-up
+        shop.onClosed = CloseAll;                // the ✕ / backdrop -> back to the home screen (nav + home-only elements)
+        shop.onCoinsChanged = Refresh;           // repaint the gold counter after a joker purchase
     }
 
     // The dedicated Remove-Ads popup (Panel_RemoveAds, opened by the top-right no-ads icon) shows its two offers as
@@ -524,16 +338,6 @@ public class MenuController : MonoBehaviour
         }
     }
 
-    // Shop no-ads/banner bars: (re)wire + (re)write their localized prices. Runs in WireShop AND on every shop OPEN,
-    // because at Start (first app launch) IAP may not be initialised yet — the price fetch returned nothing and the
-    // baked $ labels stayed. By open-time IAP is ready, so the real store price (₺ on TR devices) replaces them.
-    void RefreshShopPromoPrices()
-    {
-        WireMenuPromo("RemoveAds", IAPManager.RemoveAds, "$9.99", BuyRemoveAds);
-        WireMenuPromo("RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", BuyRemoveAdsPlus);
-        WireMenuPromo("RemoveBanner", IAPManager.RemoveBanner, "$0.99", BuyRemoveBanner);
-    }
-
     // Write the REAL localized store price onto one Remove-Ads-popup offer graphic. ONLY texts that already look like
     // a price ("$" / "₺" / "TL") are replaced — the "Banner" caption and the "+200" bonus label are never touched.
     // When the store price isn't available (editor / IAP still starting) the baked label is left as-is.
@@ -571,15 +375,6 @@ public class MenuController : MonoBehaviour
                 SetOfferPrice(t, isPlus ? IAPManager.RemoveAdsPlus : IAPManager.RemoveAds);
             }
         }
-    }
-
-    // A coin-pack button -> the matching consumable IAP. Coins are added by IAPManager on a verified purchase;
-    // Update()'s Refresh() repaints the counter next frame.
-    void BuyCoinsPack(int coins)
-    {
-        var id = IAPManager.ProductForCoins(coins);
-        if (id != null) IAPManager.Instance?.Buy(id);
-        else Debug.LogWarning("[Menu] no IAP product for " + coins + " coins");
     }
 
     // No-ads + restore for the menu's Remove-Ads panel — wire these to its buttons in the Inspector. The

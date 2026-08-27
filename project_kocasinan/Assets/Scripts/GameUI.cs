@@ -32,6 +32,7 @@ namespace Ridebury
         Font title, num;
         Transform root;
         GameObject hudPanel, settingsPanel, successPanel, continuePanel, failedPanel, shopPanel;
+        ShopUI shop;   // THE shop (shared with the main menu) — see ShopUI
         Text hudCoins, hudLevel, hudTheme, comboText, hudPeopleLeft, successReward, continuePrice, bonusCountdown;
         GameObject jokerBuyPanel; Image jokerBuyIcon; Text jokerBuyPrice; int buyKind, buyCost;
         readonly GameObject[] jokerBuyPanels = new GameObject[3]; // baked per-joker buy panels (0/1/2)
@@ -112,7 +113,7 @@ namespace Ridebury
         void DisableOldCanvases()
         {
             if (!Application.isPlaying) return;
-            var shopCanvas = InGameShop.Instance != null ? InGameShop.Instance.GetComponent<Canvas>() : null;
+            var shopCanvas = ShopUI.Instance != null ? ShopUI.Instance.GetComponent<Canvas>() : null;
             var panelsCanvas = InGamePanels.Instance != null ? InGamePanels.Instance.GetComponent<Canvas>() : null;
             var hudCanvas = InGameHud.Instance != null ? InGameHud.Instance.GetComponent<Canvas>() : null;
             var garageCanvas = InGameGarage.Instance != null ? InGameGarage.Instance.GetComponent<Canvas>() : null;
@@ -120,7 +121,7 @@ namespace Ridebury
             {
                 if (c == null) continue;
                 if (c.transform.root == transform.root) continue; // ours
-                if (shopCanvas != null && c == shopCanvas) continue; // baked in-game shop
+                if (shopCanvas != null && c == shopCanvas) continue; // the shared shop canvas
                 if (panelsCanvas != null && c == panelsCanvas) continue; // baked settings/continue/failed
                 if (hudCanvas != null && c == hudCanvas) continue; // baked HUD
                 if (garageCanvas != null && c == garageCanvas) continue; // baked garage + vehicles panels
@@ -453,19 +454,6 @@ namespace Ridebury
         // waiting an hour. If nothing appears after tapping, the fault is permission / OEM battery-kill / a Remote Config
         // kill-switch, NOT the notification code. The button's own label reports the result. Added as the LAST child so
         // it draws on top of the (baked) panel content. To drop it before production, delete this method + its one call.
-        // Restore Purchases (a Google Play storefront REQUIREMENT): re-asserts the no-ads entitlement after a reinstall
-        // (IAPManager.Restore replays owned non-consumables). Appended as a full-width row at the BOTTOM of the shop
-        // list, so it lives in the storefront next to the things it restores. Works for the baked shop AND the code shop.
-        void AddShopRestoreRow(Transform content)
-        {
-            if (content == null) return;
-            var row = Img(content, UIKit.ShopBoxA(), new Color(0.30f, 0.55f, 0.85f));
-            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
-            var lbl = Label(row.transform, Loc.T("RESTORE PURCHASES"), title, Vector2.zero, new Vector2(640, 70), 36, White);
-            var btn = row.gameObject.AddComponent<Button>(); btn.targetGraphic = row;
-            btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = Loc.T("RESTORED"); });
-        }
-
         // ---- Settings / Continue / Failed setup -----------------------------
         // Prefer the Inspector-editable scene panels baked via
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Panels"; otherwise build them in code.
@@ -479,7 +467,7 @@ namespace Ridebury
                 settingsPanel.SetActive(false);
             }
             else BuildSettings(); // fallback (code-built settings)
-            // Restore Purchases now lives in the SHOP (AddShopRestoreRow), not in Settings. LEVELS was removed per
+            // Restore Purchases now lives in the SHOP (ShopUI.AddRestoreRow), not in Settings. LEVELS was removed per
             // request; COLOR BLIND is now a Hierarchy button you add to the Settings panel yourself (wired by name).
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
             AddPrivacyOptionsButton(settingsPanel != null ? settingsPanel.transform : null);
@@ -766,184 +754,19 @@ namespace Ridebury
         }
 
         // ---- Shop setup -----------------------------------------------------
-        // Prefer the Inspector-editable scene shop baked via
-        // "Tools ▸ 300Mind UI ▸ Bake In-Game Shop"; otherwise build the code shop.
+        // ONE shop for the whole game: the shared ShopUI prefab (Resources/UI/ShopPanel),
+        // also used by the main menu. GameUI only opens/closes it and reacts to what the
+        // player buys — all shop wiring (IAP products, prices, jokers, restore) is in ShopUI.
         void SetupShop()
         {
-            IAPManager.OnChanged -= OnIapChanged; IAPManager.OnChanged += OnIapChanged; // repaint counters when a purchase resolves
-            // (#5/#7) Use the BAKED scene shop even if its canvas was left INACTIVE in the Hierarchy. A disabled
-            // InGameShop_Baked never runs Awake, so InGameShop.Instance stays null and the OLD code-built shop
-            // (BuildShop) showed instead — that was the "old shop still showing". Find it inactive-inclusive + enable.
-            var shop = InGameShop.Instance;
-            if (shop == null) shop = Object.FindFirstObjectByType<InGameShop>(FindObjectsInactive.Include);
-            if (shop != null)
-            {
-                if (!shop.gameObject.activeSelf) shop.gameObject.SetActive(true); // runs its Awake -> assigns + hides panel
-                var panel = shop.panel;
-                if (panel == null)
-                {
-                    var t = shop.transform.Find("Panel_GameShop");
-                    if (t) panel = t.gameObject;
-                }
-                if (panel != null)
-                {
-                    shopPanel = panel;
-                    WireSceneShop(shopPanel.transform);
-                    shopPanel.SetActive(false);
-                    return;
-                }
-            }
-            BuildShop(); // genuine fallback only — no baked shop exists in the scene
-        }
+            IAPManager.OnChanged -= OnIapChanged; IAPManager.OnChanged += OnIapChanged; // repaint HUD counters when a purchase resolves
 
-        // Wire the baked shop's tagged buttons to live actions (the visuals stay in the scene).
-        void WireSceneShop(Transform shopRoot)
-        {
-            foreach (var b in shopRoot.GetComponentsInChildren<InGameShopButton>(true))
-            {
-                var btn = b.GetComponent<Button>();
-                if (btn == null) continue;
-                switch (b.action)
-                {
-                    case InGameShopButton.Act.GrantCoins:
-                        break; // coin packs are mapped to the real CoinPacks below (MapShopCoinButtons) so the shown amount,
-                               // the price, and the product purchased always agree — no re-bake needed.
-                    case InGameShopButton.Act.SpendJoker:
-                    {
-                        int jkind = JokerBarKind(b.transform.parent != null ? b.transform.parent.name : null);
-                        if (jkind < 0) jkind = 0;                                       // unknown row name -> default to Recolor
-                        int jcost = JokerShopCost(jkind);                               // Recolor 75 / Swap 50 / Heli 100 (GameConfig)
-                        var jp = btn.transform.Find("Price")?.GetComponent<Text>();
-                        if (jp != null) jp.text = jcost.ToString();                     // show the real per-joker price (baked label was a flat "100")
-                        btn.onClick.AddListener(() => { if (SaveSystem.TrySpend(jcost)) { SaveSystem.AddFreeJoker(jkind, 1); SetCoins(SaveSystem.Coins); RefreshJokers(); } });
-                        break;
-                    }
-                    case InGameShopButton.Act.Close:
-                        btn.onClick.AddListener(HideShop);
-                        break;
-                }
-            }
-
-            // The two promo bars are baked as plain "RemoveAds" rows (no InGameShopButton tag
-            // and no Button of their own), so wire them here by name to the real IAP products:
-            //   "RemoveAds"     -> remove_ads      (ads off)
-            //   "RemoveAds (1)" -> remove_ads_plus (ads off + a one-time 200 gold + free Recolor joker)
-            // The bonus is granted inside IAPManager.Grant (flag-gated so a restore can't repeat it).
-            WirePromoBar(shopRoot, "RemoveAds", IAPManager.RemoveAds, "$9.99", RemoveAds);
-            WirePromoBar(shopRoot, "RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", RemoveAdsPlus);
-
-            // Map the 6 baked coin packs onto the real IAP products (relabels each card's amount + price to match) so
-            // every coin button buys a valid product, whatever amounts the shop was baked with.
-            MapShopCoinButtons(shopRoot, true);
-
-            // Restore Purchases (Google Play storefront requirement): append a row at the bottom of the shop's scroll list.
-            var restoreScroll = shopRoot.GetComponentInChildren<ScrollRect>(true);
-            var shopContent = restoreScroll != null && restoreScroll.content != null ? restoreScroll.content : shopRoot;
-            AddShopRestoreRow(shopContent);
-            WirePromoBar(shopRoot, "RemoveBanner", IAPManager.RemoveBanner, "$0.99", () => IAPManager.Instance?.Buy(IAPManager.RemoveBanner)); // baked RemoveBanner bar (user placed it at the top of Content)
-            if (restoreScroll != null)                                         // enlarge the scroll view a bit — extend its BOTTOM edge DOWN (away from the title)
-            {
-                var srt = (RectTransform)restoreScroll.transform;
-                srt.offsetMin = new Vector2(srt.offsetMin.x, srt.offsetMin.y - 90f);
-            }
-
-            // (Shop close) Only the empty black backdrop (and the red ✕) close the shop. Force every background/
-            // card/row image to catch taps so tapping a package (the red/orange cards) can't fall through to the
-            // close-backdrop. Buttons and the icons/labels parented under them are left alone so they still work.
-            BlockShopBackgroundTaps(shopRoot);
-        }
-
-        // (Shop close) Make every non-button background/card/row image inside the shop a raycast target, so a tap
-        // on a package can't pass through to the dim backdrop that closes the shop. A button graphic — and an
-        // icon/label parented DIRECTLY under a button — is skipped so its taps still reach the button.
-        void BlockShopBackgroundTaps(Transform shopRoot)
-        {
-            // Make cards/rows/backgrounds catch taps so a tap resolves to them, not the backdrop behind.
-            foreach (var img in shopRoot.GetComponentsInChildren<Image>(true))
-            {
-                if (img.transform == shopRoot) continue;                        // backdrop graphic: it closes on black-area taps
-                var p = img.transform.parent;
-                if (p != null && p != shopRoot && p.GetComponent<Button>() != null && img.GetComponent<Button>() == null)
-                    continue;                                                   // a button's icon/label -> keep non-blocking so its taps reach the button
-                img.raycastTarget = true;
-            }
-
-            // THE REAL FIX: the dim backdrop is an ANCESTOR of every card AND is the tap-to-close Button. In Unity
-            // UI a click on a card with NO click handler BUBBLES UP to the first ancestor that has one — the
-            // backdrop — so the shop closes (raycastTarget on the card does NOT stop this; the event still bubbles).
-            // Put a no-op click "consumer" on each scroll Viewport (covers the whole package list) and on the Card,
-            // so a tap inside the shop is swallowed there and never bubbles up to the backdrop. Drags still scroll —
-            // the ScrollRect handles those via a separate (drag) event path.
-            foreach (var sr in shopRoot.GetComponentsInChildren<ScrollRect>(true))
-            {
-                var vp = sr.viewport != null ? sr.viewport : sr.transform.Find("Viewport") as RectTransform;
-                if (vp != null) AddClickConsumer(vp.gameObject);
-            }
-            var cardT = FindDeep(shopRoot, "Card");
-            if (cardT != null) AddClickConsumer(cardT.gameObject);
-        }
-
-        // Swallow a click that bubbled up to this object so it can't reach the dim backdrop's close handler above
-        // it. A Button is an IPointerClickHandler; with no onClick listeners it consumes the click and does nothing
-        // else. A near-invisible raycast image is added if the object has no graphic (so empty gaps are caught too).
-        // Does NOT block ScrollRect dragging (drag is a separate event).
-        void AddClickConsumer(GameObject go)
-        {
-            if (go == null || go.GetComponent<Selectable>() != null) return;
-            var g = go.GetComponent<Graphic>();
-            if (g == null) { var img = go.AddComponent<Image>(); img.color = new Color(1f, 1f, 1f, 0.004f); g = img; }
-            g.raycastTarget = true;
-            var btn = go.AddComponent<Button>();
-            btn.transition = Selectable.Transition.None;
-            btn.targetGraphic = g;
-        }
-
-        // Wire a baked promo row to a real purchase, but make ONLY the green price button ("PriceBg")
-        // trigger the buy. The orange bar background is left as a plain tap-blocker so tapping it does
-        // nothing — it must NOT purchase, and must NOT fall through to the shop's close-backdrop.
-        void WirePromoBar(Transform shopRoot, string rowName, string productId, string fallbackPrice, System.Action onBuy)
-        {
-            var row = FindDeep(shopRoot, rowName);
-            if (row == null) return;
-
-            // Orange bar background: keep catching taps (so they can't reach the close-backdrop behind
-            // the shop), but make sure it never BUYS — clear any whole-bar button listeners.
-            var rowImg = row.GetComponent<Image>();
-            if (rowImg != null) rowImg.raycastTarget = true;
-            var rowBtn = row.GetComponent<Button>();
-            if (rowBtn != null) rowBtn.onClick = new Button.ButtonClickedEvent();
-
-            // The purchase button = the green price child. Fall back to the whole row only if no price
-            // child is found (so buying still works on an unexpected layout).
-            var price = FindDeep(row, "PriceBg");
-            var target = price != null ? price : row;
-            var pImg = target.GetComponent<Image>();
-            if (pImg != null) pImg.raycastTarget = true;
-            var pBtn = target.GetComponent<Button>();
-            if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
-            if (pImg != null) pBtn.targetGraphic = pImg;
-            pBtn.onClick = new Button.ButtonClickedEvent();
-            pBtn.onClick.AddListener(() => onBuy());
-
-            // Set the REAL localized store price on the bar's "Price" label; fall back to the placeholder when the store
-            // price isn't ready (editor fake store / IAP not yet initialised). The label is found ANYWHERE in the row —
-            // robust whether "Price" sits under PriceBg or beside it. Handles both legacy Text and TMP labels.
-            string real = null;
-#if !UNITY_EDITOR
-            real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
-#endif
-            string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
-            if (!string.IsNullOrEmpty(shown))
-            {
-                var pl = FindDeep(row, "Price") ?? price;
-                if (pl != null)
-                {
-                    var t = pl.GetComponentInChildren<Text>(true);
-                    if (t != null) t.text = shown;
-                    var tmp = pl.GetComponentInChildren<TMPro.TMP_Text>(true);
-                    if (tmp != null) tmp.text = shown;
-                }
-            }
+            shop = ShopUI.Ensure();
+            if (shop == null) return;
+            shopPanel = shop.panel;                                  // MakeExclusive / AnyPanelOpen still track it
+            shop.onOpened = () => SetHudChromeVisible(false);        // (#6) hide gear/level/ad/jokers
+            shop.onClosed = () => SetHudChromeVisible(true);         // restore them when it closes
+            shop.onCoinsChanged = () => { SetCoins(SaveSystem.Coins); RefreshJokers(); };
         }
 
         // First descendant (inactive included) whose GameObject is named `name`, else null.
@@ -954,209 +777,15 @@ namespace Ridebury
             return null;
         }
 
-        // A shop joker bar -> its joker kind by row name ("Bar_Shuffle"=Recolor 0, "Bar_Swap"=Swap 1, "Bar_Heli"=Heli 2).
-        static int JokerBarKind(string name)
-        {
-            if (string.IsNullOrEmpty(name)) return -1;
-            var n = name.ToLowerInvariant();
-            if (n.Contains("heli")) return 2;
-            if (n.Contains("swap")) return 1;
-            if (n.Contains("shuffle") || n.Contains("recolor")) return 0;
-            return -1;
-        }
-        // Per-joker shop price from GameConfig (Recolor 75 / Swap 50 / Heli 100) — same source as the HUD joker buy panel.
-        static int JokerShopCost(int kind) => kind == 1 ? GameConfig.SwapCost : kind == 2 ? GameConfig.HeliCost : GameConfig.RecolorCost;
-
-        // The two no-ads shop bars -> real Google Play purchases. The entitlement (and the "plus" tier's one-time
-        // bonus) is applied in IAPManager.Grant after Google signs the receipt; OnIapChanged then refreshes the HUD.
-        void RemoveAds()     { IAPManager.Instance?.Buy(IAPManager.RemoveAds); }
-        void RemoveAdsPlus() { IAPManager.Instance?.Buy(IAPManager.RemoveAdsPlus); }
-
-        // A coin-pack button -> the matching consumable IAP. Coins are added by IAPManager on a verified purchase,
-        // never here, so a cancelled/failed purchase grants nothing.
-        void BuyCoins(int coins)
-        {
-            var id = IAPManager.ProductForCoins(coins);
-            if (id == null) { Debug.LogWarning("[Shop] no IAP product for " + coins + " coins"); return; }
-            if (IAPManager.Instance != null) IAPManager.Instance.Buy(id);
-            else Debug.LogWarning("[Shop] IAP not ready yet");
-        }
-
         // IAPManager fires OnChanged after a verified purchase / restore / first init -> repaint the live counters.
         void OnIapChanged()
         {
             SetCoins(SaveSystem.Coins);
             RefreshJokers();
-            if (shopPanel != null)
-            {
-                MapShopCoinButtons(shopPanel.transform, false); // refresh coin-pack amounts/prices once IAP is ready
-                WirePromoBar(shopPanel.transform, "RemoveAds", IAPManager.RemoveAds, "$9.99", RemoveAds);           // refresh no-ads bar price too
-                WirePromoBar(shopPanel.transform, "RemoveAds (1)", IAPManager.RemoveAdsPlus, "$12.99", RemoveAdsPlus);
-                WirePromoBar(shopPanel.transform, "RemoveBanner", IAPManager.RemoveBanner, "$0.99", () => IAPManager.Instance?.Buy(IAPManager.RemoveBanner)); // refresh baked banner bar price too
-            }
+            if (shop != null) shop.RefreshPrices();   // shop amounts + localized prices
         }
 
         void OnDestroy() { IAPManager.OnChanged -= OnIapChanged; }
-
-        // Placeholder coin-pack prices shown until the REAL localized Play price loads (in the editor, before IAP
-        // initialises, or before the products are Active in Play Console — so the labels are never blank). Index =
-        // CoinPacks sorted ascending. On a device with active products, IAPManager.Price overrides these per-region.
-        static readonly string[] FallbackPrices = { "$0.99", "$1.99", "$4.99", "$8.99", "$12.99", "$17.99" };
-
-        // Map the baked coin-pack cards ("Pack_<amount>", used by BOTH the in-game and menu shop bakers) onto the REAL
-        // IAP CoinPacks, smallest->smallest, so the displayed amount, the price, and the product actually purchased always
-        // match IAPManager — whatever amounts the shop was baked with, and with NO re-bake. Change CoinPacks and the shops
-        // follow. Card layout (both bakers): a card named "Pack_N" -> child "Amount" (count) + child "Buy" -> child "Price".
-        // wireClicks=true on first setup (adds the Buy listener once); false to only refresh labels when IAP initialises.
-        public static void MapShopCoinButtons(Transform shopRoot, bool wireClicks)
-        {
-            if (shopRoot == null) return;
-            var cards = new System.Collections.Generic.List<(int baked, Transform card, Button buy)>();
-            foreach (var t in shopRoot.GetComponentsInChildren<Transform>(true))
-            {
-                if (t == null || !t.name.StartsWith("Pack_")) continue;
-                if (!int.TryParse(t.name.Substring(5), out int baked)) continue;
-                var buyT = t.Find("Buy");
-                var buy = buyT != null ? buyT.GetComponent<Button>() : null;
-                if (buy != null) cards.Add((baked, t, buy));
-            }
-            if (cards.Count == 0) return;
-            cards.Sort((a, b) => a.baked.CompareTo(b.baked));
-            var packs = new System.Collections.Generic.List<(string id, int coins)>(IAPManager.CoinPacks);
-            packs.Sort((a, b) => a.coins.CompareTo(b.coins));
-            for (int i = 0; i < cards.Count && i < packs.Count; i++)
-            {
-                var card = cards[i].card; var buy = cards[i].buy; var pack = packs[i];
-                var amtT = card.Find("Amount");
-                if (amtT != null) { var lt = amtT.GetComponent<Text>(); if (lt != null) lt.text = pack.coins.ToString(); }
-                var priceTf = buy.transform.Find("Price");
-                if (priceTf != null)
-                {
-                    var lt = priceTf.GetComponent<Text>();
-                    string pr = null;
-#if !UNITY_EDITOR
-                    pr = IAPManager.Instance != null ? IAPManager.Instance.Price(pack.id) : null; // real localized Play price (device only)
-#endif
-                    // Editor uses Unity's FAKE store ("$0.01" for everything) — ignore it and show the fixed placeholder.
-                    if (string.IsNullOrEmpty(pr) && i < FallbackPrices.Length) pr = FallbackPrices[i];
-                    if (lt != null && !string.IsNullOrEmpty(pr)) lt.text = pr;
-                }
-                if (wireClicks) { var id = pack.id; buy.onClick.AddListener(() => IAPManager.Instance?.Buy(id)); }
-            }
-        }
-
-        // ---- In-game shop (coin tap) — identical to the main-menu shop -------
-        // Code fallback used only when no baked shop exists. Mirrors the baker:
-        // dim backdrop + tall card + scrollable list (Remove-Ads → gold grid → jokers).
-        void BuildShop()
-        {
-            shopPanel = Panel("Shop", new Color(0, 0, 0, 0.6f));
-
-            var card = Img(shopPanel.transform, UIKit.PanelTall(), new Color(0.30f, 0.25f, 0.55f));
-            Center(card.rectTransform, new Vector2(960, 1500));
-            Label(card.transform, "SHOP", title, new Vector2(0, 680), new Vector2(700, 120), 74, White);
-            RedClose(card.transform, HideShop);
-
-            // ---- Scroll view ----
-            var svGo = new GameObject("ScrollView", typeof(RectTransform));
-            svGo.transform.SetParent(card.transform, false);
-            var svRt = svGo.GetComponent<RectTransform>();
-            svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
-            svRt.anchoredPosition = new Vector2(0, -20); svRt.sizeDelta = new Vector2(880, 1220); // enlarged a bit (was 1120 @ y20)
-            var scroll = svGo.AddComponent<ScrollRect>();
-            scroll.horizontal = false; scroll.vertical = true;
-            scroll.movementType = ScrollRect.MovementType.Elastic; scroll.scrollSensitivity = 28;
-
-            var vpGo = new GameObject("Viewport", typeof(RectTransform));
-            vpGo.transform.SetParent(svGo.transform, false);
-            var vpRt = vpGo.GetComponent<RectTransform>();
-            vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one; vpRt.offsetMin = Vector2.zero; vpRt.offsetMax = Vector2.zero;
-            var vpImg = vpGo.AddComponent<Image>(); vpImg.color = new Color(1, 1, 1, 0.01f); // catches drags over empty space
-            vpGo.AddComponent<RectMask2D>();
-
-            var ctGo = new GameObject("Content", typeof(RectTransform));
-            ctGo.transform.SetParent(vpGo.transform, false);
-            var ctRt = ctGo.GetComponent<RectTransform>();
-            ctRt.anchorMin = new Vector2(0, 1); ctRt.anchorMax = new Vector2(1, 1); ctRt.pivot = new Vector2(0.5f, 1);
-            ctRt.anchoredPosition = Vector2.zero; ctRt.sizeDelta = Vector2.zero;
-            var vlg = ctGo.AddComponent<VerticalLayoutGroup>();
-            vlg.spacing = 24; vlg.padding = new RectOffset(15, 15, 15, 15);
-            vlg.childAlignment = TextAnchor.UpperCenter;
-            vlg.childControlWidth = true; vlg.childControlHeight = true;
-            vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
-            var fit = ctGo.AddComponent<ContentSizeFitter>();
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-            scroll.viewport = vpRt; scroll.content = ctRt;
-
-            // 1) Remove-ads bar (atlas1_44 bg, no-ads icon left, price button right).
-            var adsRow = Img(ctGo.transform, UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
-            var adsLe = adsRow.gameObject.AddComponent<LayoutElement>(); adsLe.preferredHeight = 160; adsLe.minHeight = 160;
-            var adsIco = Img(adsRow.transform, UIKit.NoAds(), new Color(0.85f, 0.3f, 0.3f)); adsIco.raycastTarget = false;
-            Place(adsIco.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(95, 0), new Vector2(110, 110));
-            var adsPrice = Img(adsRow.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f)); adsPrice.raycastTarget = false;
-            Place(adsPrice.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110));
-            var adsRealPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.RemoveAds) : null;
-            Label(adsPrice.transform, string.IsNullOrEmpty(adsRealPrice) ? "$9.99" : adsRealPrice, num, Vector2.zero, new Vector2(360, 60), 36, White);
-            var adsBtn = adsRow.gameObject.AddComponent<Button>(); adsBtn.targetGraphic = adsRow; // whole bar buys remove_ads
-            adsBtn.onClick.AddListener(RemoveAds);
-
-            // 2) Gold packs (3-column grid, icons 11,12,13,29,30,31).
-            var gridGo = new GameObject("CoinGrid", typeof(RectTransform));
-            gridGo.transform.SetParent(ctGo.transform, false);
-            var gl = gridGo.AddComponent<GridLayoutGroup>();
-            gl.cellSize = new Vector2(275, 360); gl.spacing = new Vector2(15, 20);
-            gl.childAlignment = TextAnchor.UpperCenter;
-            gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount; gl.constraintCount = 3;
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinA(),     "200",   "$0.99",   200);
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinB(),     "500",   "$1.99",   500);
-            ShopCoinCard(gridGo.transform, UIKit.ShopCoinC(),     "1300",  "$4.99",   1300);
-            ShopCoinCard(gridGo.transform, UIKit.ShopGold(),      "2500",  "$8.99",   2500);
-            ShopCoinCard(gridGo.transform, UIKit.CoinPackSmall(), "4000",  "$12.99",  4000);
-            ShopCoinCard(gridGo.transform, UIKit.CoinPackBig(),   "5500",  "$17.99",  5500);
-
-            // 3) Joker bars (atlas1_44 bg, icon left, buy for 100 gold).
-            ShopJokerBar(ctGo.transform, UIKit.JokerRecolor());
-            ShopJokerBar(ctGo.transform, UIKit.JokerSwap());
-            ShopJokerBar(ctGo.transform, UIKit.JokerHeli());
-
-            // Restore Purchases (Google Play storefront requirement): last row in the list.
-            AddShopRestoreRow(ctGo.transform);
-
-            shopPanel.SetActive(false);
-        }
-
-        // One purple coin-pack card: coin icon + amount + green price button (grants coins).
-        void ShopCoinCard(Transform parent, Sprite icon, string amount, string price, int coins)
-        {
-            var card = Img(parent, UIKit.ShopIconBgA(), new Color(0.55f, 0.40f, 0.78f));
-            var ico = Img(card.transform, icon, Gold); ico.raycastTarget = false;
-            Place(ico.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(150, 150));
-            Label(card.transform, amount, num, new Vector2(0, 132), new Vector2(255, 50), 34, White);
-            var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(245, 92),
-                () => BuyCoins(coins)); // real IAP; coins granted by IAPManager on success
-            // Real localized Play price on a device; the editor's FAKE store returns "$0.01", so ignore it there and
-            // show the fixed `price` placeholder ($0.99 etc.).
-            string realPrice = null;
-#if !UNITY_EDITOR
-            realPrice = IAPManager.Instance != null ? IAPManager.Instance.Price(IAPManager.ProductForCoins(coins)) : null;
-#endif
-            Label(buy.transform, string.IsNullOrEmpty(realPrice) ? price : realPrice, num, Vector2.zero, new Vector2(245, 56), 32, White);
-        }
-
-        // A full-width joker bar: icon on the dark-orange left + a "100 gold" buy button.
-        void ShopJokerBar(Transform parent, Sprite icon)
-        {
-            var row = Img(parent, UIKit.ShopBoxA(), new Color(0.95f, 0.55f, 0.20f));
-            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 160; le.minHeight = 160;
-            var ico = Img(row.transform, icon, White); ico.raycastTarget = false;
-            Place(ico.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(120, 120));
-            var buy = Btn(row.transform, UIKit.PriceBtnA(), new Color(0.3f, 0.75f, 0.35f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(360, 110),
-                () => { if (SaveSystem.TrySpend(100)) SetCoins(SaveSystem.Coins); });
-            var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
-            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(56, 56));
-            Label(buy.transform, "100", num, new Vector2(30, 0), new Vector2(360, 60), 36, White);
-        }
 
         // ---- Continue panel (56/57 buttons; ad icon atlas1_61) ---------------
         void BuildContinue()
@@ -1253,8 +882,16 @@ namespace Ridebury
         // re-pauses itself right after the LEVELS path resumes here.
         public void ShowSettings() { Toggle(settingsPanel, true); Time.timeScale = 0f; }
         public void HideSettings() { Toggle(settingsPanel, false); Time.timeScale = 1f; }
-        public void ShowShop() { SetHudChromeVisible(false); Toggle(shopPanel, true); } // (#6) hide gear/level/ad/jokers
-        public void HideShop() { Toggle(shopPanel, false); SetHudChromeVisible(true); } // restore them when it closes
+        public void ShowShop() { var s = Shop(); if (s != null) s.Open(); }   // chrome is hidden by the onOpened hook (#6)
+        public void HideShop() { var s = Shop(); if (s != null) s.Close(); }
+
+        // The shop, re-hooked if needed: a domain reload (editing a script while in Play) drops
+        // the delegates below, and the coin tap would then open a shop that never restores the HUD.
+        ShopUI Shop()
+        {
+            if (shop == null || shop.onOpened == null) SetupShop();
+            return shop;
+        }
 
         // (#6) While the shop is open, hide the gear, level badge, +coins(ad) button and the 3 jokers — leaving ONLY
         // the gold/coin bar visible. Restored when the shop closes (or whenever the HUD is (re)shown).

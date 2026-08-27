@@ -161,7 +161,7 @@ namespace Ridebury
             Place(sci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
             garageShardT = Label(shardChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
 
-            // scroll view (chests + skins grid + craft rows) — same recipe as BuildShop.
+            // scroll view (chests + skins grid + craft rows) — same recipe as the shop.
             // VERTICALLY STRETCHED between a fixed top pad (below the title + counters) and bottom pad instead of a
             // fixed 1080 height, so it can NEVER poke out of the window on a shorter card (that was the
             // "scroll view goes outside the UI" bug on 16:9 devices).
