@@ -28,6 +28,10 @@ namespace Ridebury
         static readonly Color Dim   = new Color(0, 0, 0, 0.6f);
         static readonly Color OnCol = new Color(0.35f, 0.85f, 0.40f);
         static readonly Color OffCol= new Color(0.65f, 0.65f, 0.70f);
+        // The cut kit's rows/cards are CREAM. White lettering is invisible on them, so light surfaces
+        // get inked text instead.
+        static readonly Color Ink     = new Color(0.28f, 0.16f, 0.05f);  // headline on a cream surface
+        static readonly Color InkSoft = new Color(0.44f, 0.31f, 0.18f);  // secondary line on a cream surface
 
         Font title, num;
         Transform root;
@@ -154,6 +158,8 @@ namespace Ridebury
             gearGo = h.gearButton ? h.gearButton.gameObject : null;                                       // (#6)
             var lb = FindDeep(hudPanel.transform, "Level_Badge"); levelBadgeGo = lb ? lb.gameObject : null; // (#6)
 
+            ApplyCutKitToHud(h); // the HUD prefab still holds OLD atlas sprites -> repoint them first
+
             jRecolor = AdoptJoker(h.recolor, recolorCost, j1Lvl, 0, () => OnRecolor?.Invoke());
             jSwap    = AdoptJoker(h.swap,    swapCost,    j2Lvl, 1, () => OnSwap?.Invoke());
             jHeli    = AdoptJoker(h.heli,    heliCost,    j3Lvl, 2, () => OnHeli?.Invoke());
@@ -163,6 +169,43 @@ namespace Ridebury
             RefreshJokers();
             AddGarageButton(hudPanel.transform);
             BuildBonusCountdown();
+        }
+
+        // The in-game HUD is an authored prefab (Resources/UI/HudPanel), so its icons are serialized
+        // sprite refs from the old 300Mind atlas — repointing UIKit alone does NOT move them. Swap the
+        // redrawn ones here, on adoption, so the HUD matches the menu and the code-built garage without
+        // anyone re-baking the prefab or assigning sprites by hand.
+        void ApplyCutKitToHud(InGameHud h)
+        {
+            if (h == null) return;
+            if (h.coinButton)
+            {
+                var ci = FindDeep(h.coinButton.transform, "Coin_Icon");
+                PaintIcon(ci ? ci.GetComponent<Image>() : null, UIKit.Coin());
+            }
+            if (h.gearButton) PaintIcon(h.gearButton.GetComponent<Image>(), UIKit.Gear());
+            if (h.recolor != null) { PaintIcon(h.recolor.icon, UIKit.JokerRecolor()); PaintBg(h.recolor.background, UIKit.BtnGrey()); }
+            if (h.swap    != null) { PaintIcon(h.swap.icon,    UIKit.JokerSwap());    PaintBg(h.swap.background,    UIKit.BtnGrey()); }
+            if (h.heli    != null) { PaintIcon(h.heli.icon,    UIKit.JokerHeli());    PaintBg(h.heli.background,    UIKit.BtnGrey()); }
+        }
+
+        // Untinted, un-squashed. No-ops on a missing image or sprite, so a partial bake is harmless.
+        // (The joker code fades `icon.color` to show "out of stock", so only the alpha is preserved.)
+        static void PaintIcon(Image img, Sprite sprite)
+        {
+            if (img == null || sprite == null) return;
+            img.sprite = sprite;
+            img.color = new Color(1f, 1f, 1f, img.color.a);
+            img.preserveAspect = true;
+        }
+
+        // Same, for a BACKING plate: it has to fill its rect, so aspect is deliberately not preserved.
+        static void PaintBg(Image img, Sprite sprite)
+        {
+            if (img == null || sprite == null) return;
+            img.sprite = sprite;
+            img.color = new Color(1f, 1f, 1f, img.color.a);
+            img.preserveAspect = false;
         }
 
         Joker AdoptJoker(HudJoker hj, int cost, int unlock, int kind, System.Action use)
@@ -216,7 +259,7 @@ namespace Ridebury
             // mirror of the stock template corner assignment; it also frees the top-centre strip for the bonus timer.
             var coinBtn = Btn(hudPanel.transform, UIKit.CoinBar(), Dark, new Vector2(1, 1), new Vector2(-170, -110), new Vector2(300, 96), ShowShop);
             coinBarGo = coinBtn.gameObject; // (#6) hidden while the garage is open (the garage shows its own gold)
-            var ci = Img(coinBtn.transform, UIKit.Coin(), Gold); ci.raycastTarget = false;
+            var ci = Img(coinBtn.transform, UIKit.Coin(), Gold); ci.raycastTarget = false; ci.preserveAspect = true;
             Place(ci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(74, 74));
             hudCoins = Label(coinBtn.transform, "0", num, new Vector2(35, 0), new Vector2(180, 60), 44, White);
 
@@ -242,9 +285,9 @@ namespace Ridebury
 
         Joker JokerButton(float y, Sprite icon, int cost, int unlock, int kind, System.Action use)
         {
-            var btn = Btn(hudPanel.transform, UIKit.A(25), new Color(0.45f, 0.40f, 0.85f), new Vector2(1, 0), new Vector2(RailX, y), new Vector2(RailSize, RailSize), null);
+            var btn = Btn(hudPanel.transform, UIKit.BtnGrey(), new Color(0.45f, 0.40f, 0.85f), new Vector2(1, 0), new Vector2(RailX, y), new Vector2(RailSize, RailSize), null);
             var bg = btn.GetComponent<Image>();
-            var ico = Img(btn.transform, icon, White); ico.raycastTarget = false;
+            var ico = Img(btn.transform, icon, White); ico.raycastTarget = false; ico.preserveAspect = true; // cut joker art is square
             Center(ico.rectTransform, new Vector2(93, 93));
             var lk = Img(btn.transform, null, new Color(0, 0, 0, 0.55f)); lk.raycastTarget = false;
             Center(lk.rectTransform, new Vector2(RailSize, RailSize));
@@ -554,6 +597,19 @@ namespace Ridebury
             if (btn == null) return;
 
             var lang = InGamePanels.Instance != null ? InGamePanels.Instance.language : null;
+            // Older GamePanels prefabs shipped with the popup present but the serialized marker reference empty.
+            // Resolve it by name as a safe fallback so the settings button can never silently become a no-op.
+            if (lang == null && InGamePanels.Instance != null)
+            {
+                var found = FindDeep(InGamePanels.Instance.transform, "Panel_Language") ??
+                            FindDeep(InGamePanels.Instance.transform, "LanguagePanel");
+                if (found != null) lang = found.gameObject;
+            }
+            if (lang == null)
+            {
+                var selector = Object.FindFirstObjectByType<LanguageSelector>(FindObjectsInactive.Include);
+                if (selector != null) lang = selector.gameObject;
+            }
             if (lang != null)
             {
                 btn.onClick.AddListener(() => lang.SetActive(true)); // (#1) open the popup
@@ -1085,6 +1141,13 @@ namespace Ridebury
             return img.gameObject;
         }
 
+        // 9-slice an image drawn from the cut kit. Those sprites are authored ~1024px wide, so their
+        // borders are far larger than the rects we draw them in and a raw Sliced image renders as mush;
+        // pixelsPerUnitMultiplier scales the border down until a border pair takes at most 80% of
+        // `approxSize`. Pass the size the element ends up at (layout-driven rows: content width + the
+        // LayoutElement height). No border authored -> left stretched, exactly as before.
+        public Image Sliced(Image img, Vector2 approxSize) { UIKit.Slice(img, approxSize); return img; }
+
         Image Img(Transform parent, Sprite sprite, Color fallback)
         {
             var go = new GameObject("Img", typeof(RectTransform));
@@ -1127,6 +1190,7 @@ namespace Ridebury
         Button RedClose(Transform card, System.Action onClose)
         {
             var b = Btn(card, UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-40, -40), new Vector2(96, 96), onClose);
+            var bi = b.GetComponent<Image>(); if (bi) bi.preserveAspect = true; // the cut ✕ is a round badge — never squash it
             b.transform.SetAsLastSibling();
             return b;
         }

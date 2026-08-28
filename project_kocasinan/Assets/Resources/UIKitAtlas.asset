@@ -114,6 +114,45 @@ MonoBehaviour:
   - UI-pack_Sprite_2_3
   - Icon_Sound
   - Icon_Music
+  - ads_icon
+  - bar_cream
+  - bar_red
+  - btn_action
+  - btn_cream
+  - btn_orange
+  - btn_play
+  - card_daily
+  - chest_bronze
+  - chest_gold
+  - chest_legendary
+  - chest_silver
+  - coinpack_1
+  - coinpack_2
+  - coinpack_3
+  - coinpack_4
+  - coinpack_5
+  - coinpack_6
+  - gri-joker-butonu
+  - helikopter
+  - icon_close
+  - icon_coin
+  - icon_gear
+  - icon_gem
+  - icon_music
+  - icon_sound
+  - icon_watch_ad
+  - joker_recolor
+  - joker_shuffle
+  - lacivert-panel-standart-seffaf
+  - lacivert-panel-standart-temiz
+  - lacivert-panel-uzun-seffaf
+  - lacivert-panel-uzun-temiz
+  - nav_daily
+  - nav_home
+  - nav_shop
+  - panel_row_cream
+  - panel_row_gold
+  - sade-daily-reward-karti
   sprites:
   - {fileID: 5195824577459950565, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
   - {fileID: 32978900350387816, guid: 7f9865cf6ac20f7468e13d5a5daff8ef, type: 3}
@@ -216,3 +255,42 @@ MonoBehaviour:
   - {fileID: 7375623448582939881, guid: 39e0242329775814891ef673e48ae932, type: 3}
   - {fileID: 21300000, guid: 3ac629f776aa71744a68d647178b5adc, type: 3}
   - {fileID: 21300000, guid: 7b4a36f1e5b5e7a4e9005b5f2cbe1020, type: 3}
+  - {fileID: 21300000, guid: a94a45c45fda399479eab7d16634e298, type: 3}
+  - {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  - {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
+  - {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  - {fileID: 21300000, guid: 9709f071c3df2b349b462632cd3eb9dd, type: 3}
+  - {fileID: 21300000, guid: 24dbaa9fdc3e9be4c9d804c205278bd7, type: 3}
+  - {fileID: 21300000, guid: d50cb742bd0ac344ebc20dfb1b60e340, type: 3}
+  - {fileID: 21300000, guid: f4ed78d3a50216a459333cc7bf3e8dfd, type: 3}
+  - {fileID: 21300000, guid: 48deb32ab1aa98a4e9cd5ee54f9f9e96, type: 3}
+  - {fileID: 21300000, guid: 8d95f6c7e4dc7864b9761ae131cb1759, type: 3}
+  - {fileID: 21300000, guid: 72c5b8a3a0766b142b6ab11048d1490b, type: 3}
+  - {fileID: 21300000, guid: 8581cab42dce8e34e9152965e803398c, type: 3}
+  - {fileID: 21300000, guid: e8aba4cd051ca7f44abae7e2b2ee6dc4, type: 3}
+  - {fileID: 21300000, guid: 55326c201a9c01a488c61a1a16fad120, type: 3}
+  - {fileID: 21300000, guid: 2cdafb9571234e3438f8e69001816307, type: 3}
+  - {fileID: 21300000, guid: 2595afb261f494546a3065865f489a3d, type: 3}
+  - {fileID: 21300000, guid: 4ca1561095f8f464589944c550b933f4, type: 3}
+  - {fileID: 21300000, guid: dab01c440824d8646be26c48371c9521, type: 3}
+  - {fileID: 21300000, guid: a12cd75e7b4216e41874b0abec853309, type: 3}
+  - {fileID: 21300000, guid: 8bc439b57a21121468a911b4ff8fa3e0, type: 3}
+  - {fileID: 21300000, guid: 7d5ab56933b82f0468c2532226b608da, type: 3}
+  - {fileID: 21300000, guid: 65e972fd3367d2244a952b29b49a139f, type: 3}
+  - {fileID: 21300000, guid: 20a7d735cf141de41b8e8c4753a4ffbb, type: 3}
+  - {fileID: 21300000, guid: fc2ef5da611397c4b960f5d64240bbaf, type: 3}
+  - {fileID: 21300000, guid: 5731340b2ad548f4e8908f42bdffbe0c, type: 3}
+  - {fileID: 21300000, guid: 72076500c2c29c04080b8d37b8126a70, type: 3}
+  - {fileID: 21300000, guid: 1301c2b682e540a4885044ae0961d985, type: 3}
+  - {fileID: 21300000, guid: 6bd91b83731722549b87cefd05136cf0, type: 3}
+  - {fileID: 21300000, guid: 2c75394a4e555f34da48d7056a889991, type: 3}
+  - {fileID: 21300000, guid: 93d460dd1927e9c46b11bbbe7b9af5b2, type: 3}
+  - {fileID: 21300000, guid: c02cb79039ab3f44ea789029838a0726, type: 3}
+  - {fileID: 21300000, guid: f2f5888372d8ff44db5bde04fbced76b, type: 3}
+  - {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  - {fileID: 21300000, guid: 42d27f621f37fca4392f21472341cbcf, type: 3}
+  - {fileID: 21300000, guid: 88ae6ea9e7182d3439d8bba7ce053f2a, type: 3}
+  - {fileID: 21300000, guid: fda073354700069449922bf851907e11, type: 3}
+  - {fileID: 21300000, guid: ffc33816940b0784d96f79bab2f4fef4, type: 3}
+  - {fileID: 21300000, guid: 0ea7b1eb6b6f95f4fa54517d0cf98980, type: 3}
+  - {fileID: 21300000, guid: 6fc1729390b60904382bf53b401c35b6, type: 3}

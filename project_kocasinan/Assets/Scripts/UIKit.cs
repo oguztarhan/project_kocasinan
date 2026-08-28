@@ -72,10 +72,10 @@ namespace Ridebury
 
         // ---- Semantic map (verified WITH the user against the atlas) ----
         // Nav icons + their backing:
-        public static Sprite NavShop()    => A(0);
-        public static Sprite NavHome()    => A(2);
-        public static Sprite NavDaily()   => A(3);   // calendar
-        public static Sprite Gear()       => A(4);   // settings
+        public static Sprite NavShop()    => Res("nav_shop",  A(0));
+        public static Sprite NavHome()    => Res("nav_home",  A(2));
+        public static Sprite NavDaily()   => Res("nav_daily", A(3));   // calendar
+        public static Sprite Gear()       => Res("icon_gear", A(4));   // settings
         public static Sprite NavBtnBg()   => A(15);  // ORANGE backing: behind the SELECTED nav icon
         public static Sprite NavBtnOff()  => A(14);  // BLUE backing: behind unselected nav icons
         public static Sprite NavStrip()   => A(35);  // bottom blue nav strip
@@ -83,32 +83,32 @@ namespace Ridebury
 
         // Top bar / counters:
         public static Sprite CoinBar()    => A(20);  // gold counter bar (menu + in-game)
-        public static Sprite Coin()       => A(16);  // coin icon
+        public static Sprite Coin()       => Res("icon_coin", A(16));  // coin icon
         public static Sprite PlusGreen()  => A(17);  // green "+" on the counter
         public static Sprite SliderTrack()=> A(9);   // draggable on/off slider track
         public static Sprite CircleGreen()=> A(18);  // round green badge (people-left)
         public static Sprite CircleYellow()=> A(19); // round yellow badge (level)
-        public static Sprite Gem()        => A(22);  // (not used for now)
+        public static Sprite Gem()        => Res("icon_gem", A(22));   // gem / shard
 
         // Home:
-        public static Sprite PlayBtn()    => A(21);  // PLAY button
+        public static Sprite PlayBtn()    => Res("btn_play", A(21));  // PLAY button
 
         // Shop:
-        public static Sprite ShopCoinA()  => A(11);  // coin-pack icons
-        public static Sprite ShopCoinB()  => A(12);
-        public static Sprite ShopCoinC()  => A(13);
-        public static Sprite ShopGold()   => A(29);
-        public static Sprite CoinPackSmall() => A(30);
-        public static Sprite CoinPackBig()   => A(31); // most expensive
+        public static Sprite ShopCoinA()  => CoinPack(1);  // coin-pack icons, smallest -> biggest
+        public static Sprite ShopCoinB()  => CoinPack(2);
+        public static Sprite ShopCoinC()  => CoinPack(3);
+        public static Sprite ShopGold()   => CoinPack(4);
+        public static Sprite CoinPackSmall() => CoinPack(5);
+        public static Sprite CoinPackBig()   => CoinPack(6); // most expensive
         public static Sprite QtyPlus()    => A(23);  // buy-quantity +
         public static Sprite QtyMinus()   => A(32);  // buy-quantity -
-        public static Sprite PriceBtnA()  => A(36);  // price buttons
-        public static Sprite PriceBtnB()  => A(37);
+        public static Sprite PriceBtnA()  => Res("btn_action", A(36));  // price / action buttons
+        public static Sprite PriceBtnB()  => Res("btn_orange", A(37));
         public static Sprite ShopBoxA()   => A(44);  // shop item card backgrounds
         public static Sprite ShopBoxB()   => A(55);
         public static Sprite ShopIconBgA()=> A(56);  // backing behind shop coin icons
         public static Sprite ShopIconBgB()=> A(57);
-        public static Sprite AdReward()   => A(27);  // optional "watch ad for gold" icon
+        public static Sprite AdReward()   => Res("icon_watch_ad", A(27));  // "watch ad for gold" icon
         public static Sprite NoAds()      => A(39);
 
         // Titles / panels:
@@ -120,17 +120,90 @@ namespace Ridebury
         public static Sprite DailyCoin()  => A(38);
         public static Sprite DailyIconA() => A(58);
         public static Sprite DailyIconB() => A(59);
-        public static Sprite CardCream()  => A(66);  // cream daily-reward card background
+        public static Sprite CardCream()  => Res("card_daily", A(66));  // daily-reward card background
 
         public static Sprite WatchAd()    => A(61);  // video-ad button
-        public static Sprite CloseX()     => A(79);  // red close
+        public static Sprite CloseX()     => Res("icon_close", A(79));  // red close
         public static Sprite Back()       => A(80);
-        public static Sprite IconSound()  => A(71);
-        public static Sprite IconMusic()  => A(73);
+        public static Sprite IconSound()  => Res("icon_sound", A(71));
+        public static Sprite IconMusic()  => Res("icon_music", A(73));
 
         // Crisp custom audio icons (external PNGs in Assets/MenuManager/Icons, not in the atlas).
-        public static Sprite IconSpeaker() => GetExternal("Assets/MenuManager/Icons/Icon_Sound.png", "Icon_Sound");
-        public static Sprite IconNote()    => GetExternal("Assets/MenuManager/Icons/Icon_Music.png", "Icon_Music");
+        public static Sprite IconSpeaker() => Res("icon_sound", GetExternal("Assets/MenuManager/Icons/Icon_Sound.png", "Icon_Sound"));
+        public static Sprite IconNote()    => Res("icon_music", GetExternal("Assets/MenuManager/Icons/Icon_Music.png", "Icon_Music"));
+
+        // ---- The CUT UI kit (Assets/kesilmis-ikonlar/*.png) -----------------------------
+        // Hand-cut art that REPLACES the 300Mind atlas piece by piece. ONE copy on disk: the same
+        // folder the editor bakers (GameShopBaker / GarageVisualPolisher / StorefrontMenuPolisher)
+        // already pull from, so authored prefabs and code-built UI can never drift apart.
+        //
+        // It is NOT under Resources, so a player build reads it back out of the baked registry
+        // (Resources/UIKitAtlas.asset — "Ridebury ▸ Bake UIKit Resources" writes both the atlas
+        // sub-sprites and this folder into it). Every accessor passes the old atlas sprite as
+        // `fallback`: a missing or renamed PNG degrades to the previous look instead of nothing.
+        //
+        // These are the DEFAULTS, deliberately: the Inspector overrides on InGameGarage still win
+        // where they are set, but nothing has to be assigned by hand for the new art to show up.
+        const string NewKitDir = "Assets/kesilmis-ikonlar/";
+
+        static Sprite Res(string file, Sprite fallback)
+        {
+            string key = "res:" + file;
+            if (_cache.TryGetValue(key, out var cached)) return cached != null ? cached : fallback;
+            Sprite found = null;
+#if UNITY_EDITOR
+            found = AssetDatabase.LoadAssetAtPath<Sprite>(NewKitDir + file + ".png");
+#endif
+            if (found == null && Atlas != null) found = Atlas.Find(file);        // build-safe (baked registry)
+            if (found == null) found = Resources.Load<Sprite>("UIKit/" + file);  // legacy per-file fallback
+            if (found == null) Debug.LogWarning($"[UIKit] cut-kit sprite not found: {file} (using the atlas fallback)");
+            _cache[key] = found;
+            return found != null ? found : fallback;
+        }
+
+        // Surfaces. All 9-sliced — draw them through GameUI.Sliced() so the border scales to the rect.
+        public static Sprite BarCream()  => Res("bar_cream",  A(44));  // cream counter / row bar
+        public static Sprite BarRed()    => Res("bar_red",    A(45));  // red section-header ribbon
+        public static Sprite CardDaily() => Res("card_daily", B(2));   // deep-blue card, orange frame (pop-ups)
+        public static Sprite CardDay()   => Res("sade-daily-reward-karti", CardDaily()); // plain cream card — ONE daily-reward day
+        public static Sprite BtnGrey()   => Res("gri-joker-butonu", A(25));  // grey rounded square (jokers + nav backing)
+        public static Sprite BtnAction() => Res("btn_action", B(9));   // orange action button, dark outline
+        public static Sprite BtnPill()   => Res("btn_orange", B(9));   // plain orange pill
+        public static Sprite BtnCream()  => Res("btn_cream",  B(9));   // cream pill
+        public static Sprite RowGold()   => Res("panel_row_gold",  A(44));
+        public static Sprite RowCream()  => Res("panel_row_cream", A(44));
+
+        // 9-slice `img` for the rect it will occupy. The cut kit is authored ~1024px wide, so its
+        // borders dwarf a 90px-tall chip and a raw Sliced image renders as mush; pixelsPerUnitMultiplier
+        // shrinks the border until a border pair takes at most 80% of `approxSize`. No border authored
+        // (every icon) -> left alone, still Simple.
+        public static void Slice(UnityEngine.UI.Image img, Vector2 approxSize)
+        {
+            if (img == null || img.sprite == null) return;
+            var b = img.sprite.border;
+            if (b == Vector4.zero) return;
+            img.type = UnityEngine.UI.Image.Type.Sliced;
+            float mul = 1f, hb = b.x + b.z, vb = b.y + b.w;
+            if (approxSize.x > 1f && hb > approxSize.x * 0.8f) mul = Mathf.Max(mul, hb / (approxSize.x * 0.8f));
+            if (approxSize.y > 1f && vb > approxSize.y * 0.8f) mul = Mathf.Max(mul, vb / (approxSize.y * 0.8f));
+            img.pixelsPerUnitMultiplier = mul;
+        }
+
+        // Coin piles 1..6 (1 = smallest, 6 = vault).
+        public static Sprite CoinPack(int i) => Res("coinpack_" + Mathf.Clamp(i, 1, 6), A(11));
+
+        // Drawn treasure chests, one per tier. Null tier -> Bronze. Callers that get null fall back to
+        // the code-built chest (UIKit.BuildChest), so this is safe before the PNGs are imported.
+        public static Sprite Chest(string tier)
+        {
+            switch (tier)
+            {
+                case "Silver":    return Res("chest_silver",    null);
+                case "Gold":      return Res("chest_gold",      null);
+                case "Legendary": return Res("chest_legendary", null);
+                default:          return Res("chest_bronze",    null);
+            }
+        }
 
         static Sprite GetExternal(string path, string resName)
         {
@@ -150,12 +223,12 @@ namespace Ridebury
         public static Sprite EmptyBoxBlue() => B(0);
         public static Sprite PanelTall()    => B(2);   // big popup background
         public static Sprite PanelCyan()    => B(4);   // light popup background
-        public static Sprite BtnOrange()    => B(9);
+        public static Sprite BtnOrange()    => Res("btn_orange", B(9));
         public static Sprite BtnDark()      => B(10);
         public static Sprite BtnGreen()     => B(16);
         public static Sprite BtnRed()       => B(17);
-        public static Sprite JokerRecolor() => B(8);   // swirl arrows (recolor)
-        public static Sprite JokerSwap()    => B(15);  // crossed arrows (swap people)
+        public static Sprite JokerRecolor() => Res("joker_recolor", B(8));   // swirl arrows (recolor)
+        public static Sprite JokerSwap()    => Res("joker_shuffle", B(15));  // crossed arrows (swap people)
         public static Sprite JokerHeli()    => B(14);  // HAND placeholder (no heli icon in kit)
         public static Sprite JokerShield()  => B(13);
         public static Sprite JokerDestroy() => B(7);

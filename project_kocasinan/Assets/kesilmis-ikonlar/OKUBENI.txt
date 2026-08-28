@@ -1,0 +1,71 @@
+KESILMIS IKONLAR — 31 adet
+==========================
+
+Hepsi ayni islemden gecti:
+  - arka plan temizligi (beyaz / dama tahtasi zeminler kaldirildi, cizimin
+    ICINDEKI beyazlar korundu — ornek: dukkan tentesinin beyaz seritleri)
+  - kenar cop pikselleri (fringe) temizlendi, kenar yumusatmasi korundu
+  - resim kirpildi (seffaf bosluk atildi)
+  - IKON olanlar kare tuvale ortalandi -> kare bir alana koyunca ezilmez
+  - PNG / RGBA, seffaf zemin
+
+Unity'ye alirken: Texture Type = Sprite (2D and UI).
+
+
+IKONLAR (512x512, kare)
+-----------------------
+icon_coin.png          <- coinnew                  altin para sayaci
+icon_gem.png           <- elmaslastone             elmas / parca (shard)
+icon_gear.png          <- ayarlarikon              ayarlar
+icon_close.png         <- CLOSE                    kirmizi kapat (X)
+icon_sound.png         <- voice icon               ses ac/kapa
+icon_music.png         <- music icon               muzik ac/kapa
+icon_watch_ad.png      <- rewardedeadikon          reklam izle
+nav_home.png           <- homeikon                 alt menu HOME
+nav_shop.png           <- shopikon                 alt menu SHOP
+nav_daily.png          <- dailyrewardikon          alt menu DAILY
+joker_recolor.png      <- recolorjoker             renk degistirme jokeri
+joker_shuffle.png      <- shufflejoker             karistirma jokeri
+coinpack_1.png         <- altinyigini1             para paketi 1 (en ucuz)
+coinpack_2.png         <- altinyigini2             para paketi 2
+coinpack_3.png         <- altinyigini3             para paketi 3
+coinpack_4.png         <- altinyigini4             para paketi 4
+coinpack_5.png         <- altinyigini5             para paketi 5
+coinpack_6.png         <- altinyigini6             para paketi 6 (en pahali)
+
+SANDIKLAR (512x512, kare)  -- YENI, projeye HENUZ eklenmedi
+-----------------------------------------------------------
+chest_bronze.png       <- exec-bde66d22...png      turuncu/bakir  = Bronze
+chest_silver.png       <- exec-a1b9d2f8...png      mavi/gumus     = Silver
+chest_gold.png         <- exec-b06a8c49...png      altin/kirmizi  = Gold
+chest_legendary.png    <- exec-ca6b41b1...png      mor/altin+tas  = Legendary
+
+Not: bu 4 tier, oyunda su an KODLA cizilen sandiga birebir denk geliyor
+(UIKit.BuildChest / UIKit.ChestTint -> Bronze, Silver, Gold, Legendary).
+Baglamami istersen soyle, kod tarafini ayarlarim.
+
+
+BUTONLAR ve PANELLER (genislik 1024, oran korunmus)
+---------------------------------------------------
+btn_play.png           <- button main              PLAY (isikli cerceve)
+btn_orange.png         <- button1                  GARAGE / genel turuncu buton
+btn_action.png         <- button                   fiyat / aksiyon butonu
+btn_cream.png          <- pillnewone               krem hap (turuncu cerceveli)
+panel_row_gold.png     <- shop in panel            dukkan satir karti (altin/kirmizi)
+panel_row_cream.png    <- shop in panel 2          dukkan satir karti (krem/mavi)
+card_daily.png         <- dailyrewardminipanel     gunluk odul karti (768x1070)
+
+bar_cream.png          <- altinlaringosterilecegipanel.png   -- YENI
+bar_red.png            <- 02-empty-special-offers-ribbon.png -- YENI
+
+Not: bar_cream ve bar_red da projeye HENUZ eklenmedi.
+
+
+DURUM
+-----
+- Yukaridaki listede "YENI" yazmayan 25 dosya projeye zaten eklendi
+  (Assets/Resources/UIKit/) ve UI kodu + sahneler onlari kullaniyor.
+- "YENI" isaretli 6 dosya (4 sandik + 2 bar) sadece kesildi, projeye
+  konulmadi — yerlestirmesi sende.
+
+_ONIZLEME.png : 31 dosyanin tek sayfalik gorsel dokumu.

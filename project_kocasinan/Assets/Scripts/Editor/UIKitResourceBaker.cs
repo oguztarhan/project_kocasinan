@@ -36,6 +36,23 @@ namespace Ridebury
                     Debug.LogWarning($"[UIKitBaker] no sub-sprites at {path} — is the texture missing or its Sprite Mode not 'Multiple'?");
             }
 
+            // The hand-cut kit (Assets/kesilmis-ikonlar) is NOT under Resources, so it only reaches a
+            // player build through this registry. Registered by file name — exactly the key UIKit.Res asks for.
+            const string cutDir = "Assets/kesilmis-ikonlar";
+            if (AssetDatabase.IsValidFolder(cutDir))
+            {
+                foreach (var guid in AssetDatabase.FindAssets("t:Sprite", new[] { cutDir }))
+                {
+                    var cutPath = AssetDatabase.GUIDToAssetPath(guid);
+                    var cutSprite = AssetDatabase.LoadAssetAtPath<Sprite>(cutPath);
+                    if (cutSprite == null) continue;
+                    var key = System.IO.Path.GetFileNameWithoutExtension(cutPath);
+                    if (names.Contains(key)) continue;
+                    names.Add(key); sprites.Add(cutSprite);
+                }
+            }
+            else Debug.LogWarning("[UIKitBaker] missing " + cutDir + " — the cut art will fall back to the atlas in a build.");
+
             foreach (var path in External)
             {
                 var sp = AssetDatabase.LoadAssetAtPath<Sprite>(path);

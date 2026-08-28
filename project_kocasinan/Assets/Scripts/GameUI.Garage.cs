@@ -120,6 +120,47 @@ namespace Ridebury
             if (c.a > 0f) img.color = c;
         }
 
+        // One gold / gem counter pill.
+        //
+        // Prefers the pill AUTHORED in GaragePanel.prefab under `authoredName`: it is cloned whole, so whatever is
+        // set on it in the Inspector - background sprite, rect, icon, font, colours - is what appears in game. Only
+        // when the prefab has no such pill does it build the code one at `fallbackPos`. `iconOverride` is the
+        // InGameGarage icon field, which still wins over the authored icon so that marker keeps working.
+        // Returns the Text that shows the amount.
+        Text CounterPill(Transform parent, string authoredName, Vector2 fallbackPos, Sprite iconOverride, Sprite iconFallback, float iconSize)
+        {
+            var src = garageCfg != null ? FindDeep(garageCfg.transform, authoredName) : null;
+            if (src != null)
+            {
+                var clone = Instantiate(src.gameObject, parent, false).transform;
+                clone.name = authoredName;
+                clone.gameObject.SetActive(true);   // the baked chrome it was cloned from is hidden at Awake
+                foreach (var g in clone.GetComponentsInChildren<Graphic>(true)) g.raycastTarget = false;
+                if (iconOverride != null)
+                {
+                    var ic = FindDeep(clone, "Icon");
+                    var icImg = ic != null ? ic.GetComponent<Image>() : null;
+                    if (icImg != null) { icImg.sprite = iconOverride; icImg.color = White; }
+                }
+                var amountT = FindDeep(clone, "Amount");
+                var authored = amountT != null ? amountT.GetComponent<Text>() : null;
+                if (authored != null) return authored;
+                Debug.LogWarning("[Garage] '" + authoredName + "' has no 'Amount' label - using the code-built pill instead.");
+                Destroy(clone.gameObject);
+            }
+
+            // Fallback: the cut kit's CREAM bar. It is a light surface, so the number is inked dark (white is
+            // invisible on it) and the icon keeps its square aspect.
+            var chipSprite = garageCfg != null && garageCfg.counterBarSprite != null ? garageCfg.counterBarSprite : UIKit.BtnCream();
+            var chip = Img(parent, chipSprite, White); chip.raycastTarget = false;
+            Place(chip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), fallbackPos, new Vector2(292, 92));
+            Sliced(chip, new Vector2(292, 92));
+            var icon = Img(chip.transform, iconOverride != null ? iconOverride : iconFallback, White);
+            icon.raycastTarget = false; icon.preserveAspect = true;
+            Place(icon.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(46, 0), new Vector2(iconSize, iconSize));
+            return Label(chip.transform, "0", num, new Vector2(40, 0), new Vector2(178, 56), 40, Ink);
+        }
+
         // ---- Build the (hidden) garage panel + reveal modal -----------------
         // Always build the window chrome in CODE so the garage reflects the LATEST code. (A stale baked panel used to
         // be adopted here and never picked up code changes — that was the "still shows the old version" bug.) The
@@ -148,18 +189,21 @@ namespace Ridebury
             Place(titleT.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -90), new Vector2(700, 120)); // pinned to the card TOP -> stays put at ANY card height
             var close = RedClose(card.transform, null);
 
-            // gold + shard counters (shards are earned from duplicate cars and spent in the CRAFT section below)
-            var goldChip = Img(card.transform, UIKit.CoinBar(), Dark); goldChip.raycastTarget = false;
-            Place(goldChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-175, -205), new Vector2(300, 88));
-            var gci = Img(goldChip.transform, UIKit.Coin(), Gold); gci.raycastTarget = false;
-            Place(gci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(60, 60));
-            garageGoldT = Label(goldChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, White);
+            // gold + shard counters (shards are earned from duplicate cars and spent in the CRAFT section below).
+            // Both pills are AUTHORED in GaragePanel.prefab as Counter_Gold / Counter_Gem, and CounterPill clones
+            // them as they are - so the sprite, size, position and colours set in the Inspector are what the game
+            // shows. (The rest of this window is code-built on purpose; only these two are yours to place.)
+            var counters = new GameObject("Counters", typeof(RectTransform)).GetComponent<RectTransform>();
+            counters.SetParent(card.transform, false);
+            // Stretched over the whole window, so a cloned pill's anchors mean here exactly what they meant in the
+            // prefab - otherwise its position would be read against a small container and land somewhere else.
+            counters.anchorMin = Vector2.zero; counters.anchorMax = Vector2.one;
+            counters.offsetMin = Vector2.zero; counters.offsetMax = Vector2.zero;
 
-            var shardChip = Img(card.transform, UIKit.CoinBar(), Dark); shardChip.raycastTarget = false;
-            Place(shardChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(175, -205), new Vector2(300, 88));
-            var sci = Img(shardChip.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sci.raycastTarget = false;
-            Place(sci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
-            garageShardT = Label(shardChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, new Color(0.72f, 0.92f, 1f));
+            garageGoldT  = CounterPill(counters, "Counter_Gold", new Vector2(-152, -258),
+                                       garageCfg != null ? garageCfg.coinCounterIcon : null, UIKit.Coin(), 62f);
+            garageShardT = CounterPill(counters, "Counter_Gem",  new Vector2( 152, -258),
+                                       garageCfg != null ? garageCfg.gemCounterIcon  : null, UIKit.Gem(),  58f);
 
             // scroll view (chests + skins grid + craft rows) — same recipe as the shop.
             // VERTICALLY STRETCHED between a fixed top pad (below the title + counters) and bottom pad instead of a
@@ -290,12 +334,15 @@ namespace Ridebury
         // Defaults reproduce the original faint header, so the wardrobe's CARS/MINIVANS/BUSES headers are unchanged.
         Transform SectionLabel(Transform parent, string text, Sprite bgSprite = null, Color bgColor = default, float height = 74f, int fontSize = 44)
         {
-            var go = bgSprite != null ? Img(parent, bgSprite, White) : Img(parent, null, new Color(1, 1, 1, 0.06f));
+            // Default is now the cut kit's RED ribbon instead of a faint white wash — a header has to read
+            // as a header. An Inspector sprite still wins.
+            var go = Img(parent, bgSprite != null ? bgSprite : UIKit.BarRed(), White);
             if (bgColor.a > 0f) go.color = bgColor;
             go.raycastTarget = false;
             float h = height > 0f ? height : 74f;
+            Sliced(go, new Vector2(796, h));
             var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = h; le.minHeight = h;
-            Label(go.transform, text, num, Vector2.zero, new Vector2(860, 60), fontSize > 0 ? fontSize : 40, new Color(0.88f, 0.91f, 0.97f));
+            Label(go.transform, text, num, Vector2.zero, new Vector2(860, 60), fontSize > 0 ? fontSize : 40, White);
             return go.transform; // so callers can attach extras (e.g. the CHESTS drop-rates ⓘ button)
         }
 
@@ -345,20 +392,41 @@ namespace Ridebury
         // SAME chest as the garage cards and the reveal popup.
         void BuildChest(Transform parent, Color tint, float w) => UIKit.BuildChest(parent, tint, w);
 
+        Sprite GarageActionSprite() => garageCfg != null && garageCfg.actionButtonSprite != null
+            ? garageCfg.actionButtonSprite : UIKit.PriceBtnA();
+
+        void BuildGarageChestArt(Transform parent, ChestTier tier, Color tint, float w)
+        {
+            // Inspector override first, then the cut kit's drawn chest, then (only if neither exists)
+            // the old code-drawn chest.
+            var sprite = garageCfg != null ? garageCfg.ChestIcon(tier) : null;
+            if (sprite == null) sprite = UIKit.Chest(tier.ToString());
+            if (sprite == null) { BuildChest(parent, tint, w); return; }
+            var art = Img(parent, sprite, White);
+            art.preserveAspect = true;
+            art.raycastTarget = false;
+            Center(art.rectTransform, new Vector2(w * 1.35f, w * 1.15f));
+        }
+
         // One gold chest card: chest art + gold-cost OPEN button + (if you hold keys) a key badge to open free.
         void ChestCard(Transform parent, ChestTier tier, string name)
         {
             Color tint = ChestTint(tier);
-            var card = Img(parent, UIKit.ShopIconBgA(), White); card.color = new Color(0.22f, 0.24f, 0.31f); // SAME neutral dark card on every tier (only the ropes differ) — no more vibrant-silver card
+            // Cream card on every tier (the chest art carries the tier), so the name is inked dark.
+            var card = Img(parent, UIKit.BarCream(), White);
+            Sliced(card, new Vector2(255, 255));
             ApplyChestCardOverride(card, tier); // Inspector: swap the Bronze/Silver/Gold card background image / colour
-            Label(card.transform, name, num, new Vector2(0, 98), new Vector2(255, 48), 34, White);
-            BuildChest(Holder(card.transform, new Vector2(0, 16), new Vector2(150, 110)), tint, 110);
-            Vector2 buyOff = new Vector2(0, 16), buySize = new Vector2(250, 78);
+            Label(card.transform, name, num, new Vector2(0, 96), new Vector2(238, 48), 34, Ink);
+            BuildGarageChestArt(Holder(card.transform, new Vector2(0, 14), new Vector2(150, 110)), tier, tint, 110);
+            // Bottom-CENTRED price button, narrow enough to keep a margin inside the width-clamped cell.
+            Vector2 buyOff = new Vector2(0, 22), buySize = new Vector2(212, 74);
             if (garageCfg != null && garageCfg.overrideChestButtons) { buyOff = garageCfg.chestButtonOffset; buySize = garageCfg.chestButtonSize; } // Inspector: size + position
-            var buy = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), buyOff, buySize, () => OpenChest(tier));
-            var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false;
-            Place(bc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(46, 46));
-            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(250, 52), 38, White);
+            var buy = Btn(card.transform, GarageActionSprite(), White, new Vector2(0.5f, 0), buyOff, buySize, () => OpenChest(tier));
+            Sliced(buy.GetComponent<Image>(), buySize);
+            // coin + price sit as ONE centred group instead of the icon hugging the left edge.
+            var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false; bc.preserveAspect = true;
+            Place(bc.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-46, 0), new Vector2(46, 46));
+            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(24, 0), new Vector2(130, 52), 38, White, TextAnchor.MiddleLeft);
 
             int keys = SaveSystem.Keys(tier.ToString());
             if (keys > 0) KeyBadge(card.transform, tier, keys);
@@ -368,22 +436,26 @@ namespace Ridebury
         void LegendaryChestRow(Transform parent)
         {
             int keys = SaveSystem.Keys(ChestTier.Legendary.ToString());
-            var row = Img(parent, UIKit.ShopBoxA(), White); // natural ORANGE kit bar (matches the game's orange UI theme)
+            var row = Img(parent, UIKit.BarCream(), White);
             GOverride(row, g => g.legendaryChestSprite, g => g.legendaryChestColor); // Inspector: swap the key-only LEGENDARY chest image / colour
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 156; le.minHeight = 156;
-            BuildChest(Holder(row.transform, new Vector2(-330, 0), new Vector2(150, 120)), ChestTint(ChestTier.Legendary), 116);
-            Label(row.transform, Loc.T("LEGENDARY"), title, new Vector2(-40, 26), new Vector2(440, 54), 40, White, TextAnchor.MiddleLeft);
-            Label(row.transform, Loc.T("key only"), num, new Vector2(-40, -24), new Vector2(440, 36), 26, new Color(0.92f, 0.86f, 1f), TextAnchor.MiddleLeft);
+            Sliced(row, new Vector2(796, 156));
+            BuildGarageChestArt(Holder(row.transform, new Vector2(-300, 0), new Vector2(150, 120)), ChestTier.Legendary, ChestTint(ChestTier.Legendary), 116);
+            // Cream bar -> inked text, and both lines pinned to the LEFT edge (past the chest) so they
+            // stay put at any panel width instead of sliding under the button.
+            AnchorLeft(Label(row.transform, Loc.T("LEGENDARY"), title, Vector2.zero, new Vector2(360, 54), 40, Ink, TextAnchor.MiddleLeft).rectTransform, 190, 26);
+            AnchorLeft(Label(row.transform, Loc.T("key only"), num, Vector2.zero, new Vector2(360, 36), 26, InkSoft, TextAnchor.MiddleLeft).rectTransform, 190, -24);
             if (keys > 0)
             {
-                var open = Btn(row.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(1, 0.5f), new Vector2(-150, 0), new Vector2(300, 104), () => OpenChestWithKey(ChestTier.Legendary));
-                var ki = Img(open.transform, UIKit.Gem(), new Color(1f, 0.95f, 0.5f)); ki.raycastTarget = false;
-                Place(ki.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(28, 0), new Vector2(46, 46));
-                Label(open.transform, Loc.T("OPEN") + " " + keys, title, new Vector2(26, 0), new Vector2(300, 64), 36, White);
+                var open = Btn(row.transform, GarageActionSprite(), White, new Vector2(1, 0.5f), new Vector2(-160, 0), new Vector2(280, 96), () => OpenChestWithKey(ChestTier.Legendary));
+                Sliced(open.GetComponent<Image>(), new Vector2(280, 96));
+                var ki = Img(open.transform, UIKit.Gem(), new Color(1f, 0.95f, 0.5f)); ki.raycastTarget = false; ki.preserveAspect = true;
+                Place(ki.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-82, 0), new Vector2(46, 46));
+                Label(open.transform, Loc.T("OPEN") + " " + keys, title, new Vector2(24, 0), new Vector2(180, 64), 36, White, TextAnchor.MiddleLeft);
             }
             else
             {
-                Label(row.transform, Loc.T("FIND A KEY"), num, new Vector2(250, 0), new Vector2(320, 60), 34, new Color(0.86f, 0.80f, 1f));
+                AnchorRight(Label(row.transform, Loc.T("FIND A KEY"), num, Vector2.zero, new Vector2(320, 60), 34, InkSoft, TextAnchor.MiddleRight).rectTransform, 36, 0);
             }
         }
 
@@ -391,7 +463,7 @@ namespace Ridebury
         void KeyBadge(Transform card, ChestTier tier, int count)
         {
             var b = Btn(card, UIKit.CircleYellow(), new Color(0.95f, 0.80f, 0.20f), new Vector2(1, 1), new Vector2(-6, -6), new Vector2(80, 80), () => OpenChestWithKey(tier));
-            var ki = Img(b.transform, UIKit.Gem(), new Color(1f, 0.96f, 0.55f)); ki.raycastTarget = false;
+            var ki = Img(b.transform, UIKit.Gem(), new Color(1f, 0.96f, 0.55f)); ki.raycastTarget = false; ki.preserveAspect = true;
             Place(ki.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(40, 40));
             Label(b.transform, count.ToString(), num, new Vector2(0, -22), new Vector2(80, 30), 22, White);
         }
@@ -399,21 +471,23 @@ namespace Ridebury
         // Full-width free-chest row: OPEN when ready, else the remaining cooldown.
         void FreeChestRow(Transform parent)
         {
-            var row = Img(parent, UIKit.ShopBoxA(), new Color(0.30f, 0.62f, 0.40f));
+            var row = Img(parent, UIKit.BarCream(), White);
             tutFreeChestRow = row.transform; // tutorial step 3 target
             GOverride(row, g => g.freeChestSprite, g => g.freeChestColor); // Inspector: swap the FREE CHEST row image / colour
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 130; le.minHeight = 130;
-            Label(row.transform, Loc.T("FREE CHEST"), title, new Vector2(-140, 0), new Vector2(420, 70), 44, White, TextAnchor.MiddleLeft);
+            Sliced(row, new Vector2(796, 130));
+            AnchorLeft(Label(row.transform, Loc.T("FREE CHEST"), title, Vector2.zero, new Vector2(420, 70), 44, Ink, TextAnchor.MiddleLeft).rectTransform, 40, 0);
             if (ChestService.FreeChestReady())
             {
-                var open = Btn(row.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(1, 0.5f), new Vector2(-180, 0), new Vector2(300, 96), OpenFreeChest);
-                Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(300, 64), 42, White);
+                var open = Btn(row.transform, GarageActionSprite(), White, new Vector2(1, 0.5f), new Vector2(-170, 0), new Vector2(280, 92), OpenFreeChest);
+                Sliced(open.GetComponent<Image>(), new Vector2(280, 92));
+                Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(280, 64), 42, White);
             }
             else
             {
                 long s = ChestService.FreeChestSecondsLeft();
                 string t = (s / 3600) + "h " + ((s % 3600) / 60) + "m";
-                Label(row.transform, t, num, new Vector2(220, 0), new Vector2(360, 60), 42, new Color(0.92f, 0.96f, 1f));
+                AnchorRight(Label(row.transform, t, num, Vector2.zero, new Vector2(300, 60), 42, InkSoft, TextAnchor.MiddleRight).rectTransform, 40, 0);
             }
         }
 
@@ -430,17 +504,25 @@ namespace Ridebury
             chestOddsPanel = Panel("ChestOdds", Dim);
             var cv = chestOddsPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 88; // above garage (30) + wardrobe (80), below nothing that matters
             chestOddsPanel.AddComponent<GraphicRaycaster>();
-            var card = Img(chestOddsPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f));
-            Center(card.rectTransform, new Vector2(880, 1100));
-            Label(card.transform, Loc.T("DROP RATES"), title, new Vector2(0, 470), new Vector2(700, 80), 50, White);
+            // The sheet behind the ⓘ is the cut kit's deep-blue card (orange frame) — the old kit panel
+            // was a purple wash the text disappeared into. Height clamps to the device like the garage.
+            float oddsH = Mathf.Min(1160f, PanelCardHeight());
+            var card = Img(chestOddsPanel.transform, UIKit.CardDaily(), new Color(0.10f, 0.17f, 0.42f));
+            Center(card.rectTransform, new Vector2(880, oddsH));
+            Sliced(card, new Vector2(880, oddsH));
+            var oddsTitle = Label(card.transform, Loc.T("DROP RATES"), title, Vector2.zero, new Vector2(700, 90), 54, new Color(1f, 0.86f, 0.36f));
+            Place(oddsTitle.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -96), new Vector2(700, 90)); // pinned TOP -> correct at any clamped height
 
             string[] tierKeys = { "COMMON", "UNCOMMON", "EPIC", "LEGENDARY" };
             (ChestTier t, string key)[] chests =
                 { (ChestTier.Bronze, "BRONZE"), (ChestTier.Silver, "SILVER"), (ChestTier.Gold, "GOLD"), (ChestTier.Legendary, "LEGENDARY") };
-            float y = 350f;
+            // Blocks laid out from under the title down to just above the ✕, so they stay inside the
+            // card whatever height it clamped to.
+            float oddsStep = (oddsH - 300f) / chests.Length;
+            float y = oddsH * 0.5f - 190f;
             foreach (var c in chests)
             {
-                Label(card.transform, Loc.T(c.key), title, new Vector2(0, y), new Vector2(780, 50), 36, ChestTint(c.t));
+                Label(card.transform, Loc.T(c.key), title, new Vector2(0, y), new Vector2(780, 50), 38, Color.Lerp(ChestTint(c.t), White, 0.25f));
                 var odds = ChestService.CarTierOdds(c.t);
                 var sb = new System.Text.StringBuilder();
                 for (int i = 0; i < odds.Length; i++)
@@ -449,10 +531,10 @@ namespace Ridebury
                     if (sb.Length > 0) sb.Append("    ");
                     sb.Append(Loc.T(tierKeys[i])).Append(' ').Append((odds[i] * 100f).ToString("0.#")).Append('%');
                 }
-                Label(card.transform, sb.ToString(), num, new Vector2(0, y - 50), new Vector2(800, 40), 26, new Color(0.88f, 0.91f, 0.97f));
+                Label(card.transform, sb.ToString(), num, new Vector2(0, y - 52), new Vector2(800, 40), 27, new Color(0.97f, 0.98f, 1f));
                 Label(card.transform, string.Format(Loc.T("EPIC or better guaranteed every {0} opens."), ChestService.PityCount(c.t)),
-                      num, new Vector2(0, y - 92), new Vector2(800, 34), 22, new Color(0.72f, 0.76f, 0.85f));
-                y -= 200f;
+                      num, new Vector2(0, y - 94), new Vector2(800, 34), 23, new Color(0.78f, 0.86f, 1f));
+                y -= oddsStep;
             }
 
             RedClose(card.transform, () => chestOddsPanel.SetActive(false));
@@ -467,18 +549,19 @@ namespace Ridebury
         void CraftHeader(Transform parent)
         {
             Sprite hSp = garageCfg != null ? garageCfg.craftHeaderSprite : null; // Inspector: banner image behind CRAFT
-            var go = hSp != null ? Img(parent, hSp, White) : Img(parent, null, new Color(0.42f, 0.82f, 1f, 0.10f));
+            var go = Img(parent, hSp != null ? hSp : UIKit.BarRed(), White);
             if (garageCfg != null && garageCfg.craftHeaderColor.a > 0f) go.color = garageCfg.craftHeaderColor;
             go.raycastTarget = false;
             float h = garageCfg != null && garageCfg.craftHeaderHeight > 0f ? garageCfg.craftHeaderHeight : 72f;
+            Sliced(go, new Vector2(796, h));
             var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = h; le.minHeight = h;
             int fs = garageCfg != null && garageCfg.craftHeaderFontSize > 0 ? garageCfg.craftHeaderFontSize : 40;
             tutCraftHeader = go.transform; // tutorial step 4 target
             // "CRAFT" pinned to the LEFT edge, shard balance pinned to the RIGHT edge -> stays inside ANY panel width.
             AnchorLeft(Label(go.transform, Loc.T("CRAFT"), title, Vector2.zero, new Vector2(300, 58), fs, White, TextAnchor.MiddleLeft).rectTransform, 36, 0);
-            var gem = Img(go.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); gem.raycastTarget = false;
+            var gem = Img(go.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); gem.raycastTarget = false; gem.preserveAspect = true;
             Place(gem.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(46, 46));
-            AnchorRight(Label(go.transform, SaveSystem.Shards.ToString(), num, Vector2.zero, new Vector2(150, 52), 38, new Color(0.78f, 0.93f, 1f), TextAnchor.MiddleRight).rectTransform, 28, 0);
+            AnchorRight(Label(go.transform, SaveSystem.Shards.ToString(), num, Vector2.zero, new Vector2(150, 52), 38, White, TextAnchor.MiddleRight).rectTransform, 28, 0);
         }
 
         // One craft row: car TIER + remaining-locked count + a shard-cost CRAFT button (greyed when unaffordable or the
@@ -488,19 +571,24 @@ namespace Ridebury
             int locked = CraftService.Craftable(tier).Count;
             bool can = CraftService.CanCraft(tier);
             Color rc = TierColor(tier);
-            var row = Img(parent, UIKit.ShopBoxA(), White); // natural ORANGE kit bar on every tier (orange UI theme; the tier reads from its coloured name)
+            var row = Img(parent, UIKit.BarCream(), White);
             GOverride(row, g => g.CraftSprite(tier), g => g.CraftColor(tier)); // Inspector: per-tier CRAFT row image / colour (Common/Uncommon/Epic/Legendary)
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 120; le.minHeight = 120;
+            Sliced(row, new Vector2(796, 120));
             // tier name + "N left" pinned LEFT, CRAFT button pinned RIGHT -> contained at any panel width (no overflow).
-            AnchorLeft(Label(row.transform, Loc.T(TierName(tier)), num, Vector2.zero, new Vector2(320, 46), 34, Color.Lerp(rc, White, 0.35f), TextAnchor.MiddleLeft).rectTransform, 40, 24);
-            AnchorLeft(Label(row.transform, string.Format(Loc.T("{0} left"), locked), num, Vector2.zero, new Vector2(320, 34), 26, new Color(0.86f, 0.88f, 0.94f), TextAnchor.MiddleLeft).rectTransform, 40, -24);
+            // Cream bar: DARKEN the tier colour instead of lightening it, and ink the sub-line.
+            AnchorLeft(Label(row.transform, Loc.T(TierName(tier)), num, Vector2.zero, new Vector2(320, 46), 34, Color.Lerp(rc, Color.black, 0.45f), TextAnchor.MiddleLeft).rectTransform, 40, 24);
+            AnchorLeft(Label(row.transform, string.Format(Loc.T("{0} left"), locked), num, Vector2.zero, new Vector2(320, 34), 26, InkSoft, TextAnchor.MiddleLeft).rectTransform, 40, -24);
             Vector2 crOff = new Vector2(-160, 0), crSize = new Vector2(280, 92);
             if (garageCfg != null && garageCfg.overrideCraftButtons) { crOff = garageCfg.craftButtonOffset; crSize = garageCfg.craftButtonSize; } // Inspector: size + position
-            var craft = Btn(row.transform, UIKit.PriceBtnA(), can ? new Color(0.30f, 0.72f, 0.36f) : new Color(0.45f, 0.45f, 0.50f),
+            var craft = Btn(row.transform, GarageActionSprite(), White,
                             new Vector2(1, 0.5f), crOff, crSize, () => { if (can) CraftTier(tier); });
-            var sc = Img(craft.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sc.raycastTarget = false;
-            Place(sc.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(44, 44));
-            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(26, 0), new Vector2(280, 50), 34, White);
+            var craftImg = craft.GetComponent<Image>();
+            Sliced(craftImg, crSize);
+            if (!can) craftImg.color = new Color(0.62f, 0.62f, 0.66f); // greyed out (Img paints a sprite white, so re-tint here)
+            var sc = Img(craft.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sc.raycastTarget = false; sc.preserveAspect = true;
+            Place(sc.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-58, 0), new Vector2(44, 44));
+            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(22, 0), new Vector2(150, 50), 34, White, TextAnchor.MiddleLeft);
         }
 
         // Pin a rect to the LEFT / RIGHT edge of its parent so craft rows fit ANY panel width (baked or code-built),
@@ -531,7 +619,7 @@ namespace Ridebury
             revealPanel = Panel("Reveal", Dim);
             var cv = revealPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 85;
             revealPanel.AddComponent<GraphicRaycaster>();
-            var card = Img(revealPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f));
+            var card = Img(revealPanel.transform, UIKit.CardDaily(), new Color(0.10f, 0.17f, 0.42f));
             var gr = InGameGarage.Instance;
             if (gr != null && gr.revealCard != null) { Center(card.rectTransform, gr.revealCard.sizeDelta); card.rectTransform.anchoredPosition = gr.revealCard.anchoredPosition; }
             else { Center(card.rectTransform, gr != null ? gr.revealSize : new Vector2(820, 980)); if (gr != null) card.rectTransform.anchoredPosition = gr.revealPos; }
@@ -557,7 +645,7 @@ namespace Ridebury
             var chestRt = chestGo.GetComponent<RectTransform>();
             Place(chestRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(360, 320));
             revealChestGroup = chestGo.AddComponent<CanvasGroup>();
-            BuildChest(chestGo.transform, new Color(0.98f, 0.80f, 0.28f), 240); // generic gold-roped chest for the opening animation
+            BuildGarageChestArt(chestGo.transform, ChestTier.Gold, new Color(0.98f, 0.80f, 0.28f), 240); // generic gold chest for the opening animation
             revealChestTf = chestGo.transform;                                  // bonus rewards re-tint this to the won tier (SetRevealChestTier)
 
             // item group (frame + name + sub) — hidden until the chest pops open
@@ -582,11 +670,11 @@ namespace Ridebury
             keyGo.transform.SetParent(card.transform, false);
             Place(keyGo.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(700, 80));
             revealKeyGroup = keyGo.AddComponent<CanvasGroup>(); revealKeyGroup.alpha = 0f;
-            var ki = Img(keyGo.transform, UIKit.Gem(), new Color(1f, 0.85f, 0.3f)); ki.raycastTarget = false;
+            var ki = Img(keyGo.transform, UIKit.Gem(), new Color(1f, 0.85f, 0.3f)); ki.raycastTarget = false; ki.preserveAspect = true;
             Place(ki.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-160, 0), new Vector2(64, 64));
             revealKeyText = Label(keyGo.transform, "", title, new Vector2(40, 0), new Vector2(540, 70), 38, new Color(1f, 0.90f, 0.40f));
 
-            revealOk = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 60), new Vector2(380, 120), () => { revealPanel.SetActive(false); var cb = revealThenDo; revealThenDo = null; cb?.Invoke(); });
+            revealOk = Btn(card.transform, GarageActionSprite(), White, new Vector2(0.5f, 0), new Vector2(0, 60), new Vector2(380, 120), () => { revealPanel.SetActive(false); var cb = revealThenDo; revealThenDo = null; cb?.Invoke(); });
             Label(revealOk.transform, Loc.T("OK"), title, Vector2.zero, new Vector2(380, 80), 46, White);
 
             revealPanel.SetActive(false);
@@ -598,7 +686,7 @@ namespace Ridebury
         {
             if (revealChestTf == null) return;
             for (int i = revealChestTf.childCount - 1; i >= 0; i--) { var ch = revealChestTf.GetChild(i); ch.SetParent(null, false); Destroy(ch.gameObject); }
-            BuildChest(revealChestTf, ChestTint(tier), 240);
+            BuildGarageChestArt(revealChestTf, tier, ChestTint(tier), 240);
         }
 
         // Car reveal (chest path) — the won car's 3D thumbnail + name in its rarity-tier colour.

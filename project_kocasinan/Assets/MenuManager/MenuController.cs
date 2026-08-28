@@ -68,7 +68,9 @@ public class MenuController : MonoBehaviour
         Refresh();
         SetupShop();           // spawn + hook THE shop (the shared ShopUI prefab, same one the game scene uses)
         WireRemoveAdsPanel();  // the dedicated Remove-Ads popup's offer graphics have NO listeners -> wire them to IAP
+        EnsureLanguageUi();    // repair stale/missing prefab references and always wire the visible language button
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
+        ApplyCutKitIcons();    // the menu prefab still holds OLD atlas sprites — repoint them at the cut kit
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
         if (Object.FindAnyObjectByType<BootSplash>() == null)
@@ -160,6 +162,59 @@ public class MenuController : MonoBehaviour
     // Show/hide the whole bottom nav (Daily/Home/Shop). Hidden while the SHOP is open so the ✕ is the only way out.
     void SetNav(bool on) { if (navButtons == null) return; foreach (var g in navButtons) if (g) g.SetActive(on); }
 
+    // The menu is an authored prefab (Resources/UI/MenuUI), so its icons are serialized sprite refs
+    // from the old 300Mind atlas — changing UIKit's accessors alone does NOT move them. Repoint the
+    // ones that were redrawn here, at Start, so the menu matches the code-built screens (garage,
+    // in-game HUD) without anyone re-baking or hand-assigning anything in the Inspector.
+    void ApplyCutKitIcons()
+    {
+        SetIcon(FindByName("Coin_Bar"),   "Coin_Icon", UIKit.Coin());
+        SetIcon(FindByName("Nav_Daily"),  "Icon",      UIKit.NavDaily());
+        SetIcon(FindByName("Nav_Home"),   "Icon",      UIKit.NavHome());
+        SetIcon(FindByName("Nav_Shop"),   "Icon",      UIKit.NavShop());
+        // The unselected backing plate ("Bg") behind each nav icon — the selected one ("Sel") stays
+        // orange so the current tab still reads.
+        foreach (var nav in new[] { "Nav_Daily", "Nav_Home", "Nav_Shop" })
+            SetPlate(FindByName(nav), "Bg", UIKit.BtnGrey());
+        SetSelf(FindByName("Btn_Settings"),            UIKit.Gear());
+        SetSelf(FindByName("Btn_AdReward"),            UIKit.AdReward());
+        SetSelf(FindByName("Btn_Play"),                UIKit.PlayBtn());
+        SetSelf(FindByName("Btn_Garage"),              UIKit.BtnOrange());
+
+        // Every pop-up closes with a child named "Close" — give them all the new round red badge, the
+        // same one the code-built garage / shop use, so the menu never mixes two generations of it.
+        var x = UIKit.CloseX();
+        if (x != null)
+            foreach (var t in GetComponentsInChildren<Transform>(true))
+                if (t.name == "Close") Paint(t.GetComponent<Image>(), x);
+    }
+
+    void SetIcon(GameObject parent, string child, Sprite sprite)
+    {
+        if (parent == null) return;
+        var t = parent.transform.Find(child);
+        Paint(t ? t.GetComponent<Image>() : null, sprite);
+    }
+
+    void SetSelf(GameObject go, Sprite sprite) { if (go != null) Paint(go.GetComponent<Image>(), sprite); }
+
+    // A backing plate fills its rect, so unlike an icon its aspect is deliberately NOT preserved.
+    void SetPlate(GameObject parent, string child, Sprite sprite)
+    {
+        if (parent == null || sprite == null) return;
+        var t = parent.transform.Find(child);
+        var img = t ? t.GetComponent<Image>() : null;
+        if (img == null) return;
+        img.sprite = sprite; img.color = Color.white; img.preserveAspect = false;
+    }
+
+    // Untinted, un-squashed. No-ops on a missing image or sprite, so a partial menu bake is harmless.
+    static void Paint(Image img, Sprite sprite)
+    {
+        if (img == null || sprite == null) return;
+        img.sprite = sprite; img.color = Color.white; img.preserveAspect = true;
+    }
+
     GameObject FindByName(string n)
     {
         foreach (var t in GetComponentsInChildren<Transform>(true))
@@ -210,6 +265,29 @@ public class MenuController : MonoBehaviour
             languagePanel.SetActive(true);
             Localizer.LocalizeScene();
         }
+    }
+
+    void EnsureLanguageUi()
+    {
+        if (languagePanel == null)
+        {
+            var panel = FindByName("Panel_Language");
+            if (panel != null) languagePanel = panel;
+        }
+        if (settingsPanel == null) settingsPanel = FindByName("Panel_Settings");
+        if (settingsPanel == null) return;
+
+        Transform trigger = FindInPanel(settingsPanel.transform, "Language")
+                         ?? FindInPanel(settingsPanel.transform, "Btn_Language")
+                         ?? FindInPanel(settingsPanel.transform, "Btn_Empty1");
+        if (trigger == null) return;
+        var button = trigger.GetComponent<Button>();
+        if (button == null) button = trigger.gameObject.AddComponent<Button>();
+        var graphic = trigger.GetComponent<Graphic>();
+        if (graphic != null) { graphic.raycastTarget = true; button.targetGraphic = graphic; }
+        button.interactable = true;
+        button.onClick.RemoveListener(OpenLanguage);
+        button.onClick.AddListener(OpenLanguage);
     }
 
     // Social media buttons: open the pasted link in the device browser.
@@ -307,7 +385,7 @@ public class MenuController : MonoBehaviour
         foreach (var t in removeAdsPanel.GetComponentsInChildren<Transform>(true))
         {
             System.Action onBuy;
-            if (t.name == "Image 3")
+            if (t.name == "Image 3" || t.name == "Offer_RemoveBanner")
             {
                 // NEW banner-only offer -> buy remove_banner (turns off ONLY the banner). The user may have dropped in
                 // just an Image, so make the WHOLE graphic clickable (add a Button if it has none) as well as wiring any
@@ -317,10 +395,10 @@ public class MenuController : MonoBehaviour
                 if (root == null && t.GetComponent<Graphic>() != null) root = t.gameObject.AddComponent<Button>();
                 if (root != null) { root.onClick = new Button.ButtonClickedEvent(); root.onClick.AddListener(() => onBuy()); }
             }
-            else if (t.name == "Image" || t.name == "Image 2")
+            else if (t.name == "Image" || t.name == "Image 2" || t.name == "Offer_RemoveAds" || t.name == "Offer_RemoveAdsPlus")
             {
                 // Which product? the "+200" gold bonus marks the remove_ads_plus tier; the other is plain remove_ads.
-                bool isPlus = false;
+                bool isPlus = t.name == "Offer_RemoveAdsPlus";
                 foreach (var txt in t.GetComponentsInChildren<Text>(true))
                     if (txt.text != null && txt.text.Contains("200")) { isPlus = true; break; }
                 onBuy = isPlus ? (System.Action)BuyRemoveAdsPlus : BuyRemoveAds;
@@ -335,6 +413,17 @@ public class MenuController : MonoBehaviour
                 green.onClick = new Button.ButtonClickedEvent();
                 green.onClick.AddListener(() => onBuy());
             }
+        }
+
+        var restore = FindInPanel(removeAdsPanel.transform, "RestorePurchases");
+        if (restore != null)
+        {
+            var button = restore.GetComponent<Button>();
+            if (button == null) button = restore.gameObject.AddComponent<Button>();
+            var graphic = restore.GetComponent<Graphic>();
+            if (graphic != null) button.targetGraphic = graphic;
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(RestorePurchases);
         }
     }
 
@@ -365,10 +454,10 @@ public class MenuController : MonoBehaviour
         if (removeAdsPanel == null) return;
         foreach (var t in removeAdsPanel.GetComponentsInChildren<Transform>(true))
         {
-            if (t.name == "Image 3") SetOfferPrice(t, IAPManager.RemoveBanner);
-            else if (t.name == "Image" || t.name == "Image 2")
+            if (t.name == "Image 3" || t.name == "Offer_RemoveBanner") SetOfferPrice(t, IAPManager.RemoveBanner);
+            else if (t.name == "Image" || t.name == "Image 2" || t.name == "Offer_RemoveAds" || t.name == "Offer_RemoveAdsPlus")
             {
-                bool isPlus = false;
+                bool isPlus = t.name == "Offer_RemoveAdsPlus";
                 foreach (var txt in t.GetComponentsInChildren<Text>(true))
                     if (txt.text != null && !txt.text.Contains("$") && !txt.text.Contains("₺") && !txt.text.Contains("TL")
                         && txt.text.Contains("200")) { isPlus = true; break; }

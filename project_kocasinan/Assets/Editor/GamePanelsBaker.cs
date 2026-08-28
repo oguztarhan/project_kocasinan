@@ -276,19 +276,22 @@ public static class GamePanelsBaker
         Stretch(panel.rectTransform);
         var pbtn = panel.gameObject.AddComponent<Button>(); pbtn.transition = Selectable.Transition.None;
 
-        var card = Img(panel.transform, "Card", UIKit.EmptyBoxBlue(), White); card.color = White;
-        Center(card.rectTransform, new Vector2(720, 1180));
-        Label(card.transform, "Title", "LANGUAGE", Title, new Vector2(0, 500), new Vector2(600, 100), 52, new Color(0.16f, 0.20f, 0.30f));
+        var card = Img(panel.transform, "Card", CutUi("lacivert-panel-uzun-temiz.png"), White); card.color = White;
+        Center(card.rectTransform, new Vector2(760, 1260));
+        var titleBar = Img(card.transform, "TitleBar", CutUi("bar_red.png"), White);
+        Place(titleBar.rectTransform, C, C, new Vector2(0, 520), new Vector2(600, 112));
+        Label(titleBar.transform, "Title", "LANGUAGE", Title, Vector2.zero, new Vector2(540, 82), 48, White);
 
         var sel = panel.gameObject.AddComponent<LanguageSelector>();
         sel.panelRoot = panel.gameObject;
         sel.backdropButton = pbtn;
 
-        float top = 390f, step = 92f;
+        float top = 395f, step = 94f;
         for (int i = 0; i < LanguageSelector.Names.Length; i++)
             LangOption(card.transform, "Opt_" + i, i, LanguageSelector.Names[i], new Vector2(0, top - i * step));
 
-        var close = Btn(card.transform, "Close", UIKit.CloseX(), new Color(0.85f, 0.2f, 0.2f), new Vector2(1, 1), new Vector2(-34, -34), new Vector2(90, 90));
+        var close = Btn(card.transform, "Close", CutUi("icon_close.png"), White, new Vector2(1, 1), new Vector2(-42, -40), new Vector2(90, 90));
+        close.image.preserveAspect = true;
         sel.closeButton = close;
 
         panel.gameObject.SetActive(false);
@@ -297,14 +300,16 @@ public static class GamePanelsBaker
 
     static void LangOption(Transform card, string name, int index, string text, Vector2 pos)
     {
-        var btn = Btn(card, name, UIKit.PriceBtnA(), new Color(0.30f, 0.75f, 0.35f), C, pos, new Vector2(440, 80));
-        Label(btn.transform, "Label", text, Num, new Vector2(-28, 0), new Vector2(340, 56), 34, White);
-        var chk = Img(btn.transform, "Check", UIKit.CheckMark(), new Color(1f, 0.8f, 0.1f)); chk.raycastTarget = false;
-        Place(chk.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(54, 54));
+        var btn = Btn(card, name, CutUi("bar_cream.png"), White, C, pos, new Vector2(540, 82));
+        Label(btn.transform, "Label", text, Num, new Vector2(-22, 0), new Vector2(410, 56), 32, new Color(0.24f, 0.055f, 0.10f));
+        var chk = Img(btn.transform, "Check", CutUi("icon_coin.png"), White); chk.raycastTarget = false; chk.preserveAspect = true;
+        Place(chk.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-46, 0), new Vector2(50, 50));
         chk.gameObject.SetActive(false);
         var lo = btn.gameObject.AddComponent<LanguageOption>();
         lo.index = index; lo.check = chk.gameObject; lo.button = btn;
     }
+
+    static Sprite CutUi(string file) => AssetDatabase.LoadAssetAtPath<Sprite>("Assets/kesilmis-ikonlar/" + file);
 
     // ============================================================================
     // Make all 3 joker-buy backdrops match (copies Panel_JokerBuy_Recolor's backdrop

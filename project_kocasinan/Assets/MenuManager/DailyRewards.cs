@@ -68,15 +68,18 @@ public class DailyRewards : MonoBehaviour
         return (!string.IsNullOrEmpty(r.keyTier) && day < Plan.Length) ? r.keyTier : "";
     }
 
-    // The card's reward icon: the headline item of that day (key > joker > gold).
+    // The card's reward icon: the headline item of that day (key > joker > gold). Every one of these
+    // now comes from the cut icon kit; the gold days pick a coin pile that grows with the payout, so
+    // the week visibly escalates towards the day-7 jackpot.
     public static Sprite IconFor(int day)
     {
         var r = PlanFor(day);
-        if (!string.IsNullOrEmpty(r.keyTier)) return day >= Plan.Length ? UIKit.ShopGold() : null; // chest days draw art, not a sprite
+        if (!string.IsNullOrEmpty(r.keyTier)) return day >= Plan.Length ? UIKit.CoinPack(6) : null; // chest days draw art, not a sprite
         if (r.heli > 0) return UIKit.JokerHeli();
-        if (r.swap > 0 && r.recolor == 0) return UIKit.JokerSwap();
-        if (r.recolor > 0) return UIKit.JokerRecolor();
-        return UIKit.ShopCoinA();
+        if (r.swap > 0 && r.recolor == 0) return UIKit.JokerSwap();      // -> joker_shuffle
+        if (r.recolor > 0) return UIKit.JokerRecolor();                  // -> joker_recolor
+        int gold = GoldFor(day);
+        return UIKit.CoinPack(gold >= 1000 ? 4 : gold >= 600 ? 3 : gold >= 300 ? 2 : 1);
     }
 
     // Draw the chest into a card's reward slot: the slot Image goes invisible and holds the art.
@@ -84,6 +87,16 @@ public class DailyRewards : MonoBehaviour
     public static void BuildChestArt(Image slot, string tier)
     {
         if (slot == null || string.IsNullOrEmpty(tier)) return;
+        // The cut kit has a drawn chest per tier — use it directly in the slot instead of assembling
+        // the old code-built one out of rectangles.
+        var drawn = UIKit.Chest(tier);
+        if (drawn != null)
+        {
+            var stale = slot.transform.Find("ChestArt");
+            if (stale) GameObject.Destroy(stale.gameObject); // (not `Object.` — this file imports System too)
+            slot.sprite = drawn; slot.color = Color.white; slot.preserveAspect = true;
+            return;
+        }
         slot.sprite = null;
         slot.color = new Color(1f, 1f, 1f, 0f); // the slot itself is just the anchor now
         if (slot.transform.Find("ChestArt")) return;
@@ -159,7 +172,12 @@ public class DailyRewards : MonoBehaviour
 
     void OnDisable() { Loc.OnLanguageChanged -= ApplyPlanToCards; }
 
-    // Push the plan onto every card: values, reward icon and caption.
+    // Push the plan onto every card.
+    //
+    // PRESENTATION BELONGS TO THE PREFAB. The day cards are hand-authored in the Inspector — panel
+    // sprite, reward icon, fonts, colours, rects — so nothing here restyles them; whatever the
+    // prefab shows is what the game shows. The one exception is the payout caption, which is the
+    // promise the claim has to keep, so it is still written from the plan.
     void ApplyPlanToCards()
     {
         if (cards == null) return;
@@ -167,15 +185,6 @@ public class DailyRewards : MonoBehaviour
         {
             if (c == null) continue;
             ApplyData(c);
-
-            var iconT = c.transform.Find("Reward");
-            var icon = iconT ? iconT.GetComponent<Image>() : null;
-            if (icon)
-            {
-                string chest = ChestArtTier(c.day);
-                if (!string.IsNullOrEmpty(chest)) BuildChestArt(icon, chest);
-                else { var sp = IconFor(c.day); if (sp) icon.sprite = sp; }
-            }
 
             var amountT = c.transform.Find("Amount");
             var amount = amountT ? amountT.GetComponent<Text>() : null;
@@ -189,15 +198,6 @@ public class DailyRewards : MonoBehaviour
             // keys back), which keeps it correct whatever order the two run in.
             var lt = amount.GetComponent<LocalizedText>();
             if (lt) { lt.key = amount.text; }
-
-            // Two-line captions need a taller box; keep it clear of the centred icon.
-            bool twoLine = amount.text.Contains("\n");
-            var rt = amount.rectTransform;
-            var card = c.transform as RectTransform;
-            float h = card ? card.sizeDelta.y : 280f;
-            amount.fontSize = twoLine ? 24 : 28;
-            rt.sizeDelta = new Vector2(rt.sizeDelta.x, twoLine ? 72f : 46f);
-            rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, -h * 0.5f + (twoLine ? 44f : 34f));
         }
     }
 

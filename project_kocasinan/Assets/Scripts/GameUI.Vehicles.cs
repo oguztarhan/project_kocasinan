@@ -25,13 +25,19 @@ namespace Ridebury
         // Full-width entry row added at the top of the Garage scroll content (tap to open the wardrobe).
         void AddVehiclesEntry(Transform parent)
         {
-            var row = Img(parent, UIKit.ShopBoxA(), new Color(0.45f, 0.38f, 0.72f));
+            // The wardrobe entry is the garage's primary action, so it uses the cut kit's ORANGE action
+            // button (dark outline). It used to share the flat kit bar with the plain rows, which read as
+            // decoration rather than as something tappable.
+            var row = Img(parent, UIKit.BtnOrange(), new Color(1f, 0.55f, 0.12f));
             tutVehiclesRow = row.transform; // garage-tutorial step 1 target
             GOverride(row, g => g.vehiclesButtonSprite, g => g.vehiclesButtonColor); // Inspector: swap the "ARAÇLAR" button image / colour
-            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 130; le.minHeight = 130;
+            var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 134; le.minHeight = 134;
+            Sliced(row, new Vector2(796, 134));
             var b = row.gameObject.AddComponent<Button>(); b.targetGraphic = row;
             b.onClick.AddListener(ShowVehicles);
-            Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 48, White);
+            var vlabel = Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 52, White);
+            var vout = vlabel.gameObject.AddComponent<Outline>(); // white-on-orange: a dark rim keeps it crisp
+            vout.effectColor = new Color(0.35f, 0.15f, 0f, 0.85f); vout.effectDistance = new Vector2(2.5f, -2.5f);
         }
 
         // ---- build the (hidden) wardrobe panel — same scroll recipe as BuildGarage --------
@@ -59,11 +65,14 @@ namespace Ridebury
             Place(titleT.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -90), new Vector2(760, 120)); // pinned to the card TOP
             var close = RedClose(card.transform, null);
 
-            var goldChip = Img(card.transform, UIKit.CoinBar(), Dark); goldChip.raycastTarget = false;
-            Place(goldChip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -205), new Vector2(300, 88));
-            var gci = Img(goldChip.transform, UIKit.Coin(), Gold); gci.raycastTarget = false;
-            Place(gci.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(60, 60));
-            vehiclesGoldT = Label(goldChip.transform, "0", num, new Vector2(34, 0), new Vector2(190, 56), 40, White);
+            // Same deal as the garage: the gold pill is authored in GaragePanel.prefab (Counter_Gold_Vehicles) and
+            // cloned from there, so the Inspector is where you edit it. See CounterPill.
+            var counters = new GameObject("Counters", typeof(RectTransform)).GetComponent<RectTransform>();
+            counters.SetParent(card.transform, false);
+            counters.anchorMin = Vector2.zero; counters.anchorMax = Vector2.one;
+            counters.offsetMin = Vector2.zero; counters.offsetMax = Vector2.zero;
+            vehiclesGoldT = CounterPill(counters, "Counter_Gold_Vehicles", new Vector2(0, -205),
+                                        garageCfg != null ? garageCfg.coinCounterIcon : null, UIKit.Coin(), 60f);
 
             // Stretched between fixed top/bottom pads (not a fixed 1080 height) so it always stays INSIDE the card —
             // same overflow fix as BuildGarageChrome.

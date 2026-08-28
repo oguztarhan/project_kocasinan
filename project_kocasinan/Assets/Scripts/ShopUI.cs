@@ -204,6 +204,7 @@ namespace Ridebury
             AddRestoreRow(root);
             HideExtraCoinCards(root);
             BlockBackgroundTaps(root);
+            PolishStore(root);
         }
 
         // The red ✕. Prefers a button authored in the prefab ("Close" / "ShopClose", name-tolerant);
@@ -399,7 +400,22 @@ namespace Ridebury
         // the bottom of the shop's scroll list, and the scroll view is extended DOWN to fit it.
         void AddRestoreRow(Transform root)
         {
-            if (FindDeep(root, "RestorePurchases") != null) return;   // already present (authored or added on a previous run)
+            var authored = FindDeep(root, "RestorePurchases");
+            if (authored != null)
+            {
+                var authoredButton = authored.GetComponent<Button>();
+                if (authoredButton == null) authoredButton = authored.gameObject.AddComponent<Button>();
+                var authoredImage = authored.GetComponent<Image>();
+                if (authoredImage != null) authoredButton.targetGraphic = authoredImage;
+                var authoredLabel = authored.GetComponentInChildren<Text>(true);
+                authoredButton.onClick = new Button.ButtonClickedEvent();
+                authoredButton.onClick.AddListener(() =>
+                {
+                    IAPManager.Instance?.Restore();
+                    if (authoredLabel != null) authoredLabel.text = Loc.T("RESTORED");
+                });
+                return;
+            }
 
             var scroll = root.GetComponentInChildren<ScrollRect>(true);
             var content = scroll != null && scroll.content != null ? scroll.content : (RectTransform)root;
@@ -478,6 +494,35 @@ namespace Ridebury
         // ---- Small helpers ---------------------------------------------------
 
         /// <summary>First descendant (inactive included) named <paramref name="name"/>, else null.</summary>
+        // Two presentation fixes applied to the AUTHORED store card on adoption, so they survive a
+        // re-bake of the prefab without anyone repeating them by hand. Both are idempotent.
+        static void PolishStore(Transform root)
+        {
+            // The title sat on a red slab. Drop the slab, keep the word.
+            var band = FindDeep(root, "TitleBand");
+            if (band != null)
+            {
+                var bandImage = band.GetComponent<Image>();
+                if (bandImage != null) bandImage.enabled = false;
+            }
+
+            // The rows read as oversized cards. Scale each one down a notch — and shrink its
+            // LayoutElement by the same factor, because THAT is what reserves the vertical space
+            // (scaling alone would leave the old gaps behind).
+            var content = FindDeep(root, "Content");
+            if (content == null) return;
+            const float k = 0.86f;
+            foreach (RectTransform row in content)
+            {
+                if (row == null || Mathf.Abs(row.localScale.x - 1f) > 0.001f) continue; // already scaled
+                row.localScale = new Vector3(k, k, 1f);
+                var le = row.GetComponent<LayoutElement>();
+                if (le == null) continue;
+                if (le.preferredHeight > 0f) le.preferredHeight *= k;
+                if (le.minHeight > 0f) le.minHeight *= k;
+            }
+        }
+
         public static Transform FindDeep(Transform root, string name)
         {
             if (root == null) return null;

@@ -33,14 +33,19 @@ namespace Ridebury
             var cv = chestWonPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 84;
             chestWonPanel.AddComponent<GraphicRaycaster>();
 
-            var card = Img(chestWonPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f)); card.raycastTarget = false;
+            // Same deep-blue card + drawn chest as the garage, so winning a chest here and buying one
+            // there look like the same game (this screen was still on the old purple atlas panel).
+            var card = Img(chestWonPanel.transform, UIKit.CardDaily(), new Color(0.10f, 0.17f, 0.42f)); card.raycastTarget = false;
             Center(card.rectTransform, new Vector2(860, 940));
+            Sliced(card, new Vector2(860, 940));
             Label(card.transform, Loc.T("YOU WON"), num, new Vector2(0, 330), new Vector2(700, 60), 44, White);
-            Label(card.transform, Loc.T(tier.ToString().ToUpper() + " CHEST!"), title, new Vector2(0, 250), new Vector2(800, 100), 70, ChestTint(tier));
-            BuildChest(Holder(card.transform, new Vector2(0, -10), new Vector2(360, 320)), ChestTint(tier), 300);
-            var open = Btn(card.transform, UIKit.PriceBtnA(), new Color(0.30f, 0.72f, 0.36f), new Vector2(0.5f, 0), new Vector2(0, 90), new Vector2(440, 140),
+            // The tier tint is a mid-tone (copper / steel); lift it towards white so it reads on the navy card.
+            Label(card.transform, Loc.T(tier.ToString().ToUpper() + " CHEST!"), title, new Vector2(0, 250), new Vector2(800, 100), 70, Color.Lerp(ChestTint(tier), White, 0.25f));
+            BuildGarageChestArt(Holder(card.transform, new Vector2(0, -10), new Vector2(360, 320)), tier, ChestTint(tier), 280);
+            var open = Btn(card.transform, GarageActionSprite(), White, new Vector2(0.5f, 0), new Vector2(0, 100), new Vector2(400, 128),
                 () => { if (chestWonPanel) chestWonPanel.SetActive(false); GrantBonusChest(tier, onDone); });
-            Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(440, 90), 56, White);
+            Sliced(open.GetComponent<Image>(), new Vector2(400, 128));
+            Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(400, 84), 54, White);
         }
 
         void GrantBonusChest(ChestTier tier, System.Action onDone)
@@ -69,8 +74,9 @@ namespace Ridebury
             var cv = stopBarPanel.AddComponent<Canvas>(); cv.overrideSorting = true; cv.sortingOrder = 84; // below the reveal (85)
             stopBarPanel.AddComponent<GraphicRaycaster>();
 
-            var card = Img(stopBarPanel.transform, UIKit.PanelTall(), new Color(0.22f, 0.24f, 0.36f)); card.raycastTarget = false;
+            var card = Img(stopBarPanel.transform, UIKit.CardDaily(), new Color(0.10f, 0.17f, 0.42f)); card.raycastTarget = false;
             Center(card.rectTransform, new Vector2(900, 620));
+            Sliced(card, new Vector2(900, 620));
             Label(card.transform, Loc.T("STOP ON GOLD!"), title, new Vector2(0, 190), new Vector2(800, 90), 58, new Color(1f, 0.86f, 0.34f));
             Label(card.transform, Loc.T("Tap to stop the bar"), num, new Vector2(0, 116), new Vector2(700, 50), 32, new Color(0.85f, 0.9f, 1f));
 

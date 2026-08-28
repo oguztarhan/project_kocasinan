@@ -50,6 +50,21 @@ namespace Ridebury
         public Sprite silverCardSprite; public Color silverCardColor;
         public Sprite goldCardSprite;   public Color goldCardColor;
 
+        [Header("Chest artwork — cut UI assets")]
+        public Sprite bronzeChestIcon;
+        public Sprite silverChestIcon;
+        public Sprite goldChestIcon;
+        public Sprite legendaryChestIcon;
+
+        [Header("Counters and action buttons — cut UI assets")]
+        public Sprite counterBarSprite;
+        public Sprite coinCounterIcon;
+        public Sprite gemCounterIcon;
+        public Sprite actionButtonSprite;
+
+        public Sprite ChestIcon(ChestTier tier) => tier == ChestTier.Legendary ? legendaryChestIcon :
+            tier == ChestTier.Gold ? goldChestIcon : tier == ChestTier.Silver ? silverChestIcon : bronzeChestIcon;
+
         // ---- Button size + position. Tick the "override" box to drive the buttons from here (size = width/height in px,
         //      offset = position; +x right, +y up). Left unticked, the buttons keep their built-in layout.
         [Header("Button size & position — tick 'override' to control")]
