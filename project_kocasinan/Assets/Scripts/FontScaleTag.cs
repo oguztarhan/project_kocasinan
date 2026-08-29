@@ -12,5 +12,10 @@ namespace Ridebury
     {
         public float baseSize;   // the authored font size, captured the first time this text is seen
         public bool captured;
+
+        // The authored sizeDelta, captured once, so the label's box can be re-derived from the ORIGINAL every pass
+        // instead of shrinking a little further each time (GlobalFontApplier insets labels to their button's face).
+        public Vector2 baseDelta;
+        public bool deltaCaptured;
     }
 }

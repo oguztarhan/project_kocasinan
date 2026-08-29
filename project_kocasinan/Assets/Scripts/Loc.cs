@@ -217,6 +217,8 @@ public static class Loc
             "Her {0} açılışta DESTANSI veya üstü garantili.","EPIC or better guaranteed every {0} opens.","Alle {0} Öffnungen garantiert EPISCH oder besser.",
             "EPICO o superiore garantito ogni {0} aperture.","ÉPICO o mejor garantizado cada {0} aperturas.","每开启{0}次必得史诗或更高。",
             "ÉPIQUE ou mieux garanti toutes les {0} ouvertures.","ÉPICO ou melhor garantido a cada {0} aberturas.","EPIK atau lebih dijamin setiap {0} kali buka." } },
+        { "PRIVACY POLICY", new[]{
+            "GİZLİLİK POLİTİKASI","PRIVACY POLICY","DATENSCHUTZ","PRIVACY","PRIVACIDAD","隐私政策","CONFIDENTIALITÉ","PRIVACIDADE","KEBIJAKAN PRIVASI" } },
         { "Privacy options", new[]{
             "Gizlilik seçenekleri","Privacy options","Datenschutzoptionen","Opzioni privacy","Opciones de privacidad","隐私选项","Options de confidentialité","Opções de privacidade","Opsi privasi" } },
         { "Run Ridebury > Build Vehicle Sets", new[]{

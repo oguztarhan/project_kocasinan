@@ -325,6 +325,7 @@ namespace Ridebury
             if (vehicleCatalog == null) yield break;
             var colors = (PieceColor[])System.Enum.GetValues(typeof(PieceColor));
             var seen = new HashSet<Material>();
+            float slice = Time.realtimeSinceStartup; // frame budget marker (see the yield below)
             foreach (VehicleType vt in (VehicleType[])System.Enum.GetValues(typeof(VehicleType)))
             {
                 var prefab = vehicleCatalog.PrefabFor(vt);
@@ -337,10 +338,19 @@ namespace Ridebury
                         // readback) -> nothing to pre-warm there; only the .glb shells hit the readback path we care about.
                         bool atlasSedan = vt == VehicleType.Car && !mat.HasProperty("baseColorFactor") && !mat.HasProperty("baseColorTexture");
                         if (atlasSedan) continue;
+                        // NOTHING TO READ BACK -> nothing to warm. These .glb shells carry ~12 materials each and only the
+                        // BODY one is textured; the rest (C_GLASS/C_TIRE/C_RIM/C_CHROME/C_HEAD/C_TAIL/C_PLATE/...) are flat
+                        // untextured trim, so RecoloredVanTex bails on the null albedo immediately. Warming them cost a
+                        // FRAME each anyway (~24 trim materials x 8 colours = ~192 dead frames = 3+ s of black screen
+                        // before level 1 could even start building). The runtime path still fills vanMatCache on demand.
+                        if (GetAlbedo(mat) == null) continue;
                         foreach (var col in colors)
                         {
                             RecoloredVanMat(mat, col); // builds + caches the recoloured texture exactly as the level build will
-                            yield return null;          // one readback per frame -> the warm itself never hitches
+                            // Yield on a TIME budget, not once per item: a cache hit costs microseconds and must never cost
+                            // a whole frame. Real work (Blit + ReadPixels + the per-pixel repaint) still gets broken up, so
+                            // the splash keeps animating and the warm itself never hitches.
+                            if (Time.realtimeSinceStartup - slice >= 0.008f) { yield return null; slice = Time.realtimeSinceStartup; }
                         }
                     }
             }

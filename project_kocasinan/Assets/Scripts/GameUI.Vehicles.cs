@@ -45,9 +45,25 @@ namespace Ridebury
         // only for colours. Content (+ thumbnails) is built lazily on first ShowVehicles.
         void BuildVehicles()
         {
-            Button close = BuildVehiclesChrome();
-            if (close) close.onClick.AddListener(HideVehicles); // wired at runtime (onClick refs don't serialize)
+            Button close = AdoptVehiclesChrome() ?? BuildVehiclesChrome();
+            // Remove-then-Add: an adopted button survives a re-Build, so its listener must never stack.
+            if (close) { close.onClick.RemoveListener(HideVehicles); close.onClick.AddListener(HideVehicles); }
             if (vehiclesPanel) vehiclesPanel.SetActive(false);
+        }
+
+        /// <summary>The wardrobe window as authored in Resources/UI/GaragePanel — art, title, close, gold pill and
+        /// scroll area — with only behaviour wired onto it. Null when the prefab has no baked chrome, so the caller
+        /// falls back to building it in code. The vehicle CARDS inside are still generated: one per vehicle you own.</summary>
+        Button AdoptVehiclesChrome()
+        {
+            var g = garageCfg;
+            if (g == null || g.vehiclesRoot == null || g.vehiclesContent == null) return null;
+
+            vehiclesPanel   = g.vehiclesRoot;
+            vehiclesContent = g.vehiclesContent;
+            vehiclesGoldT   = g.vehiclesGold;
+            ClampCardToScreen(vehiclesPanel.GetComponentInChildren<ScrollRect>(true));
+            return g.vehiclesClose;
         }
 
         // Build ONLY the wardrobe window chrome; sets vehiclesPanel / vehiclesContent / vehiclesGoldT and returns the

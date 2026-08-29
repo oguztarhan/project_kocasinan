@@ -17,7 +17,23 @@ namespace Ridebury
     public static class GarageUIBaker
     {
         [MenuItem("Ridebury/Bake Garage Panels")]
-        static void Bake() => UIPrefabBaker.Edit(UIPrefabBaker.Garage, BakeNow);
+        static void Bake()
+        {
+            // This THROWS AWAY the authored garage and rebuilds both windows from code. It is the "start over"
+            // button, and clicking it by mistake costs real work: it once replaced the hand-placed Counter_Gold /
+            // Counter_Gem pills with generic ones, and baked from a landscape Game view, which serialized a window
+            // with a negative height and made the garage invisible. Ask first.
+            if (!EditorUtility.DisplayDialog(
+                    "Rebuild the garage from code?",
+                    "This DELETES the current Garage and Vehicles windows in Resources/UI/GaragePanel and rebuilds " +
+                    "them from code. Every hand edit to those two windows is lost.\n\n" +
+                    "To EDIT what is there, cancel and use 'Ridebury \u25b8 UI \u25b8 Open Prefab \u25b8 Garage + Wardrobe' instead.\n\n" +
+                    "Bake with the Game view set to a PORTRAIT resolution (1080x2340) — the window height is measured " +
+                    "from it.",
+                    "Rebuild from code", "Cancel"))
+                return;
+            UIPrefabBaker.Edit(UIPrefabBaker.Garage, BakeNow);
+        }
 
         // The bake itself. It works on a copy of the prefab checked out into the open scene;
         // UIPrefabBaker.Edit saves that copy back into Resources/UI and clears the scene again.
@@ -54,6 +70,13 @@ namespace Ridebury
                 marker.garageRoot    = gref.panel; marker.garageContent   = gref.content; marker.garageGold   = gref.gold; marker.garageClose   = gref.close;
                 marker.vehiclesRoot  = vref.panel; marker.vehiclesContent = vref.content; marker.vehiclesGold = vref.gold; marker.vehiclesClose = vref.close;
 
+                // The shard pill and the scroll GameUI needs on adoption. Both are found by shape at runtime if they
+                // are missing, but wiring them here keeps a fresh bake explicit rather than reliant on the fallback.
+                var gem = FindDeep(gref.panel != null ? gref.panel.transform : null, "Counter_Gem");
+                var amount = gem != null ? FindDeep(gem, "Amount") : null;
+                if (amount != null) marker.garageShard = amount.GetComponent<Text>();
+                if (gref.panel != null) marker.garageScroll = gref.panel.GetComponentInChildren<ScrollRect>(true);
+
                 // baked INACTIVE so they don't cover the editor view; tick a panel active in the Hierarchy to edit it
                 if (gref.panel) gref.panel.SetActive(false);
                 if (vref.panel) vref.panel.SetActive(false);
@@ -69,7 +92,22 @@ namespace Ridebury
             EditorGUIUtility.PingObject(canvasGo);
             Debug.Log("[GarageUIBaker] Baked 'InGameGarageCanvas' (Garage + Vehicles panels) into the scene. " +
                       "Organize them in the Hierarchy (tick a panel active to edit, untick when done) — the prefab is saved for you. " +
-                      "GameUI adopts them automatically at runtime.");
+                      "GameUI adopts them automatically at runtime.\n" +
+                      "This REGENERATES both windows from code, so run it to start over — not after hand-editing, " +
+                      "which it would overwrite. To edit what is there now, use 'Ridebury ▸ UI ▸ Edit UI in Scene'.");
+        }
+
+        // Depth-first search by name; the baked tree nests the pills a couple of levels down.
+        static Transform FindDeep(Transform root, string name)
+        {
+            if (root == null) return null;
+            if (root.name == name) return root;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var hit = FindDeep(root.GetChild(i), name);
+                if (hit != null) return hit;
+            }
+            return null;
         }
 
         // "Ridebury ▸ Bake Garage Cards" — adds 3 DRAGGABLE slot boxes on the garage panel (chest area, chest-open popup,

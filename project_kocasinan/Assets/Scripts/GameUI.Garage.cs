@@ -129,7 +129,11 @@ namespace Ridebury
         // Returns the Text that shows the amount.
         Text CounterPill(Transform parent, string authoredName, Vector2 fallbackPos, Sprite iconOverride, Sprite iconFallback, float iconSize)
         {
+            // The marker first; then anywhere in the garage hierarchy. A FRESH bake starts with an empty marker, so
+            // marker-only lookup found nothing, quietly built the fallback pill, and the authored Counter_Gold /
+            // Counter_Gem were replaced by generic ones the next time the prefab was saved.
             var src = garageCfg != null ? FindDeep(garageCfg.transform, authoredName) : null;
+            if (src == null && parent != null) src = FindDeep(parent.root, authoredName);
             if (src != null)
             {
                 var clone = Instantiate(src.gameObject, parent, false).transform;
@@ -161,6 +165,49 @@ namespace Ridebury
             return Label(chip.transform, "0", num, new Vector2(40, 0), new Vector2(178, 56), 40, Ink);
         }
 
+        /// <summary>
+        /// Take the garage window straight out of Resources/UI/GaragePanel as it was authored — window art, title,
+        /// close button, both counter pills, the scroll area — and only wire behaviour to it. Returns the close button,
+        /// or null when the prefab carries no baked chrome, in which case the caller builds the window in code.
+        ///
+        /// Nothing here restyles what you authored: the per-element sprite/colour overrides on the marker drive the
+        /// generated CARDS, not the window. The single exception is the height clamp below, which only ever shrinks a
+        /// window that would not fit the screen at all.
+        /// </summary>
+        Button AdoptGarageChrome()
+        {
+            var g = garageCfg;
+            if (g == null || g.garageRoot == null || g.garageContent == null) return null;
+
+            garagePanel   = g.garageRoot;
+            garageContent = g.garageContent;
+            garageGoldT   = g.garageGold;
+            garageShardT  = g.garageShard  != null ? g.garageShard  : FindLabel(garagePanel.transform, "Counter_Gem", "Amount");
+            garageScroll  = g.garageScroll != null ? g.garageScroll : garagePanel.GetComponentInChildren<ScrollRect>(true);
+            ClampCardToScreen(garageScroll);
+            return g.garageClose;
+        }
+
+        // The "Amount" label inside a named counter pill — how the baked pills are laid out, so an older bake that
+        // predates the garageShard field still finds its shard counter instead of silently showing nothing.
+        static Text FindLabel(Transform root, string pill, string label)
+        {
+            var p = FindDeep(root, pill); if (p == null) return null;
+            var l = FindDeep(p, label);   return l != null ? l.GetComponent<Text>() : null;
+        }
+
+        /// <summary>An authored window is used at its authored size. The exception is a screen SHORTER than the window
+        /// — a tablet, or a squat editor Game view — where it would hang off the top and bottom: shrink it just enough
+        /// to fit. Same guard PanelCardHeight() gives the code-built path, applied only when it actually bites.</summary>
+        static void ClampCardToScreen(ScrollRect scroll)
+        {
+            var card = scroll != null ? scroll.transform.parent as RectTransform : null;
+            if (card == null) return;
+            if (card.anchorMin.y != card.anchorMax.y) return;   // vertically stretched: it already follows the screen
+            float over = card.rect.height - PanelCardHeight();
+            if (over > 1f) card.sizeDelta = new Vector2(card.sizeDelta.x, card.sizeDelta.y - over);
+        }
+
         // ---- Build the (hidden) garage panel + reveal modal -----------------
         // Always build the window chrome in CODE so the garage reflects the LATEST code. (A stale baked panel used to
         // be adopted here and never picked up code changes — that was the "still shows the old version" bug.) The
@@ -168,8 +215,9 @@ namespace Ridebury
         // no longer adopted.
         void BuildGarage()
         {
-            Button close = BuildGarageChrome();
-            if (close) close.onClick.AddListener(HideGarage); // wired at runtime (button onClick refs don't serialize)
+            Button close = AdoptGarageChrome() ?? BuildGarageChrome();
+            // Remove-then-Add: an adopted button lives in the prefab and survives a re-Build, so the listener must never stack.
+            if (close) { close.onClick.RemoveListener(HideGarage); close.onClick.AddListener(HideGarage); }
             BuildReveal();
             RefreshGarage();
             if (garagePanel) garagePanel.SetActive(false);
@@ -267,9 +315,11 @@ namespace Ridebury
         static void PreserveAuthoredFontSizes(Transform root)
         {
             if (root == null) return;
-            float scale = GameFont.UiScale; if (scale <= 0f) scale = 1f;
             foreach (var t in root.GetComponentsInChildren<Text>(true))
             {
+                // Ask the applier what IT will multiply by — inside an adopted (baked) prefab that is 1, and dividing
+                // by GameFont.UiScale here would shrink every card by that factor instead of cancelling anything.
+                float scale = GlobalFontApplier.ScaleFor(t); if (scale <= 0f) scale = 1f;
                 var tag = t.GetComponent<FontScaleTag>(); if (tag == null) tag = t.gameObject.AddComponent<FontScaleTag>();
                 tag.baseSize = t.fontSize / scale; // applier: fontSize = baseSize*scale = the size we authored (unchanged)
                 tag.captured = true;
@@ -349,10 +399,16 @@ namespace Ridebury
         // Garage/wardrobe window height, clamped to the DEVICE so the card (and everything inside it) always fits:
         // the canvas is width-matched at 1080, so the visible height in canvas units is 1080 * H/W. On tall phones
         // this returns the full 1560; on short (16:9) screens the card shrinks instead of spilling off-screen.
+        /// <summary>Window height for the CANVAS this UI is laid out in: 1080 wide, so its height follows the
+        /// screen aspect. Clamped at both ends, because Screen here is whatever surface happens to be current — in
+        /// an editor bake that is the Game view, and a landscape one (1080 x 608) once produced a card 40px TALL
+        /// through this, which serialized a window with a NEGATIVE height into the prefab and made the garage
+        /// invisible. A window is never usefully shorter than 900, and 1560 keeps it inside a 9:16 phone.</summary>
         static float PanelCardHeight()
         {
             float uiH = 1080f * Screen.height / Mathf.Max(1, Screen.width);
-            return Mathf.Min(1560f, uiH - 60f);
+            if (uiH < 1000f) uiH = 1920f;                 // landscape / odd surface -> fall back to the design height
+            return Mathf.Clamp(uiH - 60f, 900f, 1560f);
         }
 
         // A sub-object with a fixed-column grid; returns its transform so cards parent into it.
@@ -880,8 +936,10 @@ namespace Ridebury
             Toggle(garagePanel, true);
             // From the MENU this is a garage-only SCREEN: RideburyGame skips building a level entirely (GarageFromMenu)
             // and the backdrop goes fully OPAQUE — there is no game behind it at all.
+            // Opened FROM THE MENU there is no game behind this, so the backdrop goes fully opaque. Opened in-game
+            // the authored backdrop colour is left exactly as it is in the prefab — that is yours to set.
             var bg = garagePanel != null ? garagePanel.GetComponent<Image>() : null;
-            if (bg) bg.color = garageFromMenu ? new Color(0.07f, 0.06f, 0.10f, 1f) : new Color(0, 0, 0, 0.62f);
+            if (bg && garageFromMenu) bg.color = new Color(0.07f, 0.06f, 0.10f, 1f);
             // The guided tour belongs to the IN-GAME garage (where the highlighted HUD button led the player).
             if (!garageFromMenu && PlayerPrefs.GetInt(GarageTutKey, 0) == 0 && garageTutCo == null)
                 garageTutCo = StartCoroutine(GarageTutorial()); // first in-game open -> run the tour

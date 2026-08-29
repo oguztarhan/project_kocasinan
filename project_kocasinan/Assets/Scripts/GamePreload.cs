@@ -20,7 +20,12 @@ namespace Ridebury
         public static float Progress { get; private set; }   // 0..1
         public static bool  Done     { get; private set; }
         static GamePreload inst;
-        static Object pinned;                                  // keep-alive ref so the loaded tree survives the scene swap
+        // Keep-alive refs so the loaded trees survive the scene swap. This must cover EVERY prefab the pool was warmed
+        // with, not just the set catalog: ModelPool keys its pool by prefab.GetInstanceID(), so if the menu->game
+        // UnloadUnusedAssets drops a catalog, RideburyGame's Resources.Load brings the prefabs back with NEW instance
+        // ids — every pooled clone is then unreachable and level 1 re-instantiates the lot (skinned Animator init on
+        // ~20 people + the high-poly vehicles) synchronously, which is exactly the cost this prewarm exists to remove.
+        static readonly List<Object> pinned = new List<Object>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -39,7 +44,7 @@ namespace Ridebury
             // and textures (the bulk of the first-Play cost). Async so the loading-screen animation keeps running.
             var req = Resources.LoadAsync<VehicleSetCatalog>("VehicleSetCatalog");
             while (req != null && !req.isDone) { Progress = req.progress * 0.6f; yield return null; }
-            pinned = req != null ? req.asset : null;   // hold it -> the LoadScene unload can't drop the warmed assets
+            if (req != null && req.asset != null) pinned.Add(req.asset); // hold it -> the LoadScene unload can't drop the warmed assets
             Progress = 0.6f;
 
             // 2) PRE-FILL the model pool while the splash is still up: pre-instantiate the vehicle + character models
@@ -68,6 +73,13 @@ namespace Ridebury
                 foreach (var pp in pcat.prefabs)
                     if (pp != null) jobs.Add((pp, per));                    // queue + crowd characters
             }
+
+            // Pin the other two catalogs AND every prefab we are about to warm. Without this the scene swap's automatic
+            // UnloadUnusedAssets is free to drop them (nothing else references them once this coroutine ends), which
+            // silently invalidates every pool key we fill below — see the `pinned` note at the top.
+            if (vcat != null) pinned.Add(vcat);
+            if (pcat != null) pinned.Add(pcat);
+            foreach (var (prefab, _) in jobs) pinned.Add(prefab);
 
             int target = 0, made = 0;
             foreach (var j in jobs) target += j.n;

@@ -11,6 +11,10 @@ namespace Ridebury
     ///
     /// Each override: leave the Sprite empty AND the Colour at alpha 0 to keep that element's built-in look. Assign a
     /// Sprite to swap its image; set a Colour (alpha &gt; 0) to tint it. Assign both to use your image at that colour.
+    ///
+    /// The overrides drive the RUNTIME-GENERATED cards only. The two WINDOWS themselves are baked into this prefab
+    /// and adopted as authored (see the baked-chrome refs below), so edit those in the Hierarchy — the window sprite
+    /// and colour fields are not re-applied over your edits.
     /// </summary>
     public class InGameGarage : MonoBehaviour
     {
@@ -71,15 +75,21 @@ namespace Ridebury
         public bool overrideChestButtons; public Vector2 chestButtonSize = new Vector2(250, 78);  public Vector2 chestButtonOffset = new Vector2(0, 16);   // BRONZE/SILVER/GOLD buy buttons
         public bool overrideCraftButtons; public Vector2 craftButtonSize = new Vector2(280, 92);  public Vector2 craftButtonOffset = new Vector2(-160, 0); // CRAFT buttons
 
-        // LEGACY baked-chrome refs — no longer adopted (GameUI builds the chrome in code so it always reflects the
-        // latest changes). Kept only so old scene bakes deserialize; Awake still hides any leftover baked panels.
-        [Header("Garage window (legacy baked refs — unused)")]
+        // ---- The baked, hand-editable window chrome. When garageRoot / garageContent are filled in (they are, in
+        //      Resources/UI/GaragePanel — bake or re-bake with "Ridebury ▸ Bake Garage Panels"), GameUI ADOPTS this
+        //      hierarchy instead of building the windows in code: the sprite, size, position, colours and fonts you
+        //      set in the Inspector are exactly what the game shows. Clear garageRoot to fall back to the code-built
+        //      window. The CARDS inside "Content" are still generated at runtime — they are data, one per chest /
+        //      vehicle you own — and the per-element overrides above style them.
+        [Header("Garage window (baked chrome — GameUI adopts this)")]
         public GameObject garageRoot;     // full-screen panel, shown/hidden by ShowGarage/HideGarage
         public Transform  garageContent;  // scroll "Content" the chest/entry cards are spawned under
         public Text       garageGold;     // gold counter label
+        public Text       garageShard;    // shard counter label (Counter_Gem ▸ Amount; found by name if left empty)
+        public ScrollRect garageScroll;   // the scroll the tutorial scrolls its targets into (found if left empty)
         public Button     garageClose;    // red X (wired to HideGarage at runtime)
 
-        [Header("Vehicles (wardrobe) window (legacy baked refs — unused)")]
+        [Header("Vehicles (wardrobe) window (baked chrome — GameUI adopts this)")]
         public GameObject vehiclesRoot;
         public Transform  vehiclesContent;
         public Text       vehiclesGold;

@@ -225,6 +225,18 @@ namespace Ridebury
             float mul = 1f, hb = b.x + b.z, vb = b.y + b.w;
             if (approxSize.x > 1f && hb > approxSize.x * 0.8f) mul = Mathf.Max(mul, hb / (approxSize.x * 0.8f));
             if (approxSize.y > 1f && vb > approxSize.y * 0.8f) mul = Mathf.Max(mul, vb / (approxSize.y * 0.8f));
+
+            // Never draw the frame THICKER than plain stretching would. Slicing exists to stop corners from
+            // stretching, not to enlarge them — and on a button far smaller than its source art the rule above did
+            // exactly that: a 2020x778 sprite on a 460x180 PLAY button left a 118px cap where the art wants 82 and a
+            // 72px rim where it wants 51, pinching the face from 296x80 down to 224x36. The label then had nowhere to
+            // go and spilled over the button, while the prefab — which draws the sprite unsliced — looked fine.
+            // Clamping the multiplier to the stretched proportions makes the sliced image match the prefab.
+            Vector2 src = img.sprite.rect.size;
+            float ppu = Mathf.Max(0.01f, img.sprite.pixelsPerUnit / 100f); // canvas referencePixelsPerUnit is 100 project-wide
+            if (approxSize.x > 1f && src.x > 1f) mul = Mathf.Max(mul, src.x / (approxSize.x * ppu));
+            if (approxSize.y > 1f && src.y > 1f) mul = Mathf.Max(mul, src.y / (approxSize.y * ppu));
+
             img.pixelsPerUnitMultiplier = mul;
         }
 

@@ -49,14 +49,17 @@ public class MenuController : MonoBehaviour
     GameObject[] navButtons;
     // THE shop (shared with the game scene) — see ShopUI.
     ShopUI shop;
+    // The gold counter. Part of homeOnly, but it is the one home element the SHOP keeps on screen.
+    GameObject coinBar;
 
     void Start()
     {
         AdManager.Ensure(); // create the ad singleton in the menu too, so the "watch ad → gold" button works here
         EnsureGarageButton(); // the baked scene has no Btn_Garage -> build it from Btn_Play (same orange style)
+        coinBar = FindByName("Coin_Bar");
         homeOnly = new[]
         {
-            FindByName("Coin_Bar"),    // gold counter
+            coinBar,                   // gold counter
             FindByName("Btn_Settings"),// settings gear
             FindByName("Btn_NoAds"),   // no-ads icon
             FindByName("Btn_AdReward"),// watch-ad-for-gold
@@ -248,7 +251,15 @@ public class MenuController : MonoBehaviour
     public void CloseAll()      { HidePanels(); SetHomeOnly(true); SetNav(true); Sel(navHomeSel); }
     public void ShowHome()      { CloseAll(); }
     public void OpenDaily()     { Open(dailyPanel, navDailySel); }
-    public void OpenShop()      { HidePanels(); SetHomeOnly(false); Sel(null); SetNav(false); var s = Shop(); if (s != null) s.Open(); else Set(shopPanel, true); } // nav hidden; the ✕ is the way out
+    // Nav hidden; the ✕ is the way out. The GOLD COUNTER stays up though — hiding it with the rest of the home
+    // screen left the shop quoting prices with no way to see what you could afford. (The in-game shop keeps the HUD
+    // coin bar for exactly this reason; the menu was the odd one out.)
+    public void OpenShop()
+    {
+        HidePanels(); SetHomeOnly(false); Sel(null); SetNav(false);
+        if (coinBar) coinBar.SetActive(true);
+        var s = Shop(); if (s != null) s.Open(); else Set(shopPanel, true);
+    }
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
     public void OpenRemoveAds() { Open(removeAdsPanel, null); RefreshRemoveAdsPanelPrices(); } // pull REAL localized prices on every open (at Start IAP wasn't ready yet, so the baked $ labels stayed forever)

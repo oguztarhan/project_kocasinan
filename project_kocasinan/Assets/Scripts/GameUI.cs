@@ -529,17 +529,38 @@ namespace Ridebury
             if (LevelSelect.DebugLevels) AddLevelsButton(settingsPanel != null ? settingsPanel.transform : null);
         }
 
-        // Google's EU consent policy: users who were shown the UMP consent form (EEA/UK) must ALWAYS have an entry
-        // point to change their ad-privacy choices. This floats a small button at the BOTTOM of whichever Settings
-        // panel is in use (baked or code-built — same float pattern as the notifications toggle, so it can't collide
-        // with authored layout) and shows itself ONLY while UMP reports the requirement, so everyone else never sees it.
+        // The two privacy entry points the stores want (see <see cref="Privacy"/>), at the bottom of whichever Settings
+        // panel is in use:
+        //
+        //   Btn_Privacy  - the PRIVACY POLICY link. Authored in GamePanels ▸ Panel_Settings, adopted here and wired to
+        //                  open Privacy.PolicyUrl. It used to be built a SECOND time in code on top of the authored
+        //                  one every run, so the button you actually saw and tapped was the authored copy with nothing
+        //                  wired to it — a dead button. Adopting it is what makes it work.
+        //   Ad privacy   - Google's UMP form, built above the policy link and shown ONLY while UMP reports the
+        //                  requirement (EEA/UK), so nobody else ever sees it.
         void AddPrivacyOptionsButton(Transform panel)
         {
             if (panel == null) return;
-            var btn = Btn(panel, UIKit.PriceBtnA(), new Color(0.45f, 0.50f, 0.60f), new Vector2(0.5f, 0f), new Vector2(0, 90), new Vector2(560, 84),
-                          () => AdManager.Instance?.ShowPrivacyOptions());
-            Label(btn.transform, Loc.T("Privacy options"), num, Vector2.zero, new Vector2(540, 54), 30, White);
-            btn.gameObject.AddComponent<PrivacyOptionsVisibility>(); // shows/hides with the live UMP requirement
+
+            var authored = FindDeep(panel, "Btn_Privacy");
+            var policy = authored != null ? authored.GetComponent<Button>() : null;
+            if (policy == null && authored != null) policy = authored.gameObject.AddComponent<Button>();
+            if (policy == null)
+            {
+                // No authored button (a code-built Settings panel) — make one in the same place.
+                policy = Btn(panel, UIKit.PriceBtnA(), new Color(0.45f, 0.50f, 0.60f), new Vector2(0.5f, 0f),
+                             new Vector2(0, 90), new Vector2(560, 84), null);
+                Label(policy.transform, "", num, Vector2.zero, new Vector2(540, 54), 30, White);
+            }
+            // Remove-then-Add: the authored button lives in the prefab and survives a re-Build.
+            policy.onClick.RemoveListener(Privacy.OpenPolicy);
+            policy.onClick.AddListener(Privacy.OpenPolicy);
+            var policyLabel = policy.GetComponentInChildren<Text>(true);
+            if (policyLabel != null) policyLabel.text = "PRIVACY POLICY";   // Loc key -> LocalizeScene translates it
+
+            // No ad-privacy ("Privacy options") button: removed on request. AdManager.ShowPrivacyOptions() is still
+            // there, so re-adding an entry point is one Btn() call — see PrivacyOptionsVisibility below for the
+            // show-only-where-required behaviour it had.
         }
 
         // Keeps the Privacy-options button visible ONLY while UMP requires it. Uses a CanvasGroup (not SetActive, which

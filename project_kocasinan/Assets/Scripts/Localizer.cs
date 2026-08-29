@@ -19,6 +19,10 @@ public static class Localizer
         foreach (var t in Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             Tag(t.gameObject, t.text);
         Loc.OnLanguageChanged?.Invoke(); // refresh anything already tagged to the current language
+        // Translating CHANGES how long every label is, and this runs each time a panel opens — which for most of this
+        // UI is the first moment its text is real. Re-fit right after, so a longer translation shrinks to its box
+        // instead of running over the button it sits on.
+        Ridebury.GlobalFontApplier.Apply();
     }
 
     static void Tag(GameObject go, string current)
