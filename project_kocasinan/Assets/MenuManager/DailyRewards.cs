@@ -226,6 +226,15 @@ public class DailyRewards : MonoBehaviour
         foreach (var c in cards)
         {
             bool isClaimed = c.day <= claimed;
+            var cardImage = c.GetComponent<Image>();
+            if (cardImage)
+            {
+                cardImage.sprite = isClaimed ? UIKit.DailyCardDone()
+                    : (canToday && c.day == claimableDay ? UIKit.DailyCardChosen() : UIKit.DailyCardNormal());
+                cardImage.color = Color.white;
+                cardImage.type = Image.Type.Simple;
+                cardImage.preserveAspect = false;
+            }
             if (c.check) { c.check.SetActive(isClaimed); c.check.transform.localScale = Vector3.one; }
             if (c.button) c.button.interactable = canToday && c.day == claimableDay;
         }

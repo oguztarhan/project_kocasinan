@@ -60,7 +60,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.28, g: 0.16, b: 0.05, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -176,9 +176,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d5ab56933b82f0468c2532226b608da, type: 3}
+  m_Sprite: {fileID: 21300000, guid: fcae4c5fda34ac34a92adbeffe662ab4, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -290,7 +290,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.28, g: 0.16, b: 0.05, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -452,7 +452,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -90}
+  m_AnchoredPosition: {x: 0, y: -143}
   m_SizeDelta: {x: 700, y: 120}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2560133016301109431
@@ -476,7 +476,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -627,7 +627,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 125f3fb1a10071849b84682b5d4b92c5, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -637,6 +637,42 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!1 &2262635972965344849
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 835223553392237598}
+  m_Layer: 0
+  m_Name: NewUI_ChestStateVariants
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!224 &835223553392237598
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2262635972965344849}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2287352879842622358}
+  m_Father: {fileID: 4094597176656677850}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2929304553599830187
 GameObject:
   m_ObjectHideFlags: 0
@@ -654,7 +690,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &7815557196265316083
 RectTransform:
   m_ObjectHideFlags: 0
@@ -803,6 +839,81 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
   m_Padding: {x: 0, y: 0, z: 0, w: 0}
   m_Softness: {x: 0, y: 0}
+--- !u!1 &3155412121238618525
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2287352879842622358}
+  - component: {fileID: 4574271063917351447}
+  - component: {fileID: 7065374271459604331}
+  m_Layer: 0
+  m_Name: sandik-durum-kilitli
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &2287352879842622358
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3155412121238618525}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 835223553392237598}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &4574271063917351447
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3155412121238618525}
+  m_CullTransparentMesh: 1
+--- !u!114 &7065374271459604331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3155412121238618525}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: 58ffa122480122843b4f2fcb8cc70088, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &4098075593718345787
 GameObject:
   m_ObjectHideFlags: 0
@@ -1027,9 +1138,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d5ab56933b82f0468c2532226b608da, type: 3}
+  m_Sprite: {fileID: 21300000, guid: fcae4c5fda34ac34a92adbeffe662ab4, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -1129,7 +1240,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &702929435771811104
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1256,7 +1367,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 125f3fb1a10071849b84682b5d4b92c5, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1283,7 +1394,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1521936580657456368
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1377,7 +1488,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -90}
+  m_AnchoredPosition: {x: -10, y: -116}
   m_SizeDelta: {x: 760, y: 120}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3971143640454280916
@@ -1401,7 +1512,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1487,6 +1598,7 @@ RectTransform:
   - {fileID: 4235531586968143534}
   - {fileID: 4691103459253780827}
   - {fileID: 1862879957258169923}
+  - {fileID: 835223553392237598}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1570,49 +1682,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bed697f71165de47847b744d9dc7442, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Ridebury.InGameGarage
-  garageWindowSprite: {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  garageWindowSprite: {fileID: 21300000, guid: 125f3fb1a10071849b84682b5d4b92c5, type: 3}
   garageWindowColor: {r: 0, g: 0, b: 0, a: 0}
-  vehiclesWindowSprite: {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  vehiclesWindowSprite: {fileID: 21300000, guid: 125f3fb1a10071849b84682b5d4b92c5, type: 3}
   vehiclesWindowColor: {r: 0, g: 0, b: 0, a: 0}
-  vehiclesButtonSprite: {fileID: 0}
+  vehiclesButtonSprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
   vehiclesButtonColor: {r: 0, g: 0, b: 0, a: 0}
-  freeChestSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  freeChestSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   freeChestColor: {r: 0, g: 0, b: 0, a: 0}
-  legendaryChestSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  legendaryChestSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   legendaryChestColor: {r: 0, g: 0, b: 0, a: 0}
-  commonSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  commonSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   commonColor: {r: 0, g: 0, b: 0, a: 0}
-  uncommonSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  uncommonSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   uncommonColor: {r: 0, g: 0, b: 0, a: 0}
-  epicSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  epicSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   epicColor: {r: 0, g: 0, b: 0, a: 0}
-  legendarySprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  legendarySprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   legendaryColor: {r: 0, g: 0, b: 0, a: 0}
-  chestsHeaderSprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
+  chestsHeaderSprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
   chestsHeaderColor: {r: 0, g: 0, b: 0, a: 0}
   chestsHeaderHeight: 104
   chestsHeaderFontSize: 40
-  craftHeaderSprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
+  craftHeaderSprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
   craftHeaderColor: {r: 0, g: 0, b: 0, a: 0}
   craftHeaderHeight: 104
   craftHeaderFontSize: 40
-  bronzeCardSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  bronzeCardSprite: {fileID: 21300000, guid: 33a5142e5ac87f341b3fb4ba3fd9db5b, type: 3}
   bronzeCardColor: {r: 0, g: 0, b: 0, a: 0}
-  silverCardSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  silverCardSprite: {fileID: 21300000, guid: 33a5142e5ac87f341b3fb4ba3fd9db5b, type: 3}
   silverCardColor: {r: 0, g: 0, b: 0, a: 0}
-  goldCardSprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  goldCardSprite: {fileID: 21300000, guid: 33a5142e5ac87f341b3fb4ba3fd9db5b, type: 3}
   goldCardColor: {r: 0, g: 0, b: 0, a: 0}
-  bronzeChestIcon: {fileID: 21300000, guid: 48deb32ab1aa98a4e9cd5ee54f9f9e96, type: 3}
-  silverChestIcon: {fileID: 21300000, guid: 8581cab42dce8e34e9152965e803398c, type: 3}
-  goldChestIcon: {fileID: 21300000, guid: 8d95f6c7e4dc7864b9761ae131cb1759, type: 3}
-  legendaryChestIcon: {fileID: 21300000, guid: 72c5b8a3a0766b142b6ab11048d1490b, type: 3}
-  counterBarSprite: {fileID: 21300000, guid: 0ea7b1eb6b6f95f4fa54517d0cf98980, type: 3}
+  bronzeChestIcon: {fileID: 21300000, guid: 2fd544c9ed7686e4ca7841bdfde5b51a, type: 3}
+  silverChestIcon: {fileID: 21300000, guid: df438ba9aa9fd4542bfe9a46af47e632, type: 3}
+  goldChestIcon: {fileID: 21300000, guid: b0b7f37b28fea8943875cd1701fdf99b, type: 3}
+  legendaryChestIcon: {fileID: 21300000, guid: ebf7d50feb4546a4fa8a39e52b78ea5f, type: 3}
+  counterBarSprite: {fileID: 21300000, guid: 16e844d6e777dcf4289228d87e05178b, type: 3}
   coinCounterIcon: {fileID: 21300000, guid: 65e972fd3367d2244a952b29b49a139f, type: 3}
   gemCounterIcon: {fileID: 21300000, guid: fc2ef5da611397c4b960f5d64240bbaf, type: 3}
-  actionButtonSprite: {fileID: 21300000, guid: 24dbaa9fdc3e9be4c9d804c205278bd7, type: 3}
-  overrideChestButtons: 0
-  chestButtonSize: {x: 250, y: 78}
-  chestButtonOffset: {x: 0, y: 16}
+  actionButtonSprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
+  overrideChestButtons: 1
+  chestButtonSize: {x: 250, y: 82}
+  chestButtonOffset: {x: 0, y: 18}
   overrideCraftButtons: 0
   craftButtonSize: {x: 280, y: 92}
   craftButtonOffset: {x: -160, y: 0}
@@ -1700,7 +1812,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 9709f071c3df2b349b462632cd3eb9dd, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 784c6c25a0e713f4481b57aff52cccef, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1854,7 +1966,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 9709f071c3df2b349b462632cd3eb9dd, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 827c829646e31344ba65c7755ad63911, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1924,7 +2036,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.28, g: 0.16, b: 0.05, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2304,7 +2416,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 9709f071c3df2b349b462632cd3eb9dd, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 784c6c25a0e713f4481b57aff52cccef, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1

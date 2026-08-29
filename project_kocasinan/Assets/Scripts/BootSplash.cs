@@ -253,15 +253,24 @@ namespace Ridebury
             var go = Panel("Loading");
             var g = go.gameObject.AddComponent<CanvasGroup>();
 
-            // EXACT 1:1 port of loadingscreenfinal.html's <canvas> scene — drawn into a Texture2D each frame and
-            // shown full-screen. (The title + progress bar below are the HTML/CSS overlay, kept as Unity UI on top.)
-            var sceneGo = new GameObject("Scene", typeof(RectTransform), typeof(RawImage));
-            sceneGo.transform.SetParent(go, false);
-            Stretch(sceneGo.GetComponent<RectTransform>());
-            var rimg = sceneGo.GetComponent<RawImage>(); rimg.raycastTarget = false;
-            // BootCanvasScene bakes an HD static backdrop onto this RawImage and overlays a small per-frame
-            // road-band layer for the moving cars/lamps — crisp + cheap (see BootCanvasScene).
-            go.gameObject.AddComponent<BootCanvasScene>().Setup(rimg);
+            // Prefer the authored loading artwork. Keep the procedural scene as a safe fallback if the asset
+            // is missing from an older branch/build.
+            var loadingSprite = Resources.Load<Sprite>("UI/NewDesigns/yukleme-ekrani-barsiz-v1");
+            if (loadingSprite != null)
+            {
+                var scene = Img(go, "Scene", loadingSprite);
+                Stretch(scene.rectTransform);
+                scene.preserveAspect = false;
+                scene.raycastTarget = false;
+            }
+            else
+            {
+                var sceneGo = new GameObject("Scene", typeof(RectTransform), typeof(RawImage));
+                sceneGo.transform.SetParent(go, false);
+                Stretch(sceneGo.GetComponent<RectTransform>());
+                var rimg = sceneGo.GetComponent<RawImage>(); rimg.raycastTarget = false;
+                go.gameObject.AddComponent<BootCanvasScene>().Setup(rimg);
+            }
 
             // Title + bar live on their OWN group (full-stretch) so the transition can fade THEM out first, before
             // the backdrop crossfades to reveal the menu — otherwise the bright title visibly blends over the menu.

@@ -72,10 +72,10 @@ namespace Ridebury
 
         // ---- Semantic map (verified WITH the user against the atlas) ----
         // Nav icons + their backing:
-        public static Sprite NavShop()    => Res("nav_shop",  A(0));
-        public static Sprite NavHome()    => Res("nav_home",  A(2));
-        public static Sprite NavDaily()   => Res("nav_daily", A(3));   // calendar
-        public static Sprite Gear()       => Res("icon_gear", A(4));   // settings
+        public static Sprite NavShop()    => NewUI("navigasyon-magaza", Res("nav_shop", A(0)));
+        public static Sprite NavHome()    => NewUI("navigasyon-home", Res("nav_home", A(2)));
+        public static Sprite NavDaily()   => NewUI("navigasyon-daily-reward", Res("nav_daily", A(3)));
+        public static Sprite Gear()       => NewUI("ayarlar", Res("icon_gear", A(4)));
         public static Sprite NavBtnBg()   => A(15);  // ORANGE backing: behind the SELECTED nav icon
         public static Sprite NavBtnOff()  => A(14);  // BLUE backing: behind unselected nav icons
         public static Sprite NavStrip()   => A(35);  // bottom blue nav strip
@@ -91,7 +91,7 @@ namespace Ridebury
         public static Sprite Gem()        => Res("icon_gem", A(22));   // gem / shard
 
         // Home:
-        public static Sprite PlayBtn()    => Res("btn_play", A(21));  // PLAY button
+        public static Sprite PlayBtn()    => NewUI("ana-aksiyon-butonu-buyuk-turuncu", Res("btn_play", A(21)));
 
         // Shop:
         public static Sprite ShopCoinA()  => CoinPack(1);  // coin-pack icons, smallest -> biggest
@@ -102,8 +102,8 @@ namespace Ridebury
         public static Sprite CoinPackBig()   => CoinPack(6); // most expensive
         public static Sprite QtyPlus()    => A(23);  // buy-quantity +
         public static Sprite QtyMinus()   => A(32);  // buy-quantity -
-        public static Sprite PriceBtnA()  => Res("btn_action", A(36));  // price / action buttons
-        public static Sprite PriceBtnB()  => Res("btn_orange", A(37));
+        public static Sprite PriceBtnA()  => NewUI("magaza-fiyat-butonu", Res("btn_action", A(36)));
+        public static Sprite PriceBtnB()  => NewUI("ana-aksiyon-butonu-buyuk-turuncu", Res("btn_orange", A(37)));
         public static Sprite ShopBoxA()   => A(44);  // shop item card backgrounds
         public static Sprite ShopBoxB()   => A(55);
         public static Sprite ShopIconBgA()=> A(56);  // backing behind shop coin icons
@@ -120,13 +120,13 @@ namespace Ridebury
         public static Sprite DailyCoin()  => A(38);
         public static Sprite DailyIconA() => A(58);
         public static Sprite DailyIconB() => A(59);
-        public static Sprite CardCream()  => Res("card_daily", A(66));  // daily-reward card background
+        public static Sprite CardCream()  => NewUI("daily-reward-kart-normal", Res("card_daily", A(66)));
 
         public static Sprite WatchAd()    => A(61);  // video-ad button
-        public static Sprite CloseX()     => Res("icon_close", A(79));  // red close
+        public static Sprite CloseX()     => NewUI("navigasyon-kapat", Res("icon_close", A(79)));
         public static Sprite Back()       => A(80);
-        public static Sprite IconSound()  => Res("icon_sound", A(71));
-        public static Sprite IconMusic()  => Res("icon_music", A(73));
+        public static Sprite IconSound()  => NewUI("ses-butonu", Res("icon_sound", A(71)));
+        public static Sprite IconMusic()  => NewUI("muzik-butonu", Res("icon_music", A(73)));
 
         // Crisp custom audio icons (external PNGs in Assets/MenuManager/Icons, not in the atlas).
         public static Sprite IconSpeaker() => Res("icon_sound", GetExternal("Assets/MenuManager/Icons/Icon_Sound.png", "Icon_Sound"));
@@ -145,6 +145,45 @@ namespace Ridebury
         // These are the DEFAULTS, deliberately: the Inspector overrides on InGameGarage still win
         // where they are set, but nothing has to be assigned by hand for the new art to show up.
         const string NewKitDir = "Assets/kesilmis-ikonlar/";
+        const string NewUIDir = "Assets/Resources/UI/NewDesigns/";
+
+        // Final UI art supplied as individual sprites. Keeping these in Resources makes the same
+        // semantic mapping work in both the editor and an Android player without a separate bake.
+        static Sprite NewUI(string file, Sprite fallback = null)
+        {
+            string key = "newui:" + file;
+            if (_cache.TryGetValue(key, out var cached)) return cached != null ? cached : fallback;
+            Sprite found = null;
+#if UNITY_EDITOR
+            found = AssetDatabase.LoadAssetAtPath<Sprite>(NewUIDir + file + ".png");
+#endif
+            if (found == null) found = Resources.Load<Sprite>("UI/NewDesigns/" + file);
+            if (found == null) Debug.LogWarning($"[UIKit] new UI sprite not found: {file}");
+            _cache[key] = found;
+            return found != null ? found : fallback;
+        }
+
+        public static Sprite MainPanel()       => NewUI("trafik-temali-ana-panel-v1", PanelTall());
+        public static Sprite LevelBadgeNew()   => NewUI("trafik-temali-kare-level-gostergesi-v2", CircleYellow());
+        public static Sprite GoldCounterNew()  => NewUI("kaynak-gostergesi-altin", CoinBar());
+        public static Sprite GemCounterNew()   => NewUI("kaynak-gostergesi-elmas-pembe", BtnCream());
+        public static Sprite LockedState()     => NewUI("durum-kilitli", BtnGrey());
+        public static Sprite PassiveState()    => NewUI("durum-pasif", BtnGrey());
+        public static Sprite AdUnlockState()   => NewUI("durum-reklamla-ac", BtnGrey());
+        public static Sprite NoticeCount()     => NewUI("bildirim-sayi-rozeti", CircleGreen());
+        public static Sprite NoticeAlert()     => NewUI("bildirim-unlem", CircleYellow());
+        public static Sprite NoticeTimer()     => NewUI("bildirim-zamanlayici", CircleYellow());
+        public static Sprite NoticeReward()    => NewUI("bildirim-ucretsiz-odul", AdReward());
+        public static Sprite DailyGift()       => NewUI("daily-reward", DailyIconA());
+        public static Sprite DailyCardNormal() => NewUI("daily-reward-kart-normal", CardDay());
+        public static Sprite DailyCardChosen() => NewUI("daily-reward-kart-secili", DailyCardNormal());
+        public static Sprite DailyCardDone()   => NewUI("daily-reward-kart-tamamlandi", DailyCardNormal());
+        public static Sprite DailyClaim()      => NewUI("daily-reward-al-butonu", BtnAction());
+        public static Sprite ShopCardSingle()  => NewUI("magaza-tek-urun-karti", BarCream());
+        public static Sprite ShopCardDouble()  => NewUI("magaza-iki-kutulu-yatay-kart", BarCream());
+        public static Sprite ShopCardOffer()   => NewUI("magaza-ozel-teklif-karti", BarCream());
+        public static Sprite ShopPrice()       => NewUI("magaza-fiyat-butonu", BtnAction());
+        public static Sprite ChestLocked()     => NewUI("sandik-durum-kilitli", LockedState());
 
         static Sprite Res(string file, Sprite fallback)
         {
@@ -165,11 +204,11 @@ namespace Ridebury
         public static Sprite BarCream()  => Res("bar_cream",  A(44));  // cream counter / row bar
         public static Sprite BarRed()    => Res("bar_red",    A(45));  // red section-header ribbon
         public static Sprite CardDaily() => Res("card_daily", B(2));   // deep-blue card, orange frame (pop-ups)
-        public static Sprite CardDay()   => Res("sade-daily-reward-karti", CardDaily()); // plain cream card — ONE daily-reward day
-        public static Sprite BtnGrey()   => Res("gri-joker-butonu", A(25));  // grey rounded square (jokers + nav backing)
-        public static Sprite BtnAction() => Res("btn_action", B(9));   // orange action button, dark outline
-        public static Sprite BtnPill()   => Res("btn_orange", B(9));   // plain orange pill
-        public static Sprite BtnCream()  => Res("btn_cream",  B(9));   // cream pill
+        public static Sprite CardDay()   => NewUI("daily-reward-kart-normal", Res("sade-daily-reward-karti", CardDaily()));
+        public static Sprite BtnGrey()   => NewUI("ana-aksiyon-butonu-kompakt-gri", Res("gri-joker-butonu", A(25)));
+        public static Sprite BtnAction() => NewUI("ana-aksiyon-butonu-buyuk-turuncu", Res("btn_action", B(9)));
+        public static Sprite BtnPill()   => NewUI("ana-aksiyon-butonu-buyuk-turuncu", Res("btn_orange", B(9)));
+        public static Sprite BtnCream()  => NewUI("ana-aksiyon-butonu-orta-krem", Res("btn_cream", B(9)));
         public static Sprite RowGold()   => Res("panel_row_gold",  A(44));
         public static Sprite RowCream()  => Res("panel_row_cream", A(44));
 
@@ -198,10 +237,10 @@ namespace Ridebury
         {
             switch (tier)
             {
-                case "Silver":    return Res("chest_silver",    null);
-                case "Gold":      return Res("chest_gold",      null);
-                case "Legendary": return Res("chest_legendary", null);
-                default:          return Res("chest_bronze",    null);
+                case "Silver":    return NewUI("sandik-gumus-yeni", Res("chest_silver", null));
+                case "Gold":      return NewUI("sandik-altin-yeni", Res("chest_gold", null));
+                case "Legendary": return NewUI("sandik-efsanevi-yeni", Res("chest_legendary", null));
+                default:          return NewUI("sandik-bronz-yeni", Res("chest_bronze", null));
             }
         }
 
@@ -223,13 +262,13 @@ namespace Ridebury
         public static Sprite EmptyBoxBlue() => B(0);
         public static Sprite PanelTall()    => B(2);   // big popup background
         public static Sprite PanelCyan()    => B(4);   // light popup background
-        public static Sprite BtnOrange()    => Res("btn_orange", B(9));
+        public static Sprite BtnOrange()    => NewUI("ana-aksiyon-butonu-buyuk-turuncu", Res("btn_orange", B(9)));
         public static Sprite BtnDark()      => B(10);
         public static Sprite BtnGreen()     => B(16);
         public static Sprite BtnRed()       => B(17);
-        public static Sprite JokerRecolor() => Res("joker_recolor", B(8));   // swirl arrows (recolor)
-        public static Sprite JokerSwap()    => Res("joker_shuffle", B(15));  // crossed arrows (swap people)
-        public static Sprite JokerHeli()    => B(14);  // HAND placeholder (no heli icon in kit)
+        public static Sprite JokerRecolor() => NewUI("joker-butonu-recolor", Res("joker_recolor", B(8)));
+        public static Sprite JokerSwap()    => NewUI("joker-butonu-shuffle", Res("joker_shuffle", B(15)));
+        public static Sprite JokerHeli()    => NewUI("joker-butonu-helikopter", B(14));
         public static Sprite JokerShield()  => B(13);
         public static Sprite JokerDestroy() => B(7);
 

@@ -125,7 +125,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 9}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1100020468191015819
@@ -194,16 +194,16 @@ RectTransform:
   m_GameObject: {fileID: 448760833827155815}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.50702554, y: 0.92587775, z: 0.50702554}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7173526174142824179}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5871036173109496340
 CanvasRenderer:
@@ -233,7 +233,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -276,6 +276,7 @@ GameObject:
   - component: {fileID: 7632792449372402735}
   - component: {fileID: 3945621279205463120}
   - component: {fileID: 985174250349512212}
+  - component: {fileID: 2869578079294922199}
   m_Layer: 0
   m_Name: PowerupTitle
   m_TagString: Untagged
@@ -323,7 +324,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -332,11 +333,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -374,6 +375,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2869578079294922199
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 579085345533893716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
 --- !u!1 &648277938820230541
 GameObject:
   m_ObjectHideFlags: 0
@@ -403,7 +418,7 @@ RectTransform:
   m_GameObject: {fileID: 648277938820230541}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3117589257856689985}
@@ -411,7 +426,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199.00005, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3670970672992341494
@@ -442,7 +457,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -523,6 +538,7 @@ GameObject:
   - component: {fileID: 6054469408010580081}
   - component: {fileID: 6808086293769380811}
   - component: {fileID: 3347618847971376924}
+  - component: {fileID: 2657075038667089866}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -570,7 +586,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -579,11 +595,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 36
+    m_FontSize: 57
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 57
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -621,6 +637,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2657075038667089866
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 650336231711786033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 36
+  captured: 1
 --- !u!1 &664702095386125063
 GameObject:
   m_ObjectHideFlags: 0
@@ -688,7 +718,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -771,7 +801,7 @@ RectTransform:
   m_GameObject: {fileID: 711631434119368866}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6601044381922944021}
@@ -779,7 +809,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199.00005, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6257371276732221117
@@ -810,7 +840,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -891,6 +921,7 @@ GameObject:
   - component: {fileID: 1301646015078093328}
   - component: {fileID: 1136235084395176501}
   - component: {fileID: 1996689050700866472}
+  - component: {fileID: 2429552620382842355}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -938,7 +969,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -947,11 +978,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 36
+    m_FontSize: 57
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 57
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -989,6 +1020,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2429552620382842355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 814680263737063066}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 36
+  captured: 1
 --- !u!1 &857948686277058471
 GameObject:
   m_ObjectHideFlags: 0
@@ -1056,7 +1101,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d5ab56933b82f0468c2532226b608da, type: 3}
+  m_Sprite: {fileID: 21300000, guid: fcae4c5fda34ac34a92adbeffe662ab4, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -1152,16 +1197,16 @@ RectTransform:
   m_GameObject: {fileID: 909162639804980906}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.78585094, y: 1.2662, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 396520436619071269}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2765357564628981989
 CanvasRenderer:
@@ -1191,7 +1236,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1234,6 +1279,7 @@ GameObject:
   - component: {fileID: 8310625436828909054}
   - component: {fileID: 4986098539496233243}
   - component: {fileID: 2046331065476101628}
+  - component: {fileID: 7660775124569010798}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -1281,7 +1327,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1290,11 +1336,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1332,82 +1378,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
---- !u!1 &1132986309630663423
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 4864540914778832837}
-  - component: {fileID: 155747114573892852}
-  - component: {fileID: 4556183537107681340}
-  m_Layer: 0
-  m_Name: TitleBand
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &4864540914778832837
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1132986309630663423}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 4245588962773913816}
-  m_Father: {fileID: 4042019945692181381}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 1}
-  m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -105}
-  m_SizeDelta: {x: 750, y: 150}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &155747114573892852
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1132986309630663423}
-  m_CullTransparentMesh: 1
---- !u!114 &4556183537107681340
+--- !u!114 &7660775124569010798
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1132986309630663423}
+  m_GameObject: {fileID: 1057243250132879089}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &1159905503070382697
 GameObject:
   m_ObjectHideFlags: 0
@@ -1436,7 +1420,7 @@ RectTransform:
   m_GameObject: {fileID: 1159905503070382697}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6176821551427834578}
@@ -1444,10 +1428,10 @@ RectTransform:
   - {fileID: 4811361396347750590}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2683399149911358243
 CanvasRenderer:
@@ -1477,7 +1461,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1536,7 +1520,7 @@ RectTransform:
   m_GameObject: {fileID: 1186841989235799387}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2586569504593682594}
@@ -1544,7 +1528,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199.00005, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &724843450374833520
@@ -1575,7 +1559,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1656,6 +1640,7 @@ GameObject:
   - component: {fileID: 7470821503075052645}
   - component: {fileID: 6806922537877981762}
   - component: {fileID: 4751951283542707868}
+  - component: {fileID: 5371451939278496195}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -1703,7 +1688,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1712,11 +1697,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 36
+    m_FontSize: 57
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 57
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1754,6 +1739,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &5371451939278496195
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1274260874490141426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 36
+  captured: 1
 --- !u!1 &1287773880183510474
 GameObject:
   m_ObjectHideFlags: 0
@@ -1821,7 +1820,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1887,6 +1886,7 @@ GameObject:
   - component: {fileID: 5432423620501824022}
   - component: {fileID: 7358587903210075328}
   - component: {fileID: 3900354713848504434}
+  - component: {fileID: 1250154574046907558}
   m_Layer: 0
   m_Name: OfferTitle
   m_TagString: Untagged
@@ -1934,7 +1934,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1943,11 +1943,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 32
+    m_FontSize: 50
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 23
-    m_MaxSize: 32
+    m_MaxSize: 50
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1970,6 +1970,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0, g: 0, b: 0, a: 0.2}
   m_EffectDistance: {x: 2, y: -3}
   m_UseGraphicAlpha: 1
+--- !u!114 &1250154574046907558
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1372367323435600171}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 32
+  captured: 1
 --- !u!1 &1383470972015636498
 GameObject:
   m_ObjectHideFlags: 0
@@ -1983,6 +1997,7 @@ GameObject:
   - component: {fileID: 7786084629720332257}
   - component: {fileID: 4861363998218919743}
   - component: {fileID: 4390959316899008191}
+  - component: {fileID: 5511307385819551011}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -2030,7 +2045,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2039,11 +2054,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 31
+    m_FontSize: 49
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 49
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -2081,6 +2096,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &5511307385819551011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1383470972015636498}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 31
+  captured: 1
 --- !u!1 &1389548520096821365
 GameObject:
   m_ObjectHideFlags: 0
@@ -2146,7 +2175,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 8bc439b57a21121468a911b4ff8fa3e0, type: 3}
+  m_Sprite: {fileID: 21300000, guid: d4aa1a2795761d6469153e521ef4df92, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -2190,7 +2219,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 8.999878}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6193304316628765567
@@ -2250,7 +2279,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &2440025591907837561
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2379,6 +2408,7 @@ GameObject:
   - component: {fileID: 5448745221855701723}
   - component: {fileID: 2611918630495630211}
   - component: {fileID: 5617405917074564540}
+  - component: {fileID: 2387569194206650142}
   m_Layer: 0
   m_Name: OfferTitle
   m_TagString: Untagged
@@ -2426,7 +2456,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2435,11 +2465,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 30
+    m_FontSize: 47
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 22
-    m_MaxSize: 30
+    m_MaxSize: 47
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -2462,6 +2492,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0, g: 0, b: 0, a: 0.2}
   m_EffectDistance: {x: 2, y: -3}
   m_UseGraphicAlpha: 1
+--- !u!114 &2387569194206650142
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1677735525792996732}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 30
+  captured: 1
 --- !u!1 &1701017389099724271
 GameObject:
   m_ObjectHideFlags: 0
@@ -2643,6 +2687,7 @@ GameObject:
   - component: {fileID: 6144124109522024883}
   - component: {fileID: 1996877125748591320}
   - component: {fileID: 1560936885403370702}
+  - component: {fileID: 9062011582134851935}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -2657,16 +2702,16 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1834843960636617564}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.7514, y: 1.7514, z: 1.7514}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4864540914778832837}
+  m_Father: {fileID: 4042019945692181381}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: -15, y: 754}
   m_SizeDelta: {x: 620, y: 105}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5244741684531188816
@@ -2690,7 +2735,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2699,11 +2744,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 68
+    m_FontSize: 107
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 68
+    m_MaxSize: 107
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -2741,6 +2786,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &9062011582134851935
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1834843960636617564}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 68
+  captured: 1
 --- !u!1 &1924842860273823457
 GameObject:
   m_ObjectHideFlags: 0
@@ -2781,10 +2840,10 @@ RectTransform:
   - {fileID: 5847175498080701823}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6648556925153603651
 CanvasRenderer:
@@ -2814,7 +2873,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: f8f775f201aedd040bb12c28d0d340f0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3007,6 +3066,7 @@ GameObject:
   - component: {fileID: 75730782446139445}
   - component: {fileID: 7670544609918919294}
   - component: {fileID: 6737561774323480873}
+  - component: {fileID: 6577088548409224852}
   m_Layer: 0
   m_Name: PowerupTitle
   m_TagString: Untagged
@@ -3054,7 +3114,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3063,11 +3123,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3105,6 +3165,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &6577088548409224852
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2745712861993566489}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
 --- !u!1 &2971076641543292226
 GameObject:
   m_ObjectHideFlags: 0
@@ -3118,6 +3192,7 @@ GameObject:
   - component: {fileID: 7658749347986761825}
   - component: {fileID: 5713778045402295420}
   - component: {fileID: 2447474726612278132}
+  - component: {fileID: 2535500501269614682}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -3165,7 +3240,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3174,11 +3249,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3216,6 +3291,95 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2535500501269614682
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2971076641543292226}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
+--- !u!1 &2992815152927434498
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5182613081200275750}
+  - component: {fileID: 7833422394561073097}
+  - component: {fileID: 474867844560106812}
+  m_Layer: 0
+  m_Name: NewUI_ShopIcon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &5182613081200275750
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2992815152927434498}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4042019945692181381}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: -310, y: -34}
+  m_SizeDelta: {x: 120, y: 120}
+  m_Pivot: {x: 0.5, y: 1}
+--- !u!222 &7833422394561073097
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2992815152927434498}
+  m_CullTransparentMesh: 1
+--- !u!114 &474867844560106812
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2992815152927434498}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: fe4540d5bdb5fda4dac6f695569af2fe, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &3133857610275642555
 GameObject:
   m_ObjectHideFlags: 0
@@ -3229,6 +3393,7 @@ GameObject:
   - component: {fileID: 980977639472152187}
   - component: {fileID: 2891434884012398785}
   - component: {fileID: 4957715213746474044}
+  - component: {fileID: 2120063686371163015}
   m_Layer: 0
   m_Name: RecolorAmount
   m_TagString: Untagged
@@ -3276,7 +3441,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3285,11 +3450,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 26
+    m_FontSize: 41
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 41
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3327,6 +3492,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2120063686371163015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3133857610275642555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 26
+  captured: 1
 --- !u!1 &3444100887260227406
 GameObject:
   m_ObjectHideFlags: 0
@@ -3340,6 +3519,7 @@ GameObject:
   - component: {fileID: 6216923594903787230}
   - component: {fileID: 2204557706159309541}
   - component: {fileID: 6000599945366327179}
+  - component: {fileID: 8431703792117582999}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -3387,7 +3567,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3396,11 +3576,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3438,6 +3618,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &8431703792117582999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3444100887260227406}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &3736207730027295642
 GameObject:
   m_ObjectHideFlags: 0
@@ -3472,7 +3666,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 8.999878}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3155704384182493738
@@ -3542,7 +3736,7 @@ RectTransform:
   m_GameObject: {fileID: 3798317255248473202}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3431722665595643570}
@@ -3550,7 +3744,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5692726624151499994
@@ -3581,7 +3775,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3683,10 +3877,10 @@ RectTransform:
   - {fileID: 7016562902657405643}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3900476452626905172
 CanvasRenderer:
@@ -3716,8 +3910,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 51a13fe025b728944b7b7a8024f25fdc, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 732702c4846affa4e92ee9a6ff52e39d, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -3759,6 +3953,7 @@ GameObject:
   - component: {fileID: 7301939291477138821}
   - component: {fileID: 4511785259111727394}
   - component: {fileID: 2357469779724865952}
+  - component: {fileID: 772857036842528428}
   m_Layer: 0
   m_Name: PowerupTitle
   m_TagString: Untagged
@@ -3806,7 +4001,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3815,11 +4010,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3857,6 +4052,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &772857036842528428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4093382876145016497}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
 --- !u!1 &4138017942526564511
 GameObject:
   m_ObjectHideFlags: 0
@@ -3885,7 +4094,7 @@ RectTransform:
   m_GameObject: {fileID: 4138017942526564511}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6278208751869282154}
@@ -3893,10 +4102,10 @@ RectTransform:
   - {fileID: 6200280049542759520}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8648840627117989061
 CanvasRenderer:
@@ -3926,7 +4135,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4036,6 +4245,7 @@ GameObject:
   - component: {fileID: 9168459205079657627}
   - component: {fileID: 5291893081824021062}
   - component: {fileID: 8906936178908785311}
+  - component: {fileID: 6861782338695516906}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -4083,7 +4293,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4092,11 +4302,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -4134,6 +4344,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &6861782338695516906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4523237174445710818}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &4731216637943223462
 GameObject:
   m_ObjectHideFlags: 0
@@ -4147,6 +4371,7 @@ GameObject:
   - component: {fileID: 4591216848433122780}
   - component: {fileID: 4967230054985979772}
   - component: {fileID: 7213825784908514022}
+  - component: {fileID: 2667902274142702961}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -4194,7 +4419,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4203,11 +4428,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -4245,6 +4470,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2667902274142702961
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4731216637943223462}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &5010990144579926594
 GameObject:
   m_ObjectHideFlags: 0
@@ -4258,6 +4497,7 @@ GameObject:
   - component: {fileID: 3268981737463573880}
   - component: {fileID: 6699251180480258453}
   - component: {fileID: 8438493600134708546}
+  - component: {fileID: 514316535779301036}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -4305,7 +4545,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4314,11 +4554,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -4356,6 +4596,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &514316535779301036
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5010990144579926594}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &5074815668494026979
 GameObject:
   m_ObjectHideFlags: 0
@@ -4369,6 +4623,7 @@ GameObject:
   - component: {fileID: 850289070853735839}
   - component: {fileID: 6105659658329366542}
   - component: {fileID: 4840577130596733959}
+  - component: {fileID: 5569689263827488589}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -4416,7 +4671,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4425,11 +4680,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -4467,6 +4722,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &5569689263827488589
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5074815668494026979}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
 --- !u!1 &5130298234114178736
 GameObject:
   m_ObjectHideFlags: 0
@@ -4503,10 +4772,10 @@ RectTransform:
   - {fileID: 463354770475622089}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7668416032210520515
 CanvasRenderer:
@@ -4536,7 +4805,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4633,7 +4902,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4721,7 +4990,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 8.999878}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4102983206418290243
@@ -4775,6 +5044,7 @@ GameObject:
   - component: {fileID: 8756247669530494278}
   - component: {fileID: 4098549810041431155}
   - component: {fileID: 800299362785658647}
+  - component: {fileID: 3830476723324433223}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -4822,7 +5092,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4831,11 +5101,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 34
+    m_FontSize: 54
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 54
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -4873,6 +5143,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &3830476723324433223
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5314162509833770977}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 34
+  captured: 1
 --- !u!1 &5314890354595513769
 GameObject:
   m_ObjectHideFlags: 0
@@ -4907,7 +5191,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 8.999878}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6199342662735501227
@@ -4976,7 +5260,7 @@ RectTransform:
   m_GameObject: {fileID: 5318567329561474786}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3560849211029390301}
@@ -4984,10 +5268,10 @@ RectTransform:
   - {fileID: 8913138364437744771}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3584767457760506545
 CanvasRenderer:
@@ -5017,7 +5301,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5083,10 +5367,10 @@ RectTransform:
   - {fileID: 1630829418874108689}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &523255124876116326
 CanvasRenderer:
@@ -5116,7 +5400,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5180,7 +5464,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 108, y: 1}
+  m_AnchoredPosition: {x: 158, y: 8.999878}
   m_SizeDelta: {x: 154, y: 154}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6743533230874516681
@@ -5251,9 +5535,10 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4864540914778832837}
+  - {fileID: 4245588962773913816}
   - {fileID: 8122416379937904044}
   - {fileID: 6742894912893088018}
+  - {fileID: 5182613081200275750}
   m_Father: {fileID: 2440025591907837561}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -5289,7 +5574,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: fea49fd4837f5a444afc6ed76db0878a, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 125f3fb1a10071849b84682b5d4b92c5, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5312,6 +5597,7 @@ GameObject:
   - component: {fileID: 4712806843827489332}
   - component: {fileID: 7235189644310212666}
   - component: {fileID: 3218696623199202189}
+  - component: {fileID: 4687430055602651704}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -5359,7 +5645,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -5368,11 +5654,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 46
+    m_FontSize: 72
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 46
+    m_MaxSize: 72
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -5410,6 +5696,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &4687430055602651704
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5628227500886781774}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 46
+  captured: 1
 --- !u!1 &5986486742999919555
 GameObject:
   m_ObjectHideFlags: 0
@@ -5423,6 +5723,7 @@ GameObject:
   - component: {fileID: 7473931083503615475}
   - component: {fileID: 4864405164479745917}
   - component: {fileID: 5916358498384943904}
+  - component: {fileID: 8584507350171046985}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -5470,7 +5771,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -5479,11 +5780,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -5521,6 +5822,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &8584507350171046985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5986486742999919555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &5993078920481931812
 GameObject:
   m_ObjectHideFlags: 0
@@ -5557,10 +5872,10 @@ RectTransform:
   - {fileID: 1034385702099881323}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8436673955495878375
 CanvasRenderer:
@@ -5590,7 +5905,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5633,6 +5948,7 @@ GameObject:
   - component: {fileID: 6557519569988339899}
   - component: {fileID: 6780173813711850846}
   - component: {fileID: 9044686739218479024}
+  - component: {fileID: 7842117556037427157}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -5647,17 +5963,17 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6114790727326837378}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.5467471, y: 0.6675562, z: 1.5467471}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1184154848327115768}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 780, y: 80}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 440.00003, y: -57}
+  m_SizeDelta: {x: 880, y: 45.75}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5771883650012775970
 CanvasRenderer:
@@ -5680,7 +5996,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -5689,11 +6005,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 46
+    m_FontSize: 72
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 46
+    m_MaxSize: 72
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -5731,6 +6047,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &7842117556037427157
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6114790727326837378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 46
+  captured: 1
 --- !u!1 &6171878907219898552
 GameObject:
   m_ObjectHideFlags: 0
@@ -5796,7 +6126,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 6bd91b83731722549b87cefd05136cf0, type: 3}
+  m_Sprite: {fileID: 21300000, guid: b627a4279a92c0e469a1020e0e8d6a1a, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -5835,7 +6165,7 @@ RectTransform:
   m_GameObject: {fileID: 6427919256040798884}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5234539460823175355}
@@ -5843,7 +6173,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199.00005, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4165225996174390846
@@ -5874,7 +6204,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5955,6 +6285,7 @@ GameObject:
   - component: {fileID: 7545082562962235451}
   - component: {fileID: 8812627315270458359}
   - component: {fileID: 6686830690019138767}
+  - component: {fileID: 1204714536654194207}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -6002,7 +6333,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6011,11 +6342,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -6053,6 +6384,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &1204714536654194207
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6516820854600082825}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &6573166188299444864
 GameObject:
   m_ObjectHideFlags: 0
@@ -6081,7 +6426,7 @@ RectTransform:
   m_GameObject: {fileID: 6573166188299444864}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1695379221305972549}
@@ -6089,10 +6434,10 @@ RectTransform:
   - {fileID: 5925151248217443542}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7081895497728109253
 CanvasRenderer:
@@ -6122,7 +6467,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -6165,6 +6510,7 @@ GameObject:
   - component: {fileID: 3000591420339824518}
   - component: {fileID: 3286323591016222887}
   - component: {fileID: 8881521696674501780}
+  - component: {fileID: 6615597059078613696}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -6212,7 +6558,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6221,11 +6567,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -6263,6 +6609,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &6615597059078613696
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6902460089065953428}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &6974140457924382685
 GameObject:
   m_ObjectHideFlags: 0
@@ -6407,8 +6767,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -6488,6 +6848,7 @@ GameObject:
   - component: {fileID: 2040060292680950867}
   - component: {fileID: 3001512454144969608}
   - component: {fileID: 4617711551738793565}
+  - component: {fileID: 5531053960131265276}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -6535,7 +6896,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6544,11 +6905,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -6586,6 +6947,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &5531053960131265276
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7107590834399970237}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &7193779754805265947
 GameObject:
   m_ObjectHideFlags: 0
@@ -6655,8 +7030,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -6736,6 +7111,7 @@ GameObject:
   - component: {fileID: 3720497871181644707}
   - component: {fileID: 3165734076270855950}
   - component: {fileID: 2345549355470451487}
+  - component: {fileID: 2055429223366477788}
   m_Layer: 0
   m_Name: CoinAmount
   m_TagString: Untagged
@@ -6783,7 +7159,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6792,11 +7168,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 26
+    m_FontSize: 41
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 41
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -6834,6 +7210,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2055429223366477788
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7202815025860137891}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 26
+  captured: 1
 --- !u!1 &7228938354443740708
 GameObject:
   m_ObjectHideFlags: 0
@@ -6846,6 +7236,7 @@ GameObject:
   - component: {fileID: 2327205284681008907}
   - component: {fileID: 7873949020503572226}
   - component: {fileID: 8481938714083298672}
+  - component: {fileID: 270794853515614888}
   m_Layer: 0
   m_Name: OfferTitle
   m_TagString: Untagged
@@ -6893,7 +7284,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6902,11 +7293,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 32
+    m_FontSize: 50
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 23
-    m_MaxSize: 32
+    m_MaxSize: 50
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -6929,6 +7320,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0, g: 0, b: 0, a: 0.2}
   m_EffectDistance: {x: 2, y: -3}
   m_UseGraphicAlpha: 1
+--- !u!114 &270794853515614888
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7228938354443740708}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 32
+  captured: 1
 --- !u!1 &7445526481347901009
 GameObject:
   m_ObjectHideFlags: 0
@@ -6942,6 +7347,7 @@ GameObject:
   - component: {fileID: 549257900088125414}
   - component: {fileID: 1614282569382125874}
   - component: {fileID: 6204650884622450537}
+  - component: {fileID: 4396564249870919401}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -6989,7 +7395,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6998,11 +7404,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -7040,6 +7446,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &4396564249870919401
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7445526481347901009}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &7693749713490152345
 GameObject:
   m_ObjectHideFlags: 0
@@ -7068,7 +7488,7 @@ RectTransform:
   m_GameObject: {fileID: 7693749713490152345}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2318229031034275243}
@@ -7076,10 +7496,10 @@ RectTransform:
   - {fileID: 2333929611917502961}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5690504355960808714
 CanvasRenderer:
@@ -7109,7 +7529,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -7208,8 +7628,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -7289,6 +7709,7 @@ GameObject:
   - component: {fileID: 4162163144617157113}
   - component: {fileID: 3584866225302925293}
   - component: {fileID: 603361474580284875}
+  - component: {fileID: 7870594035010834780}
   m_Layer: 0
   m_Name: Price
   m_TagString: Untagged
@@ -7336,7 +7757,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -7345,11 +7766,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 37
+    m_FontSize: 58
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 58
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -7387,6 +7808,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &7870594035010834780
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7702481790015943353}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 37
+  captured: 1
 --- !u!1 &7760854778709665183
 GameObject:
   m_ObjectHideFlags: 0
@@ -7423,10 +7858,10 @@ RectTransform:
   - {fileID: 1186797624422720908}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6442549750666679154
 CanvasRenderer:
@@ -7456,7 +7891,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: f8f775f201aedd040bb12c28d0d340f0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -7664,7 +8099,7 @@ RectTransform:
   m_GameObject: {fileID: 8235366764936517331}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86191, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 226907505999910007}
@@ -7672,10 +8107,10 @@ RectTransform:
   - {fileID: 1663010385328805319}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8350766695142235505
 CanvasRenderer:
@@ -7705,7 +8140,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -7800,7 +8235,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 2c75394a4e555f34da48d7056a889991, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 2488e663d19299e45ba34a6e6b318ae7, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -7846,10 +8281,10 @@ RectTransform:
   - {fileID: 6337270100334939496}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4174309747817245404
 CanvasRenderer:
@@ -7879,7 +8314,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 67e133e800fe67148b5b23068eee3e7e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: f8f775f201aedd040bb12c28d0d340f0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -8244,10 +8679,10 @@ RectTransform:
   - {fileID: 7165487527326067484}
   m_Father: {fileID: 2231632955246841146}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 460, y: 136}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7873364847664550241
 CanvasRenderer:
@@ -8277,8 +8712,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 24dbaa9fdc3e9be4c9d804c205278bd7, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 91ac060f2f3e2a849899542df542ae7d, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -8364,6 +8799,7 @@ GameObject:
   - component: {fileID: 1513205066294826781}
   - component: {fileID: 5874410451246589242}
   - component: {fileID: 7515720043929533711}
+  - component: {fileID: 5044479143176023027}
   m_Layer: 0
   m_Name: Amount
   m_TagString: Untagged
@@ -8411,7 +8847,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 0.24, g: 0.055, b: 0.1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8420,11 +8856,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 54
+    m_FontSize: 85
     m_FontStyle: 0
     m_BestFit: 1
     m_MinSize: 36
-    m_MaxSize: 54
+    m_MaxSize: 85
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -8462,6 +8898,20 @@ MonoBehaviour:
   m_EffectColor: {r: 1, g: 0.88, b: 0.55, a: 0.45}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &5044479143176023027
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9070112044776078364}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 54
+  captured: 1
 --- !u!1 &9176924341537222581
 GameObject:
   m_ObjectHideFlags: 0
@@ -8475,6 +8925,7 @@ GameObject:
   - component: {fileID: 7528228714128499119}
   - component: {fileID: 6267878961163921088}
   - component: {fileID: 8839450783029236804}
+  - component: {fileID: 2640150299891587835}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -8522,7 +8973,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.12, g: 0.09, b: 0.06, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8531,11 +8982,11 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: f954137e38cbb4840a7bcddfeeec165d, type: 3}
-    m_FontSize: 46
+    m_FontSize: 72
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 46
+    m_MaxSize: 72
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -8573,6 +9024,20 @@ MonoBehaviour:
   m_EffectColor: {r: 0.2, g: 0.04, b: 0.07, a: 0.82}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!114 &2640150299891587835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9176924341537222581}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c46ff494f770fb42a46717429c3c324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.FontScaleTag
+  baseSize: 46
+  captured: 1
 --- !u!1 &9205117929877994847
 GameObject:
   m_ObjectHideFlags: 0
@@ -8602,7 +9067,7 @@ RectTransform:
   m_GameObject: {fileID: 9205117929877994847}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.86078, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2497999616868480719}
@@ -8610,7 +9075,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -172, y: 0}
+  m_AnchoredPosition: {x: -199.00005, y: 0}
   m_SizeDelta: {x: 302, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7879414337476316006
@@ -8641,7 +9106,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 80f7596fa8817f44a8ae9b9b2f31ed83, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8bff8e6097e58b04d8343d255ab5299f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1

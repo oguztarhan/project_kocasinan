@@ -206,6 +206,7 @@ namespace Ridebury
             img.sprite = sprite;
             img.color = new Color(1f, 1f, 1f, img.color.a);
             img.preserveAspect = false;
+            UIKit.Slice(img, img.rectTransform.rect.size);
         }
 
         Joker AdoptJoker(HudJoker hj, int cost, int unlock, int kind, System.Action use)
@@ -332,7 +333,16 @@ namespace Ridebury
             if (j.lockGo) j.lockGo.SetActive(!unlocked);
             int owned = SaveSystem.FreeJoker(j.kind);
             bool faded = unlocked && owned <= 0;            // out of stock -> dim it
-            if (j.bg)   j.bg.color   = faded ? Dim40(j.bgColor)   : j.bgColor;
+            if (j.bg)
+            {
+                if (faded)
+                {
+                    j.bg.sprite = UIKit.PassiveState();
+                    j.bg.color = Color.white;
+                    j.bg.preserveAspect = true;
+                }
+                else j.bg.color = j.bgColor;
+            }
             if (j.icon) j.icon.color = faded ? Dim40(j.iconColor) : j.iconColor;
             if (j.counterGo) j.counterGo.SetActive(unlocked);
             if (j.counterText) j.counterText.text = owned.ToString();

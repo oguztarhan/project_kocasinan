@@ -185,7 +185,7 @@ namespace Ridebury
             var card = Img(garagePanel.transform, UIKit.PanelTall(), new Color(0.20f, 0.22f, 0.33f));
             GOverride(card, g => g.garageWindowSprite, g => g.garageWindowColor); // Inspector: swap the Garage window image / colour
             Center(card.rectTransform, new Vector2(980, PanelCardHeight()));     // clamped to the DEVICE height (short/16:9 phones)
-            var titleT = Label(card.transform, "GARAGE", title, Vector2.zero, new Vector2(700, 120), 74, White);
+            var titleT = Label(card.transform, "GARAGE", title, Vector2.zero, new Vector2(700, 120), 74, Ink);
             Place(titleT.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -90), new Vector2(700, 120)); // pinned to the card TOP -> stays put at ANY card height
             var close = RedClose(card.transform, null);
 
@@ -342,7 +342,7 @@ namespace Ridebury
             float h = height > 0f ? height : 74f;
             Sliced(go, new Vector2(796, h));
             var le = go.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = h; le.minHeight = h;
-            Label(go.transform, text, num, Vector2.zero, new Vector2(860, 60), fontSize > 0 ? fontSize : 40, White);
+            Label(go.transform, text, num, Vector2.zero, new Vector2(860, 60), fontSize > 0 ? fontSize : 40, Ink);
             return go.transform; // so callers can attach extras (e.g. the CHESTS drop-rates ⓘ button)
         }
 
@@ -426,7 +426,7 @@ namespace Ridebury
             // coin + price sit as ONE centred group instead of the icon hugging the left edge.
             var bc = Img(buy.transform, UIKit.Coin(), Gold); bc.raycastTarget = false; bc.preserveAspect = true;
             Place(bc.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-46, 0), new Vector2(46, 46));
-            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(24, 0), new Vector2(130, 52), 38, White, TextAnchor.MiddleLeft);
+            Label(buy.transform, ChestService.Cost(tier).ToString(), num, new Vector2(24, 0), new Vector2(130, 52), 38, Ink, TextAnchor.MiddleLeft);
 
             int keys = SaveSystem.Keys(tier.ToString());
             if (keys > 0) KeyBadge(card.transform, tier, keys);
@@ -451,11 +451,14 @@ namespace Ridebury
                 Sliced(open.GetComponent<Image>(), new Vector2(280, 96));
                 var ki = Img(open.transform, UIKit.Gem(), new Color(1f, 0.95f, 0.5f)); ki.raycastTarget = false; ki.preserveAspect = true;
                 Place(ki.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-82, 0), new Vector2(46, 46));
-                Label(open.transform, Loc.T("OPEN") + " " + keys, title, new Vector2(24, 0), new Vector2(180, 64), 36, White, TextAnchor.MiddleLeft);
+                Label(open.transform, Loc.T("OPEN") + " " + keys, title, new Vector2(24, 0), new Vector2(180, 64), 36, Ink, TextAnchor.MiddleLeft);
             }
             else
             {
-                AnchorRight(Label(row.transform, Loc.T("FIND A KEY"), num, Vector2.zero, new Vector2(320, 60), 34, InkSoft, TextAnchor.MiddleRight).rectTransform, 36, 0);
+                var locked = Img(row.transform, UIKit.ChestLocked(), White);
+                locked.raycastTarget = false; locked.preserveAspect = true;
+                Place(locked.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-92, 0), new Vector2(118, 118));
+                AnchorRight(Label(row.transform, Loc.T("FIND A KEY"), num, Vector2.zero, new Vector2(250, 60), 30, InkSoft, TextAnchor.MiddleRight).rectTransform, 150, 0);
             }
         }
 
@@ -476,12 +479,16 @@ namespace Ridebury
             GOverride(row, g => g.freeChestSprite, g => g.freeChestColor); // Inspector: swap the FREE CHEST row image / colour
             var le = row.gameObject.AddComponent<LayoutElement>(); le.preferredHeight = 130; le.minHeight = 130;
             Sliced(row, new Vector2(796, 130));
-            AnchorLeft(Label(row.transform, Loc.T("FREE CHEST"), title, Vector2.zero, new Vector2(420, 70), 44, Ink, TextAnchor.MiddleLeft).rectTransform, 40, 0);
-            if (ChestService.FreeChestReady())
+            bool ready = ChestService.FreeChestReady();
+            var status = Img(row.transform, ready ? UIKit.NoticeReward() : UIKit.NoticeTimer(), White);
+            status.raycastTarget = false; status.preserveAspect = true;
+            Place(status.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(64, 0), new Vector2(88, 88));
+            AnchorLeft(Label(row.transform, Loc.T("FREE CHEST"), title, Vector2.zero, new Vector2(340, 70), 40, Ink, TextAnchor.MiddleLeft).rectTransform, 118, 0);
+            if (ready)
             {
                 var open = Btn(row.transform, GarageActionSprite(), White, new Vector2(1, 0.5f), new Vector2(-170, 0), new Vector2(280, 92), OpenFreeChest);
                 Sliced(open.GetComponent<Image>(), new Vector2(280, 92));
-                Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(280, 64), 42, White);
+                Label(open.transform, Loc.T("OPEN"), title, Vector2.zero, new Vector2(280, 64), 42, Ink);
             }
             else
             {
@@ -558,10 +565,10 @@ namespace Ridebury
             int fs = garageCfg != null && garageCfg.craftHeaderFontSize > 0 ? garageCfg.craftHeaderFontSize : 40;
             tutCraftHeader = go.transform; // tutorial step 4 target
             // "CRAFT" pinned to the LEFT edge, shard balance pinned to the RIGHT edge -> stays inside ANY panel width.
-            AnchorLeft(Label(go.transform, Loc.T("CRAFT"), title, Vector2.zero, new Vector2(300, 58), fs, White, TextAnchor.MiddleLeft).rectTransform, 36, 0);
+            AnchorLeft(Label(go.transform, Loc.T("CRAFT"), title, Vector2.zero, new Vector2(300, 58), fs, Ink, TextAnchor.MiddleLeft).rectTransform, 36, 0);
             var gem = Img(go.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); gem.raycastTarget = false; gem.preserveAspect = true;
             Place(gem.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-210, 0), new Vector2(46, 46));
-            AnchorRight(Label(go.transform, SaveSystem.Shards.ToString(), num, Vector2.zero, new Vector2(150, 52), 38, White, TextAnchor.MiddleRight).rectTransform, 28, 0);
+            AnchorRight(Label(go.transform, SaveSystem.Shards.ToString(), num, Vector2.zero, new Vector2(150, 52), 38, Ink, TextAnchor.MiddleRight).rectTransform, 28, 0);
         }
 
         // One craft row: car TIER + remaining-locked count + a shard-cost CRAFT button (greyed when unaffordable or the
@@ -577,9 +584,9 @@ namespace Ridebury
             Sliced(row, new Vector2(796, 120));
             // tier name + "N left" pinned LEFT, CRAFT button pinned RIGHT -> contained at any panel width (no overflow).
             // Cream bar: DARKEN the tier colour instead of lightening it, and ink the sub-line.
-            AnchorLeft(Label(row.transform, Loc.T(TierName(tier)), num, Vector2.zero, new Vector2(320, 46), 34, Color.Lerp(rc, Color.black, 0.45f), TextAnchor.MiddleLeft).rectTransform, 40, 24);
+            AnchorLeft(Label(row.transform, Loc.T(TierName(tier)), num, Vector2.zero, new Vector2(320, 46), 34, Ink, TextAnchor.MiddleLeft).rectTransform, 40, 24);
             AnchorLeft(Label(row.transform, string.Format(Loc.T("{0} left"), locked), num, Vector2.zero, new Vector2(320, 34), 26, InkSoft, TextAnchor.MiddleLeft).rectTransform, 40, -24);
-            Vector2 crOff = new Vector2(-160, 0), crSize = new Vector2(280, 92);
+            Vector2 crOff = new Vector2(-158, 0), crSize = new Vector2(252, 82);
             if (garageCfg != null && garageCfg.overrideCraftButtons) { crOff = garageCfg.craftButtonOffset; crSize = garageCfg.craftButtonSize; } // Inspector: size + position
             var craft = Btn(row.transform, GarageActionSprite(), White,
                             new Vector2(1, 0.5f), crOff, crSize, () => { if (can) CraftTier(tier); });
@@ -587,8 +594,8 @@ namespace Ridebury
             Sliced(craftImg, crSize);
             if (!can) craftImg.color = new Color(0.62f, 0.62f, 0.66f); // greyed out (Img paints a sprite white, so re-tint here)
             var sc = Img(craft.transform, UIKit.Gem(), new Color(0.42f, 0.82f, 1f)); sc.raycastTarget = false; sc.preserveAspect = true;
-            Place(sc.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-58, 0), new Vector2(44, 44));
-            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(22, 0), new Vector2(150, 50), 34, White, TextAnchor.MiddleLeft);
+            Place(sc.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-50, 0), new Vector2(38, 38));
+            Label(craft.transform, CraftService.Cost(tier).ToString(), num, new Vector2(20, 0), new Vector2(130, 46), 30, Ink, TextAnchor.MiddleLeft);
         }
 
         // Pin a rect to the LEFT / RIGHT edge of its parent so craft rows fit ANY panel width (baked or code-built),

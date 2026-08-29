@@ -206,13 +206,17 @@ public class MenuController : MonoBehaviour
         var img = t ? t.GetComponent<Image>() : null;
         if (img == null) return;
         img.sprite = sprite; img.color = Color.white; img.preserveAspect = false;
+        UIKit.Slice(img, img.rectTransform.rect.size);
     }
 
     // Untinted, un-squashed. No-ops on a missing image or sprite, so a partial menu bake is harmless.
     static void Paint(Image img, Sprite sprite)
     {
         if (img == null || sprite == null) return;
-        img.sprite = sprite; img.color = Color.white; img.preserveAspect = true;
+        img.sprite = sprite; img.color = Color.white;
+        bool scalableSurface = sprite.border.sqrMagnitude > 0.01f;
+        img.preserveAspect = !scalableSurface;
+        if (scalableSurface) UIKit.Slice(img, img.rectTransform.rect.size);
     }
 
     GameObject FindByName(string n)

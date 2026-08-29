@@ -430,7 +430,7 @@ namespace Ridebury
             lblGo.transform.SetParent(rowGo.transform, false);
             var lbl = lblGo.AddComponent<Text>();
             lbl.font = UIKit.Title(); lbl.text = Loc.T("RESTORE PURCHASES"); lbl.fontSize = 36;
-            lbl.color = Color.white; lbl.alignment = TextAnchor.MiddleCenter; lbl.raycastTarget = false;
+            lbl.color = new Color(0.12f, 0.09f, 0.06f, 1f); lbl.alignment = TextAnchor.MiddleCenter; lbl.raycastTarget = false;
             lbl.horizontalOverflow = HorizontalWrapMode.Overflow; lbl.verticalOverflow = VerticalWrapMode.Overflow;
             var lrt = lbl.rectTransform;
             lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
@@ -498,6 +498,14 @@ namespace Ridebury
         // re-bake of the prefab without anyone repeating them by hand. Both are idempotent.
         static void PolishStore(Transform root)
         {
+            // The new cards and price plates are cream/cyan. A single dark ink colour keeps every
+            // authored and runtime-localized label readable, including prices and section headers.
+            Color ink = new Color(0.12f, 0.09f, 0.06f, 1f);
+            foreach (var label in root.GetComponentsInChildren<Text>(true))
+                label.color = ink;
+            foreach (var label in root.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                label.color = ink;
+
             // The title sat on a red slab. Drop the slab, keep the word.
             var band = FindDeep(root, "TitleBand");
             if (band != null)

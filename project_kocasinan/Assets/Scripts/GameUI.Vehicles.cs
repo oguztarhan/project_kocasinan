@@ -35,9 +35,9 @@ namespace Ridebury
             Sliced(row, new Vector2(796, 134));
             var b = row.gameObject.AddComponent<Button>(); b.targetGraphic = row;
             b.onClick.AddListener(ShowVehicles);
-            var vlabel = Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 52, White);
-            var vout = vlabel.gameObject.AddComponent<Outline>(); // white-on-orange: a dark rim keeps it crisp
-            vout.effectColor = new Color(0.35f, 0.15f, 0f, 0.85f); vout.effectDistance = new Vector2(2.5f, -2.5f);
+            var vlabel = Label(row.transform, Loc.T("VEHICLES"), title, Vector2.zero, new Vector2(760, 80), 52, Ink);
+            var vout = vlabel.gameObject.AddComponent<Outline>();
+            vout.effectColor = new Color(1f, 0.86f, 0.58f, 0.55f); vout.effectDistance = new Vector2(1.5f, -1.5f);
         }
 
         // ---- build the (hidden) wardrobe panel — same scroll recipe as BuildGarage --------
