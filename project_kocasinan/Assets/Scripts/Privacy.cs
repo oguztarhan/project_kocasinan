@@ -15,9 +15,22 @@ namespace Ridebury
     /// </summary>
     public static class Privacy
     {
-        public const string PolicyUrl = "https://intakeentertainment.com/privacy";
+        /// <summary>The Ridebury-specific policy (the old /privacy page covers every Intake title, so it is no
+        /// longer the right link for this app's store listing or its in-game button).</summary>
+        public const string PolicyBaseUrl = "https://intakeentertainment.com/privacy/ridebury/";
 
-        /// <summary>Open the privacy policy in the device browser.</summary>
+        /// <summary>
+        /// The URL to open, with the language fragment. The page ships English and Turkish in ONE document and picks
+        /// between them from the hash — its script is literally <c>location.hash === '#en' ? 'en' : 'tr'</c>, so
+        /// anything that is NOT <c>#en</c> renders Turkish. The fragment is therefore not optional: linking to the
+        /// bare URL would show Turkish to every player in the world, App Review included.
+        ///
+        /// The game has nine languages and the page has two, so Turkish players get <c>#tr</c> and everyone else
+        /// falls back to English — the same English-fallback rule <see cref="Loc.T"/> uses for missing strings.
+        /// </summary>
+        public static string PolicyUrl => PolicyBaseUrl + (Loc.Lang == 0 ? "#tr" : "#en");
+
+        /// <summary>Open the privacy policy in the device browser, in the player's language where we have it.</summary>
         public static void OpenPolicy() => Application.OpenURL(PolicyUrl);
     }
 }
