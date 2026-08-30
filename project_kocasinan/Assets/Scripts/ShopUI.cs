@@ -84,6 +84,7 @@ namespace Ridebury
                     HideLegacyShops();                       // pre-unify scene copies must never show alongside it
                     var go = Object.Instantiate(prefab);
                     go.name = prefab.name;
+                    CanvasAspectFit.Apply(go);
                     shop = go.GetComponent<ShopUI>();
                 }
                 else shop = AdoptLegacy();                   // prefab not baked yet -> drive the baked scene shop

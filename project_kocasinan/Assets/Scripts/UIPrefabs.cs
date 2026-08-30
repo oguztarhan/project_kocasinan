@@ -98,6 +98,7 @@ namespace Ridebury
 
             var go = Object.Instantiate(prefab);
             go.name = rootName;                       // no "(Clone)": the editor bakers find it by this name
+            CanvasAspectFit.Apply(go);
             return go.GetComponent<T>() ?? go.GetComponentInChildren<T>(true);
         }
 
