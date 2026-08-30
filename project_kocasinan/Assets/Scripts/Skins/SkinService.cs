@@ -33,7 +33,13 @@ namespace Ridebury
 
         /// <summary>The shared bus model (othercars/bus.fbx, copied to Resources), used for every skinned theme's
         /// 2-cell buses, recolored per-vehicle to the match-color. Null if not present -> caller falls back.</summary>
-        public const string BusModelPath = "CarSkins/BusSep"; // SimplePoly separate-material bus (clean body-only recolor)
+        // DEAD as of 2026-08-30: Resources/CarSkins was deleted. Skins v3 are TEXTURE skins (a pattern over the default
+        // vehicle — see SkinCatalog), so SkinDef.carModels is never assigned, HasModels is always false, and neither
+        // BusModel() nor RandomCarModel() has a caller. The folder only survived because anything under Resources/ is
+        // force-included in the build, which was dragging the whole stock CarsAssetPack into the .ipa.
+        // This path no longer resolves and BusModel() now always returns null. If per-theme 3D car models ever come
+        // back, add IN-HOUSE models (Assets/Vehicles) and re-point this — do not restore the stock pack.
+        public const string BusModelPath = "CarSkins/BusSep";
         public static GameObject BusModel() => Load(BusModelPath);
     }
 }

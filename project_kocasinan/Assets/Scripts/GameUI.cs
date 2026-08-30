@@ -145,6 +145,9 @@ namespace Ridebury
                 return;
             }
             hudPanel = h.hudRoot;
+            // Keep the gear / level badge / coin bar out of the notch and the jokers off the home indicator. The HUD
+            // root holds nothing but chrome, so every edge-anchored child of it wants this. (See SafeArea.)
+            SafeArea.ApplyToChrome(hudPanel.transform);
             hudCoins = h.coinText;
             hudLevel = h.levelText;
             hudTheme = h.themeText;
@@ -527,6 +530,10 @@ namespace Ridebury
             // DEBUG: the LEVELS jump button now lives HERE in Settings (off the play screen / out of screenshots),
             // shown only while the "Ridebury ▸ LEVELS Test Button" editor toggle is ON. Device builds never see it.
             if (LevelSelect.DebugLevels) AddLevelsButton(settingsPanel != null ? settingsPanel.transform : null);
+            // LAST, deliberately: the privacy row is bottom-anchored and AddPrivacyOptionsButton positions the ad-privacy
+            // button FROM the policy button's position. Running this before it would have the clone inherit an
+            // already-shifted baseline and bake the inset in twice. (See SafeArea.ApplyToChrome.)
+            SafeArea.ApplyToChrome(settingsPanel != null ? settingsPanel.transform : null);
         }
 
         // The two privacy entry points the stores want (see <see cref="Privacy"/>), at the bottom of whichever Settings

@@ -83,6 +83,10 @@ public class MenuController : MonoBehaviour
         // (#2) Menu background is owned by the self-spawning MenuBackground.cs (animated coast-sunset), which
         // disables the static "Background" object itself. We deliberately DON'T override it here anymore — that
         // was a second background fighting the animated one. One source of truth now.
+        // Settings gear (top-left) and the coin bar (top-right) sit inside the notch band on every modern iPhone, and
+        // the bottom nav row clips the home indicator. Insets the edge-anchored chrome only — the animated background
+        // and the full-screen panels are stretched, so ApplyToChrome skips them and they stay edge-to-edge.
+        Ridebury.SafeArea.ApplyToChrome(transform);
         Localizer.LocalizeScene(); // translate all baked menu text to the saved language
         // If the "did you like the game?" reminder has already fired, the player opened the app having been asked —
         // so follow up with the actual prompt here in the menu. No-op when nothing is pending. (see RateUs)
