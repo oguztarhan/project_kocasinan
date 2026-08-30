@@ -53,6 +53,10 @@ namespace Ridebury
 
         bool wired;
 
+        // The Restore button's own label — reset back to "RESTORE PURCHASES" on every open so a previous
+        // "NOTHING TO RESTORE" / "STORE NOT READY" answer doesn't stay on the button forever.
+        Text restoreLabel;
+
         public bool IsOpen => panel != null && panel.activeInHierarchy;
 
         void Awake() { if (instance == null) instance = this; }
@@ -154,6 +158,7 @@ namespace Ridebury
             if (!gameObject.activeSelf) gameObject.SetActive(true);
             panel.SetActive(true);
             panel.transform.SetAsLastSibling();
+            if (restoreLabel != null) restoreLabel.text = Loc.T("RESTORE PURCHASES"); // clear last restore's answer
             RefreshPrices();            // IAP is ready by open-time even when it wasn't at Start
             Localizer.LocalizeScene();  // the panel is active now -> its text is found and translated
             onOpened?.Invoke();
@@ -350,10 +355,17 @@ namespace Ridebury
         // Wire a promo row to a real purchase, but make ONLY the green price button ("PriceBg")
         // buy. The orange bar background stays a plain tap-blocker: tapping it must not purchase
         // and must not fall through to the close-backdrop behind the shop.
+        //
+        // ONE-TIME OFFERS: the three no-ads tiers are non-consumables. Once one is owned the row is
+        // LOCKED — no click listener, a dead button and an "OWNED" label instead of a price — so it
+        // can never be bought twice. Re-evaluated on every RefreshPrices (every open + every
+        // IAPManager.OnChanged), so the row locks itself the moment the purchase resolves.
         static void WirePromoBar(Transform shopRoot, string rowName, string productId, string fallbackPrice, System.Action onBuy)
         {
             var row = FindDeep(shopRoot, rowName);
             if (row == null) return;
+
+            bool owned = IAPManager.Owned(productId);
 
             var rowImg = row.GetComponent<Image>();
             if (rowImg != null) rowImg.raycastTarget = true;
@@ -368,7 +380,14 @@ namespace Ridebury
             if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
             if (pImg != null) pBtn.targetGraphic = pImg;
             pBtn.onClick = new Button.ButtonClickedEvent();
-            pBtn.onClick.AddListener(() => onBuy());
+            if (!owned) pBtn.onClick.AddListener(() => onBuy());
+            pBtn.interactable = !owned;
+
+            // Dim the whole row while it's owned, so "already yours" reads at a glance. A CanvasGroup
+            // is used (not tinting the sprites) so nothing about the authored art has to be restored.
+            var cg = row.GetComponent<CanvasGroup>();
+            if (cg == null && owned) cg = row.gameObject.AddComponent<CanvasGroup>();
+            if (cg != null) cg.alpha = owned ? 0.55f : 1f;
 
             // Real localized store price on the row's "Price" label (Text or TMP), with the
             // placeholder as a fallback so the label is never blank.
@@ -376,7 +395,7 @@ namespace Ridebury
 #if !UNITY_EDITOR
             real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
 #endif
-            string shown = string.IsNullOrEmpty(real) ? fallbackPrice : real;
+            string shown = owned ? Loc.T("OWNED") : (string.IsNullOrEmpty(real) ? fallbackPrice : real);
             if (string.IsNullOrEmpty(shown)) return;
             var pl = FindDeep(row, "Price") ?? price;
             if (pl == null) return;
@@ -408,11 +427,21 @@ namespace Ridebury
                 var authoredImage = authored.GetComponent<Image>();
                 if (authoredImage != null) authoredButton.targetGraphic = authoredImage;
                 var authoredLabel = authored.GetComponentInChildren<Text>(true);
+                restoreLabel = authoredLabel;
                 authoredButton.onClick = new Button.ButtonClickedEvent();
                 authoredButton.onClick.AddListener(() =>
                 {
-                    IAPManager.Instance?.Restore();
-                    if (authoredLabel != null) authoredLabel.text = Loc.T("RESTORED");
+                    // Report the REAL outcome: claiming "RESTORED" when the store never answered (or when
+                    // the account owns nothing) is exactly the behaviour store review flags.
+                    if (IAPManager.Instance == null)
+                    {
+                        if (authoredLabel != null) authoredLabel.text = Loc.T("STORE NOT READY");
+                        return;
+                    }
+                    IAPManager.Instance.Restore(r =>
+                    {
+                        if (authoredLabel != null) authoredLabel.text = IAPManager.RestoreLabel(r);
+                    });
                 });
                 return;
             }
@@ -436,8 +465,13 @@ namespace Ridebury
             lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
             lrt.anchoredPosition = Vector2.zero; lrt.sizeDelta = new Vector2(640, 70);
 
+            restoreLabel = lbl;
             var btn = rowGo.AddComponent<Button>(); btn.targetGraphic = row;
-            btn.onClick.AddListener(() => { IAPManager.Instance?.Restore(); lbl.text = Loc.T("RESTORED"); });
+            btn.onClick.AddListener(() =>
+            {
+                if (IAPManager.Instance == null) { lbl.text = Loc.T("STORE NOT READY"); return; }
+                IAPManager.Instance.Restore(r => lbl.text = IAPManager.RestoreLabel(r));
+            });
 
             if (scroll != null)   // make room: extend the scroll view's BOTTOM edge down (away from the title)
             {

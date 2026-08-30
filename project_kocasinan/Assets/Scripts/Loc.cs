@@ -109,6 +109,10 @@ public static class Loc
         { "SELECT LEVEL", new[]{ "BÖLÜM SEÇ","SELECT LEVEL","LEVEL WÄHLEN","SCEGLI LIVELLO","ELIGE NIVEL","选择关卡","CHOISIR NIVEAU","ESCOLHE O NÍVEL","PILIH LEVEL" } },
         { "RESTORE PURCHASES", new[]{ "SATIN ALIMLARI GERİ YÜKLE","RESTORE PURCHASES","KÄUFE WIEDERHERSTELLEN","RIPRISTINA ACQUISTI","RESTAURAR COMPRAS","恢复购买","RESTAURER LES ACHATS","RESTAURAR COMPRAS","PULIHKAN PEMBELIAN" } },
         { "RESTORED", new[]{ "GERİ YÜKLENDİ","RESTORED","WIEDERHERGESTELLT","RIPRISTINATO","RESTAURADO","已恢复","RESTAURÉ","RESTAURADO","DIPULIHKAN" } },
+        // Restore outcomes + the one-time-offer lock (a no-ads / no-banner tier already owned is shown as OWNED, not a price).
+        { "NOTHING TO RESTORE", new[]{ "GERİ YÜKLENECEK YOK","NOTHING TO RESTORE","NICHTS WIEDERHERZUSTELLEN","NULLA DA RIPRISTINARE","NADA QUE RESTAURAR","没有可恢复的购买","RIEN À RESTAURER","NADA A RESTAURAR","TIDAK ADA PEMBELIAN" } },
+        { "STORE NOT READY", new[]{ "MAĞAZA HAZIR DEĞİL","STORE NOT READY","STORE NICHT BEREIT","STORE NON PRONTO","TIENDA NO LISTA","商店未就绪","BOUTIQUE INDISPONIBLE","LOJA INDISPONÍVEL","TOKO BELUM SIAP" } },
+        { "OWNED", new[]{ "SATIN ALINDI","OWNED","GEKAUFT","ACQUISTATO","COMPRADO","已拥有","ACHETÉ","ADQUIRIDO","DIMILIKI" } },
         { "LOADING",  new[]{ "YÜKLENİYOR","LOADING","LÄDT","CARICAMENTO","CARGANDO","加载中","CHARGEMENT","A CARREGAR","MEMUAT" } },
         { "LANGUAGE", new[]{ "DİL","LANGUAGE","SPRACHE","LINGUA","IDIOMA","语言","LANGUE","IDIOMA","BAHASA" } },
         { "Language", new[]{ "Dil","Language","Sprache","Lingua","Idioma","语言","Langue","Idioma","Bahasa" } }, // mixed-case variant (the TMP menu label)
@@ -219,6 +223,11 @@ public static class Loc
             "ÉPIQUE ou mieux garanti toutes les {0} ouvertures.","ÉPICO ou melhor garantido a cada {0} aberturas.","EPIK atau lebih dijamin setiap {0} kali buka." } },
         { "PRIVACY POLICY", new[]{
             "GİZLİLİK POLİTİKASI","PRIVACY POLICY","DATENSCHUTZ","PRIVACY","PRIVACIDAD","隐私政策","CONFIDENTIALITÉ","PRIVACIDADE","KEBIJAKAN PRIVASI" } },
+        // Google UMP's own entry point (Settings ▸ Btn_AdPrivacy), shown ONLY to the EEA/UK users who were given the
+        // consent form. Deliberately worded as the AD choice, not as a second privacy policy — the two sit next to
+        // each other and must not read the same.
+        { "AD PRIVACY OPTIONS", new[]{
+            "REKLAM GİZLİLİK SEÇENEKLERİ","AD PRIVACY OPTIONS","DATENSCHUTZOPTIONEN FÜR WERBUNG","OPZIONI PRIVACY ANNUNCI","OPCIONES DE PRIVACIDAD DE ANUNCIOS","广告隐私选项","OPTIONS DE CONFIDENTIALITÉ DES PUBS","OPÇÕES DE PRIVACIDADE DE ANÚNCIOS","OPSI PRIVASI IKLAN" } },
         { "Privacy options", new[]{
             "Gizlilik seçenekleri","Privacy options","Datenschutzoptionen","Opzioni privacy","Opciones de privacidad","隐私选项","Options de confidentialité","Opções de privacidade","Opsi privasi" } },
         { "Run Ridebury > Build Vehicle Sets", new[]{

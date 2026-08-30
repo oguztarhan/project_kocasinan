@@ -40,6 +40,35 @@ namespace Ridebury
             return null;
         }
 
+        /// <summary>ONE-TIME OFFERS: true when this non-consumable entitlement is already held, so both shops can lock
+        /// the row and <see cref="Buy"/> can refuse. Checks the LOCAL saved entitlement OR the store receipt, so
+        /// ownership is known even before IAP has finished initialising (and in the editor's fake store, whose receipts
+        /// are wiped on every play). Not for the consumable coin packs — those are always re-buyable.</summary>
+        public static bool Owned(string id)
+        {
+            switch (id)
+            {
+                // Ads are already gone if EITHER no-ads tier is owned -> the plain tier is no longer sellable.
+                case RemoveAds:
+                    return SaveSystem.AdsRemoved || HasReceipt(RemoveAds) || HasReceipt(RemoveAdsPlus);
+                // "Plus" is its own SKU (extra gold + Recolor joker) -> only owning PLUS locks it.
+                case RemoveAdsPlus:
+                    return SaveSystem.AdsRemovedPlus || HasReceipt(RemoveAdsPlus);
+                // Either no-ads tier already kills the banner -> the banner-only tier would be money for nothing.
+                case RemoveBanner:
+                    return SaveSystem.BannerRemoved || SaveSystem.AdsRemoved
+                        || HasReceipt(RemoveBanner) || HasReceipt(RemoveAds) || HasReceipt(RemoveAdsPlus);
+            }
+            return false;
+        }
+
+        /// <summary>True if the store itself reports an owned purchase for this product (null-safe before init).</summary>
+        static bool HasReceipt(string id)
+        {
+            var p = Instance?.controller?.products?.WithID(id);
+            return p != null && p.hasReceipt;
+        }
+
         IStoreController controller;
         IExtensionProvider extensions;   // kept for iOS: Apple restore lives on IAppleExtensions
         CrossPlatformValidator validator;
@@ -121,6 +150,8 @@ namespace Ridebury
                 SaveSystem.AdsRemoved = true;
                 AdManager.Instance?.SetAdsEnabled(false);
             }
+            // Remember WHICH no-ads tier this was, so the shop locks the right row (AdsRemoved can't tell them apart).
+            if (id == RemoveAdsPlus) SaveSystem.AdsRemovedPlus = true;
             // Banner-only entitlement: turns off ONLY the banner (interstitial + rewarded keep serving).
             if (id == RemoveBanner)
             {
@@ -140,6 +171,9 @@ namespace Ridebury
         // ---------------- public API for the shop ----------------
         public void Buy(string id)
         {
+            // ONE-TIME OFFERS: never start a second purchase flow for an entitlement the player already holds. Google
+            // would answer ITEM_ALREADY_OWNED anyway, but the player must not even reach the payment sheet.
+            if (Owned(id)) { Debug.Log("[IAP] " + id + " already owned — purchase blocked"); OnChanged?.Invoke(); return; }
             if (controller == null) { Debug.LogWarning("[IAP] not ready — purchase ignored"); return; }
             controller.InitiatePurchase(id);
         }
@@ -147,46 +181,83 @@ namespace Ridebury
         /// <summary>Localized store price (e.g. "₺49,99"), or null until IAP has initialised / for an unknown id.</summary>
         public string Price(string id) => id == null ? null : controller?.products?.WithID(id)?.metadata?.localizedPriceString;
 
-        /// <summary>True if a non-consumable is owned (drives "OWNED" state + hides the no-ads rows).</summary>
-        public bool Owns(string id)
+        /// <summary>True if the store itself reports this non-consumable as owned. Prefer the static
+        /// <see cref="Owned"/> for UI: it also honours the locally saved entitlement (works before init).</summary>
+        public bool Owns(string id) => HasReceipt(id);
+
+        /// <summary>Outcome of <see cref="Restore"/>, so the button can say what actually happened.</summary>
+        public enum RestoreResult { Restored, NothingToRestore, NotReady }
+
+        /// <summary>Re-assert every entitlement the store reports as owned. Returns true if ANYTHING is owned.
+        /// The "plus" one-time bonus is deliberately NOT re-granted here — only a real purchase grants it.</summary>
+        bool ApplyOwnedEntitlements()
         {
-            var p = controller?.products?.WithID(id);
-            return p != null && p.hasReceipt;
+            bool any = false;
+            if (HasReceipt(RemoveAds) || HasReceipt(RemoveAdsPlus))
+            {
+                SaveSystem.AdsRemoved = true;
+                AdManager.Instance?.SetAdsEnabled(false);
+                any = true;
+            }
+            if (HasReceipt(RemoveAdsPlus)) { SaveSystem.AdsRemovedPlus = true; any = true; }
+            if (HasReceipt(RemoveBanner))
+            {
+                SaveSystem.BannerRemoved = true;
+                AdManager.Instance?.SetBannerEnabled(false);
+                any = true;
+            }
+            OnChanged?.Invoke();   // repaint prices + the OWNED lock on both shops
+            return any;
         }
 
         /// <summary>Restore Purchases button. Google replays owned non-consumables through ProcessPurchase on init, so
-        /// on Android this just re-asserts the entitlement (manual safety net + Play-policy requirement). Apple does
-        /// NOT replay automatically after a reinstall — iOS must explicitly call RestoreTransactions, which re-runs
-        /// ProcessPurchase for every owned product (App Store review REJECTS a Restore button that skips this).</summary>
-        public void Restore()
+        /// on Android this re-asserts the entitlement from the owned receipts (manual safety net + Play-policy
+        /// requirement). Apple does NOT replay automatically after a reinstall — iOS must explicitly call
+        /// RestoreTransactions, which re-runs ProcessPurchase for every owned product (App Store review REJECTS a
+        /// Restore button that skips this). <paramref name="onDone"/> reports the outcome so the button can show
+        /// "RESTORED" / "NOTHING TO RESTORE" / "STORE NOT READY" instead of always claiming success.</summary>
+        public void Restore(System.Action<RestoreResult> onDone = null)
         {
+            // Before IAP initialises there are no receipts to read — saying "RESTORED" here would be a lie.
+            if (controller == null)
+            {
+                Debug.LogWarning("[IAP] restore requested before the store initialised");
+                onDone?.Invoke(RestoreResult.NotReady);
+                return;
+            }
+
             // iOS only (runtime-gated so the exact same compiled code ships on Android and this branch is simply never
-            // taken there). Restored products arrive asynchronously via ProcessPurchase -> Grant; the hasReceipt
-            // re-assert below still runs first as the cheap synchronous path for already-known receipts.
+            // taken there). Restored products arrive asynchronously via ProcessPurchase -> Grant, so the result is
+            // reported from Apple's callback once the replay has settled.
             if (Application.platform == RuntimePlatform.IPhonePlayer)
             {
                 try
                 {
-                    extensions?.GetExtension<IAppleExtensions>()?.RestoreTransactions((ok, msg) =>
+                    var apple = extensions?.GetExtension<IAppleExtensions>();
+                    if (apple != null)
                     {
-                        Debug.Log("[IAP] Apple restore " + (ok ? "finished" : ("failed: " + msg)));
-                        OnChanged?.Invoke(); // refresh OWNED states once Apple's replay settles
-                    });
+                        apple.RestoreTransactions((ok, msg) =>
+                        {
+                            Debug.Log("[IAP] Apple restore " + (ok ? "finished" : ("failed: " + msg)));
+                            bool any = ApplyOwnedEntitlements();
+                            onDone?.Invoke(!ok ? RestoreResult.NotReady
+                                               : (any ? RestoreResult.Restored : RestoreResult.NothingToRestore));
+                        });
+                        return;   // the callback reports the result
+                    }
                 }
                 catch (System.Exception e) { Debug.LogWarning("[IAP] Apple restore unavailable: " + e.Message); }
             }
-            if (Owns(RemoveAds) || Owns(RemoveAdsPlus))
-            {
-                SaveSystem.AdsRemoved = true;
-                AdManager.Instance?.SetAdsEnabled(false);
-            }
-            if (Owns(RemoveBanner))
-            {
-                SaveSystem.BannerRemoved = true;
-                AdManager.Instance?.SetBannerEnabled(false);
-            }
-            OnChanged?.Invoke();
+
+            bool restored = ApplyOwnedEntitlements();
+            onDone?.Invoke(restored ? RestoreResult.Restored : RestoreResult.NothingToRestore);
         }
+
+        /// <summary>Localized label for a restore outcome — one wording for both shops' Restore buttons.</summary>
+        public static string RestoreLabel(RestoreResult r)
+            => r == RestoreResult.Restored ? Loc.T("RESTORED")
+             : r == RestoreResult.NothingToRestore ? Loc.T("NOTHING TO RESTORE")
+             : Loc.T("STORE NOT READY");
     }
 }
 #pragma warning restore 612, 618

@@ -158,6 +158,15 @@ namespace Ridebury
             set { PlayerPrefs.SetInt("bj_ads_removed", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // Set once the player buys the PLUS no-ads tier (remove_ads_plus). AdsRemoved alone can't tell the two no-ads
+        // tiers apart, and the shop has to know which of the two rows is already sold. Reads the legacy "bonus already
+        // granted" key too, so a player who bought plus BEFORE this flag existed is still recognised as an owner.
+        public static bool AdsRemovedPlus
+        {
+            get => PlayerPrefs.GetInt("bj_ads_removed_plus", 0) == 1 || PlayerPrefs.GetInt("bj_rap_bonus", 0) == 1;
+            set { PlayerPrefs.SetInt("bj_ads_removed_plus", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         // Selected preset-avatar index and player name (Profile panel).
         public static int AvatarIndex
         {

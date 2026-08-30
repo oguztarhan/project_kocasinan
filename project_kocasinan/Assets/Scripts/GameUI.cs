@@ -558,10 +558,53 @@ namespace Ridebury
             var policyLabel = policy.GetComponentInChildren<Text>(true);
             if (policyLabel != null) policyLabel.text = "PRIVACY POLICY";   // Loc key -> LocalizeScene translates it
 
-            // No ad-privacy ("Privacy options") button: removed on request. AdManager.ShowPrivacyOptions() is still
-            // there, so re-adding an entry point is one Btn() call — see PrivacyOptionsVisibility below for the
-            // show-only-where-required behaviour it had.
+            // ---- Ad privacy (Google UMP) ------------------------------------------------------------------
+            // Google's EU user consent policy requires that anyone who was SHOWN the consent form can reopen it and
+            // change their answer. PrivacyOptionsVisibility keeps this invisible and untappable everywhere else, so
+            // outside the EEA/UK the Settings panel looks exactly as it did without it.
+            var adPrivacy = FindDeep(panel, "Btn_AdPrivacy");   // idempotent: SetupSettings can run more than once
+            Button ump;
+            if (adPrivacy != null) ump = adPrivacy.GetComponent<Button>() ?? adPrivacy.gameObject.AddComponent<Button>();
+            else if (authored != null)
+            {
+                // Clone the authored policy button so this inherits its exact sprite/size/style, then park it one
+                // row ABOVE it. Cloning (rather than Btn()) is the same trick MenuController uses for Btn_Garage —
+                // it is the only way to match chrome that lives in the prefab, not in code.
+                var prt = (RectTransform)authored;
+                var clone = Instantiate(authored.gameObject, authored.parent);
+                clone.name = "Btn_AdPrivacy";
+                var crt = (RectTransform)clone.transform;
+                crt.anchorMin = prt.anchorMin; crt.anchorMax = prt.anchorMax; crt.pivot = prt.pivot;
+                crt.sizeDelta = prt.sizeDelta;
+                crt.anchoredPosition = prt.anchoredPosition + new Vector2(0, prt.sizeDelta.y + 16f);
+                ump = clone.GetComponent<Button>() ?? clone.AddComponent<Button>();
+                // The clone inherited the policy link and must not open it. Replace the whole event rather than
+                // RemoveAllListeners(), which drops only runtime listeners and leaves any persistent (prefab-authored)
+                // call in place.
+                ump.onClick = new Button.ButtonClickedEvent();
+                // It also inherited any LocalizedText Localizer had already tagged onto the label, whose key is still
+                // "PRIVACY POLICY" — left alone it would overwrite our caption on the next language change.
+                foreach (var stale in clone.GetComponentsInChildren<LocalizedText>(true)) Destroy(stale);
+            }
+            else
+            {
+                // Code-built Settings panel: the policy link was just made at y = 90, so stack this directly above.
+                ump = Btn(panel, UIKit.PriceBtnA(), new Color(0.45f, 0.50f, 0.60f), new Vector2(0.5f, 0f),
+                          new Vector2(0, 184), new Vector2(560, 84), null);
+                Label(ump.transform, "", num, Vector2.zero, new Vector2(540, 54), 30, White);
+                ump.gameObject.name = "Btn_AdPrivacy";
+            }
+            ump.onClick.RemoveListener(ShowUmpPrivacyOptions);
+            ump.onClick.AddListener(ShowUmpPrivacyOptions);
+            var umpLabel = ump.GetComponentInChildren<Text>(true);
+            if (umpLabel != null) umpLabel.text = "AD PRIVACY OPTIONS";     // Loc key -> LocalizeScene translates it
+            if (ump.GetComponent<PrivacyOptionsVisibility>() == null)
+                ump.gameObject.AddComponent<PrivacyOptionsVisibility>();
         }
+
+        // Named (not a lambda) so the Remove-then-Add above can actually find and drop the old listener when
+        // SetupSettings runs a second time — a lambda would re-subscribe every run and open N forms per tap.
+        static void ShowUmpPrivacyOptions() => AdManager.Instance?.ShowPrivacyOptions();
 
         // Keeps the Privacy-options button visible ONLY while UMP requires it. Uses a CanvasGroup (not SetActive, which
         // would stop its own Update) and only runs while the Settings panel is open — effectively free.

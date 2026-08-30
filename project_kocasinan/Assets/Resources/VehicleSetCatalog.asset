@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cfdf9d07c4fcd614e882933e43aab67c, type: 3}
   m_Name: VehicleSetCatalog
-  m_EditorClassIdentifier: Assembly-CSharp::BusJam.VehicleSetCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Ridebury.VehicleSetCatalog
   sets:
   - id: set_firenze
     displayName: Firenze

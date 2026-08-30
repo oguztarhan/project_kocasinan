@@ -14,8 +14,15 @@ namespace Ridebury
     ///     out while the prompt is still pending; when the player next opens the app after it fired, the menu shows
     ///     the same popup (see <see cref="MaybeShowFromNotification"/>).
     ///
-    /// Flow — YES and NO BOTH lead to the store, because a 1-star review with a written reason is worth more than
-    /// silence: YES asks for the rating + comment, NO asks the player to tell us what went wrong in a comment.
+    /// >>> iOS SHOWS NO POPUP AT ALL. <<< The App Store Review Guidelines' "Ratings and Reviews" rule requires the
+    /// system API (SKStoreReviewController) for any app-initiated rating ask and explicitly disallows custom review
+    /// prompts — and a YES/NO sentiment gate in front of the store link is the exact pattern review looks for. So on
+    /// iOS <see cref="ShowNow"/> banks the ask against the same cadence gates and calls Device.RequestStoreReview();
+    /// everything below this line — the card, the YES/NO step, ASK ME LATER / NEVER ASK AGAIN and the
+    /// ?action=write-review deep link — is the ANDROID surface only. Do not "unify" the two platforms.
+    ///
+    /// Android flow — YES and NO BOTH lead to the store, because a 1-star review with a written reason is worth more
+    /// than silence: YES asks for the rating + comment, NO asks the player to tell us what went wrong in a comment.
     /// Every step carries ASK ME LATER (snooze <see cref="LaterDelayDays"/> days) and NEVER ASK AGAIN (permanent).
     ///
     /// Delete this one file + its three call sites (RideburyGame.AdvanceAfterWin, MenuController.Start,
@@ -150,6 +157,25 @@ namespace Ridebury
         /// <summary>Force the prompt open, bypassing the eligibility gate (kept public for a Settings "RATE US" entry).</summary>
         public static void ShowNow()
         {
+#if UNITY_IOS
+            // iOS: the system rating sheet, never our own card — see the class summary. Fire-and-forget by design
+            // (Apple never reports whether the sheet appeared, and iOS caps it at three prompts a year), so the ask
+            // is banked exactly as the popup banks it: burn one of MaxAsks, reset the win counter and re-arm the
+            // snooze. Eligible() therefore still spaces the calls out and stops for good after MaxAsks, which is
+            // what keeps us well inside Apple's own quota instead of leaning on it.
+            Asks = Asks + 1;
+            Wins = 0;
+            NextAt = Now + LaterDelayDays * 86400L;
+            NotifAt = 0; // a pending "did you like the game?" nudge has now been answered by the sheet
+            FirebaseManager.LogEvent("rate_prompt_shown", "asks", Asks);
+#if UNITY_EDITOR
+            Debug.Log("[RateUs] iOS build target — system review sheet requested (no-op in the Editor). " +
+                      "The custom popup is deliberately NOT shown on iOS.");
+#else
+            UnityEngine.iOS.Device.RequestStoreReview();
+#endif
+            return;
+#else
             if (instance != null) return; // already up
             var go = new GameObject("~RateUsPopup");
             DontDestroyOnLoad(go);
@@ -160,6 +186,7 @@ namespace Ridebury
             Wins = 0;
             NextAt = Now + LaterDelayDays * 86400L; // pre-arm the snooze, so a force-quit mid-prompt still backs off
             FirebaseManager.LogEvent("rate_prompt_shown", "asks", Asks);
+#endif
         }
 
         Transform card;      // the blue panel everything is parented to — rebuilt from scratch for each step
@@ -288,7 +315,16 @@ namespace Ridebury
 
         // ---- Store ----------------------------------------------------------
 
-        /// <summary>Open the platform's review surface. Every path is guarded — this can never throw at the caller.</summary>
+        /// <summary>
+        /// Open the platform's review surface. Every path is guarded — this can never throw at the caller.
+        ///
+        /// >>> ONLY call this from a control the player deliberately tapped (a "RATE US" row in Settings). <<<
+        /// It is NOT reachable on iOS today: <see cref="ShowNow"/> uses the system sheet there, and nothing else
+        /// calls this. Apple's rule is about app-INITIATED prompts, so the ?action=write-review deep link below
+        /// stays correct for an explicit tap (and is better than the system sheet there, which may silently show
+        /// nothing) — but routing an automatic prompt back through here is exactly the 4.3-adjacent rejection we
+        /// just removed. Wire it to a button, never to a timer, a level win or a notification.
+        /// </summary>
         public static void OpenStoreReview()
         {
 #if UNITY_ANDROID && !UNITY_EDITOR

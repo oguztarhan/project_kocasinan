@@ -71,6 +71,8 @@ public class MenuController : MonoBehaviour
         Refresh();
         SetupShop();           // spawn + hook THE shop (the shared ShopUI prefab, same one the game scene uses)
         WireRemoveAdsPanel();  // the dedicated Remove-Ads popup's offer graphics have NO listeners -> wire them to IAP
+        IAPManager.OnChanged -= RefreshRemoveAdsPanelPrices;
+        IAPManager.OnChanged += RefreshRemoveAdsPanelPrices;  // lock an offer the moment its purchase/restore resolves
         EnsureLanguageUi();    // repair stale/missing prefab references and always wire the visible language button
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
         ApplyCutKitIcons();    // the menu prefab still holds OLD atlas sprites — repoint them at the cut kit
@@ -86,6 +88,8 @@ public class MenuController : MonoBehaviour
         // so follow up with the actual prompt here in the menu. No-op when nothing is pending. (see RateUs)
         RateUs.MaybeShowFromNotification();
     }
+
+    void OnDestroy() { IAPManager.OnChanged -= RefreshRemoveAdsPanelPrices; }
 
     void Update() { Refresh(); }
 
@@ -262,7 +266,7 @@ public class MenuController : MonoBehaviour
     }
     public void OpenProfile()   { Open(profilePanel, null); }
     public void OpenSettings()  { Open(settingsPanel, null); }
-    public void OpenRemoveAds() { Open(removeAdsPanel, null); RefreshRemoveAdsPanelPrices(); } // pull REAL localized prices on every open (at Start IAP wasn't ready yet, so the baked $ labels stayed forever)
+    public void OpenRemoveAds() { Open(removeAdsPanel, null); ResetRestoreLabel(); RefreshRemoveAdsPanelPrices(); } // pull REAL localized prices on every open (at Start IAP wasn't ready yet, so the baked $ labels stayed forever)
     public void OpenAdReward()  { Open(adRewardPanel, null); }
     // Language pop-up: overlay it on top (don't hide the settings panel behind it).
     public void OpenLanguage()
@@ -445,19 +449,58 @@ public class MenuController : MonoBehaviour
     // Write the REAL localized store price onto one Remove-Ads-popup offer graphic. ONLY texts that already look like
     // a price ("$" / "₺" / "TL") are replaced — the "Banner" caption and the "+200" bonus label are never touched.
     // When the store price isn't available (editor / IAP still starting) the baked label is left as-is.
+    //
+    // ONE-TIME OFFERS: these three tiers are non-consumables, so an offer the player ALREADY owns is locked instead of
+    // priced — every button inside it goes dead, the offer dims, and the price reads "OWNED". Run on every popup open
+    // and on every IAPManager.OnChanged, so a tier locks itself as soon as its purchase (or a restore) resolves.
     void SetOfferPrice(Transform offer, string productId)
     {
-        string real = null;
+        bool owned = IAPManager.Owned(productId);
+        if (owned)
+        {
+            foreach (var b in offer.GetComponentsInChildren<Button>(true)) b.interactable = false;
+            var cg = offer.GetComponent<CanvasGroup>();
+            if (cg == null) cg = offer.gameObject.AddComponent<CanvasGroup>();
+            cg.alpha = 0.55f;
+        }
+        else
+        {
+            foreach (var b in offer.GetComponentsInChildren<Button>(true)) b.interactable = true;
+            var cg = offer.GetComponent<CanvasGroup>();
+            if (cg != null) cg.alpha = 1f;
+        }
+
+        string real = owned ? Loc.T("OWNED") : null;
 #if !UNITY_EDITOR
-        real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+        if (!owned) real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
 #endif
         if (string.IsNullOrEmpty(real)) return;
-        foreach (var txt in offer.GetComponentsInChildren<Text>(true))
-            if (txt.text != null && (txt.text.Contains("$") || txt.text.Contains("₺") || txt.text.Contains("TL")))
-                txt.text = real;
-        foreach (var tmp in offer.GetComponentsInChildren<TMPro.TMP_Text>(true))
-            if (tmp.text != null && (tmp.text.Contains("$") || tmp.text.Contains("₺") || tmp.text.Contains("TL")))
-                tmp.text = real;
+        foreach (var label in PriceLabels(offer)) SetLabel(label, real);
+    }
+
+    // An offer's price label(s), found ONCE from the baked "$…" text and remembered. After the first refresh that
+    // label holds a localized price ("€9,99") or "OWNED", neither of which the currency test matches — re-detecting
+    // every time would silently stop updating the offer (and could mistake the price for the "+200" bonus caption).
+    readonly System.Collections.Generic.Dictionary<Transform, System.Collections.Generic.List<Graphic>> offerPriceLabels
+        = new System.Collections.Generic.Dictionary<Transform, System.Collections.Generic.List<Graphic>>();
+
+    System.Collections.Generic.List<Graphic> PriceLabels(Transform offer)
+    {
+        if (offerPriceLabels.TryGetValue(offer, out var cached)) return cached;
+        var list = new System.Collections.Generic.List<Graphic>();
+        foreach (var txt in offer.GetComponentsInChildren<Text>(true)) if (LooksLikePrice(txt.text)) list.Add(txt);
+        foreach (var tmp in offer.GetComponentsInChildren<TMPro.TMP_Text>(true)) if (LooksLikePrice(tmp.text)) list.Add(tmp);
+        if (list.Count > 0) offerPriceLabels[offer] = list;   // an empty result isn't cached: the panel may not be built yet
+        return list;
+    }
+
+    static bool LooksLikePrice(string s)
+        => !string.IsNullOrEmpty(s) && (s.Contains("$") || s.Contains("₺") || s.Contains("TL"));
+
+    static void SetLabel(Graphic g, string text)
+    {
+        if (g is Text t) t.text = text;
+        else if (g is TMPro.TMP_Text tmp) tmp.text = text;
     }
 
     // The dedicated REKLAMLARI KALDIR popup: put the real localized prices on its three offers. Called on every
@@ -473,9 +516,9 @@ public class MenuController : MonoBehaviour
             else if (t.name == "Image" || t.name == "Image 2" || t.name == "Offer_RemoveAds" || t.name == "Offer_RemoveAdsPlus")
             {
                 bool isPlus = t.name == "Offer_RemoveAdsPlus";
+                var prices = PriceLabels(t);
                 foreach (var txt in t.GetComponentsInChildren<Text>(true))
-                    if (txt.text != null && !txt.text.Contains("$") && !txt.text.Contains("₺") && !txt.text.Contains("TL")
-                        && txt.text.Contains("200")) { isPlus = true; break; }
+                    if (txt.text != null && !prices.Contains(txt) && txt.text.Contains("200")) { isPlus = true; break; }
                 SetOfferPrice(t, isPlus ? IAPManager.RemoveAdsPlus : IAPManager.RemoveAds);
             }
         }
@@ -487,5 +530,34 @@ public class MenuController : MonoBehaviour
     public void BuyRemoveAds()     { IAPManager.Instance?.Buy(IAPManager.RemoveAds); }
     public void BuyRemoveAdsPlus() { IAPManager.Instance?.Buy(IAPManager.RemoveAdsPlus); }
     public void BuyRemoveBanner()  { IAPManager.Instance?.Buy(IAPManager.RemoveBanner); }
-    public void RestorePurchases() { IAPManager.Instance?.Restore(); }
+    // Restore Purchases (Panel_RemoveAds). The button's own label reports the real outcome — "RESTORED" only when the
+    // account actually owns something, "NOTHING TO RESTORE" / "STORE NOT READY" otherwise.
+    // Put the Restore button back to its normal caption, so a previous "NOTHING TO RESTORE" / "STORE NOT READY"
+    // answer doesn't stay on the button the next time the popup is opened.
+    void ResetRestoreLabel()
+    {
+        var label = RestoreLabelText();
+        if (label != null) label.text = Loc.T("RESTORE PURCHASES");
+    }
+
+    Text RestoreLabelText()
+    {
+        var restore = removeAdsPanel != null ? FindInPanel(removeAdsPanel.transform, "RestorePurchases") : null;
+        return restore != null ? restore.GetComponentInChildren<Text>(true) : null;
+    }
+
+    public void RestorePurchases()
+    {
+        var label = RestoreLabelText();
+        if (IAPManager.Instance == null)
+        {
+            if (label != null) label.text = Loc.T("STORE NOT READY");
+            return;
+        }
+        IAPManager.Instance.Restore(r =>
+        {
+            if (label != null) label.text = IAPManager.RestoreLabel(r);
+            RefreshRemoveAdsPanelPrices();   // a restored tier must lock its offer immediately
+        });
+    }
 }
