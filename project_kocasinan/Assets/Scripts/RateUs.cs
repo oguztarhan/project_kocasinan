@@ -30,20 +30,8 @@ namespace Ridebury
     /// </summary>
     public class RateUs : MonoBehaviour
     {
-        // ---- Store targets --------------------------------------------------
-        // Android: Application.identifier, so the package can never drift out of sync with Player Settings.
-        // iOS: the NUMERIC App Store id (App Store Connect ▸ App Information ▸ "Apple ID"), NOT the bundle id. There is
-        // no way to derive it from the bundle id, so it has to be pasted here. If it is ever blanked, the iOS path
-        // falls back to the system in-app rating sheet (Device.RequestStoreReview) — stars only, no comment box.
-        const string AppleAppId = "6791205940";
-
-        // ============================================================================================
-        // TESTING — set true to re-check the prompt. It then IGNORES every gate (wins banked, the 3-day
-        // ASK ME LATER snooze, NEVER ASK AGAIN, the MaxAsks ceiling), so it reopens after EVERY level win
-        // no matter what you tapped last time. Pair it with ResetState() for a clean run.
-        // In the EDITOR the store buttons only log — Play/App Store links need a real device build.
-        //   >>> MUST stay false for release. <<<
-        // ============================================================================================
+#if UNITY_EDITOR
+        // Editor-only testing helpers. Neither the bypass nor the state reset exists in device builds.
         public static bool DebugAlwaysAsk = false;
 
         /// <summary>Wipes all saved rating state (back to a fresh install). Testing/QA helper.</summary>
@@ -52,6 +40,7 @@ namespace Ridebury
             foreach (var k in new[] { K_State, K_NextAt, K_Asks, K_Wins, K_NotifAt }) PlayerPrefs.DeleteKey(k);
             PlayerPrefs.Save();
         }
+#endif
 
         // ---- When to ask ----------------------------------------------------
         const int FirstAskAfterWins  = 3;  // never ask before the player has actually finished a few levels
@@ -91,10 +80,12 @@ namespace Ridebury
         }
 
         // Enough wins banked (a higher bar for every ask after the first), the snooze has expired, and we have not
-        // burned through MaxAsks. GameConfig.RateUsEnabled is the Remote Config kill-switch on top.
+        // burned through MaxAsks. The feature is fixed in the reviewed binary; only the editor can bypass these gates.
         static bool Eligible()
         {
+#if UNITY_EDITOR
             if (DebugAlwaysAsk) return true; // testing — every gate below is bypassed
+#endif
             if (!Pending || !GameConfig.RateUsEnabled) return false;
             if (Asks >= MaxAsks) { State = StateNever; return false; } // asked enough — stop for good
             if (Wins < (Asks == 0 ? FirstAskAfterWins : RepeatAfterWins)) return false;
@@ -152,7 +143,9 @@ namespace Ridebury
 
         // ---- Popup ----------------------------------------------------------
 
+#if !UNITY_IOS
         static RateUs instance;
+#endif
 
         /// <summary>Force the prompt open, bypassing the eligibility gate (kept public for a Settings "RATE US" entry).</summary>
         public static void ShowNow()
@@ -189,6 +182,8 @@ namespace Ridebury
 #endif
         }
 
+#if !UNITY_IOS
+        // Android-only custom surface. It is excluded from iOS binaries; iOS uses RequestStoreReview exclusively.
         Transform card;      // the blue panel everything is parented to — rebuilt from scratch for each step
         float prevTimeScale; // gameplay is frozen while the prompt is up and restored exactly as it was
 
@@ -312,18 +307,14 @@ namespace Ridebury
             instance = null;
             Destroy(gameObject);
         }
+#endif
 
         // ---- Store ----------------------------------------------------------
 
         /// <summary>
         /// Open the platform's review surface. Every path is guarded — this can never throw at the caller.
         ///
-        /// >>> ONLY call this from a control the player deliberately tapped (a "RATE US" row in Settings). <<<
-        /// It is NOT reachable on iOS today: <see cref="ShowNow"/> uses the system sheet there, and nothing else
-        /// calls this. Apple's rule is about app-INITIATED prompts, so the ?action=write-review deep link below
-        /// stays correct for an explicit tap (and is better than the system sheet there, which may silently show
-        /// nothing) — but routing an automatic prompt back through here is exactly the 4.3-adjacent rejection we
-        /// just removed. Wire it to a button, never to a timer, a level win or a notification.
+        /// On iOS this always uses Apple's provided in-app review API. Android opens the Play review surface.
         /// </summary>
         public static void OpenStoreReview()
         {
@@ -335,14 +326,6 @@ namespace Ridebury
             try { Application.OpenURL("market://details?id=" + pkg); }
             catch { Application.OpenURL("https://play.google.com/store/apps/details?id=" + pkg); }
 #elif UNITY_IOS && !UNITY_EDITOR
-            if (!string.IsNullOrEmpty(AppleAppId))
-            {
-                // ?action=write-review lands directly on the review composer (stars + comment box).
-                Application.OpenURL("itms-apps://itunes.apple.com/app/id" + AppleAppId + "?action=write-review");
-                return;
-            }
-            // No App Store id pasted above -> Apple's in-app rating sheet. Stars only, no comment, and iOS caps it at
-            // three prompts a year, but it is the only thing that works without the numeric id.
             UnityEngine.iOS.Device.RequestStoreReview();
 #else
             Debug.Log("[RateUs] store review requested (no-op in the Editor / on desktop).");
@@ -411,7 +394,8 @@ namespace Ridebury
         }
 #endif
 
-        // ---- Tiny UI builders (local copies so this file stays self-contained) ----
+#if !UNITY_IOS
+        // ---- Android-only UI builders (local copies so this file stays self-contained) ----
 
         static Image Img(Transform parent, Sprite sprite, Color fallback)
         {
@@ -482,5 +466,6 @@ namespace Ridebury
             b.onClick.AddListener(() => onClose());
             img.transform.SetAsLastSibling();
         }
+#endif
     }
 }

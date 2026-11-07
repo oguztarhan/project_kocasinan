@@ -74,10 +74,9 @@ namespace Ridebury
             if (slot % 3 != 0) return BonusKind.TrafficDodge;
             switch ((slot / 3) % 3) { case 0: return BonusKind.CoinRush; case 1: return BonusKind.TimeAttack; default: return BonusKind.MysteryRush; }
         }
-        // Remote flag off => None everywhere (every level plays as a normal round).
+        // This cadence is fixed in the reviewed binary; Remote Config cannot hide or reveal bonus gameplay.
         static BonusKind LevelBonusKind(int lvl) => GameConfig.FeatureBonusLevels ? BonusCadence(lvl) : BonusKind.None;
-        // Pure cadence, deliberately IGNORING the remote flag: the dense 2-colour jam + night theme stay on these
-        // levels either way, so switching the flag off only removes the traffic hazard (what %10 used to do).
+        // Pure cadence shared by the dense 2-colour jam, night theme and traffic hazard.
         public static bool IsTrafficDodgeLevel(int lvl) => BonusCadence(lvl) == BonusKind.TrafficDodge;
         public bool IsBonus => bonusKind == BonusKind.TrafficDodge;    // the night traffic-dodge round (ALL existing bonus logic stays gated on this)
         bool SpecialBonus => bonusKind == BonusKind.CoinRush || bonusKind == BonusKind.TimeAttack || bonusKind == BonusKind.MysteryRush;
@@ -119,7 +118,9 @@ namespace Ridebury
         bool lowEnd;                          // budget/old mobile → lighter render path (set in Start)
         GameUI ui;
         Sfx sfx;
-        LevelSelect levelSelect;              // opened from the in-game Settings → LEVELS button (debug/testing)
+#if UNITY_EDITOR
+        LevelSelect levelSelect;              // editor-only level navigation for testing
+#endif
         PeopleCatalog peopleCatalog;
         VehicleCatalog vehicleCatalog;
         GameSettings gameSettings;            // editable tuning (speeds, sizes) — Resources/GameSettings.asset
@@ -288,9 +289,11 @@ namespace Ridebury
             LevelFailed    += reason => ad.AddInterstitialLoss();           // LOSS signal (Lose); increment only — continue panel is up
             LevelStarted   += _ => ad.ShowBanner();                         // banner shown during gameplay
 
+#if UNITY_EDITOR
             levelSelect = gameObject.AddComponent<LevelSelect>();
             levelSelect.Build(this);
-            ui.OnLevels = () => levelSelect.Open(); // in-game Settings -> LEVELS map (wired after the field is built)
+            ui.OnLevels = () => levelSelect.Open(); // editor-only Settings -> LEVELS map
+#endif
             ui.OnColorBlindToggle = ApplyColorBlindMode; // in-game Settings -> COLOR BLIND toggle (rebuilds colours live)
 
             if (ui.GarageFromMenu)

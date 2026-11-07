@@ -75,6 +75,7 @@ public class MenuController : MonoBehaviour
         IAPManager.OnChanged += RefreshRemoveAdsPanelPrices;  // lock an offer the moment its purchase/restore resolves
         EnsureLanguageUi();    // repair stale/missing prefab references and always wire the visible language button
         EnsureSettingsClose(); // (Settings pop-up) add a red ✕ close button (top-right), wired to ShowHome
+        EnsurePrivacyUi();     // App Review 5.1.1: the policy must be easy to reach in-app
         ApplyCutKitIcons();    // the menu prefab still holds OLD atlas sprites — repoint them at the cut kit
         // Start menu music now ONLY if we're not in the launch splash — on first boot the BootSplash starts it at
         // the LOADING screen (not on the Intake logo). When returning here from gameplay there's no splash, so play.
@@ -313,6 +314,56 @@ public class MenuController : MonoBehaviour
         button.onClick.AddListener(OpenLanguage);
     }
 
+    // Keep the privacy policy directly in the MAIN-MENU Settings screen. The gameplay Settings screen also contains
+    // the policy and the conditional UMP preference control, but App Review must not need to start a level to find it.
+    // Clone the authored Language row so the buttons inherit the current menu's art, scaling and safe-area behaviour.
+    void EnsurePrivacyUi()
+    {
+        if (settingsPanel == null) settingsPanel = FindByName("Panel_Settings");
+        if (settingsPanel == null) return;
+
+        var card = FindInPanel(settingsPanel.transform, "Panel");
+        var language = card != null ? FindInPanel(card, "Language") : null;
+        if (card == null || language == null) return;
+
+        var policy = FindInPanel(card, "Btn_Privacy");
+        if (policy == null)
+        {
+            policy = Instantiate(language.gameObject, card).transform;
+            policy.name = "Btn_Privacy";
+            var rt = policy as RectTransform;
+            var sourceRt = language as RectTransform;
+            if (rt != null && sourceRt != null) rt.anchoredPosition = sourceRt.anchoredPosition + new Vector2(0f, -200f);
+        }
+        Relabel(policy, "PRIVACY POLICY");
+        WireButton(policy, Privacy.OpenPolicy);
+    }
+
+    static void Relabel(Transform root, string key)
+    {
+        foreach (var text in root.GetComponentsInChildren<Text>(true))
+        {
+            text.text = key;
+            var localized = text.GetComponent<LocalizedText>();
+            if (localized != null) { localized.key = key; localized.Apply(); }
+        }
+        foreach (var text in root.GetComponentsInChildren<TMPro.TMP_Text>(true))
+        {
+            text.text = key;
+            var localized = text.GetComponent<LocalizedText>();
+            if (localized != null) { localized.key = key; localized.Apply(); }
+        }
+    }
+
+    static void WireButton(Transform root, UnityEngine.Events.UnityAction action)
+    {
+        var button = root.GetComponent<Button>() ?? root.GetComponentInChildren<Button>(true);
+        if (button == null) button = root.gameObject.AddComponent<Button>();
+        button.onClick = new Button.ButtonClickedEvent();
+        button.onClick.AddListener(action);
+        button.interactable = true;
+    }
+
     // Social media buttons: open the pasted link in the device browser.
     public void OpenFacebook()  { OpenUrl(facebookUrl); }
     public void OpenX()         { OpenUrl(xUrl); }
@@ -460,6 +511,12 @@ public class MenuController : MonoBehaviour
     void SetOfferPrice(Transform offer, string productId)
     {
         bool owned = IAPManager.Owned(productId);
+        string real = null;
+        bool available = true;
+#if !UNITY_EDITOR
+        if (!owned) real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+        available = owned || !string.IsNullOrEmpty(real);
+#endif
         if (owned)
         {
             foreach (var b in offer.GetComponentsInChildren<Button>(true)) b.interactable = false;
@@ -469,17 +526,13 @@ public class MenuController : MonoBehaviour
         }
         else
         {
-            foreach (var b in offer.GetComponentsInChildren<Button>(true)) b.interactable = true;
+            foreach (var b in offer.GetComponentsInChildren<Button>(true)) b.interactable = available;
             var cg = offer.GetComponent<CanvasGroup>();
-            if (cg != null) cg.alpha = 1f;
+            if (cg != null) cg.alpha = available ? 1f : 0.65f;
         }
 
-        string real = owned ? Loc.T("OWNED") : null;
-#if !UNITY_EDITOR
-        if (!owned) real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
-#endif
-        if (string.IsNullOrEmpty(real)) return;
-        foreach (var label in PriceLabels(offer)) SetLabel(label, real);
+        string shown = owned ? Loc.T("OWNED") : (available && !string.IsNullOrEmpty(real) ? real : Loc.T("STORE NOT READY"));
+        foreach (var label in PriceLabels(offer)) SetLabel(label, shown);
     }
 
     // An offer's price label(s), found ONCE from the baked "$…" text and remembered. After the first refresh that

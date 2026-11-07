@@ -2,7 +2,7 @@
 //  AdManager — the SINGLE home for all AdMob (Google Mobile Ads) logic.
 //  RideburyGame / GameUI never touch GoogleMobileAds types; they call only the clean
 //  public methods below (ShowBanner/HideBanner/ShowInterstitialIfEligible/
-//  ShowRewarded/AddInterstitialWin/AddInterstitialLoss/ForceInterstitial).
+//  ShowRewarded/AddInterstitialWin/AddInterstitialLoss).
 //
 //  COMPILE SAFETY: every GoogleMobileAds reference is wrapped in `#if GMA_ADS`.
 //  Until you (1) import the Google Mobile Ads package and (2) add the scripting
@@ -10,8 +10,7 @@
 //  Symbols), this file compiles as harmless STUBS — the game runs, ads no-op, and
 //  every fallback path still fires so nothing soft-locks.
 //
-//  TEST AD UNIT IDs ARE HARDCODED — DO NOT SHIP. Search this file (and the project)
-//  for "REPLACE WITH REAL ID" before release.
+//  Production ad unit IDs are configured per platform below. Keep personal test-device IDs out of release builds.
 // =============================================================================
 using UnityEngine;
 #if GMA_ADS
@@ -34,8 +33,10 @@ public class AdManager : MonoBehaviour
     const bool  SKIP_INTERSTITIAL_ON_BONUS = true;   // IsBonus rounds
     const bool  NEVER_STACK_WITH_REWARDED  = true;   // suppress an interstitial right after a rewarded
 
-    // ===== TEMP debug panel + hotkey (T6). Set false / delete before release. =====
-    public const bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
+#if UNITY_EDITOR
+    // Editor-only debug panel + hotkey. This member and its UI do not exist in device builds.
+    public static bool SHOW_AD_DEBUG = false;   // OFF: the top-left on-screen ad-debug panel is hidden
+#endif
 
     // ===================== ad unit IDs (AdMob ids are PER-PLATFORM — an Android unit returns "no ad" on iOS and vice-versa) =====================
     // ANDROID = REAL publisher ids (ca-app-pub-2925766743577038) — PRODUCTION release 2026-07-23. Mirror App ID lives in
@@ -117,14 +118,16 @@ public class AdManager : MonoBehaviour
         {
             // TODO: paste your device's test id (printed in logcat on first ad request) so YOUR device always gets test ads:
             TestDeviceIds = new List<string>(),
-            // ===== ALL-AGES / FAMILY-SAFE ADS (required for an all-ages / Designed-for-Families game) =====
-            // G = only General-audience ad creatives are ever served (never PG / T / MA).
+            // ===== GENERAL AUDIENCE, 13+ =====
+            // G = only General-audience ad creatives are ever served (never PG / T / MA). Kept deliberately: the game
+            // is family-friendly even though it is not child-directed, and G costs us nothing in fill.
             MaxAdContentRating = MaxAdContentRating.G,
-            // COPPA: treat every request as child-directed -> non-personalized, family-safe ad networks only.
-            // (If your app is NOT directed at children, change these to .Unspecified and use an age screen instead.)
-            TagForChildDirectedTreatment = TagForChildDirectedTreatment.True,
-            // GDPR (EEA): treat users as under the age of consent.
-            TagForUnderAgeOfConsent = TagForUnderAgeOfConsent.True,
+            // NOT child-directed. The privacy policy states Ridebury is for a general audience aged 13+, is not a Kids
+            // Category app, and that UMP shows the EEA consent form -> both tags MUST stay Unspecified. Setting them to
+            // True would tell Google the opposite (COPPA child-directed + under age of consent), which contradicts the
+            // published policy and the App Store age rating, and suppresses the consent form UMP is supposed to show.
+            TagForChildDirectedTreatment = TagForChildDirectedTreatment.Unspecified,
+            TagForUnderAgeOfConsent = TagForUnderAgeOfConsent.Unspecified,
         });
 
         var p = new ConsentRequestParameters();
@@ -234,8 +237,10 @@ public class AdManager : MonoBehaviour
         ShowInterstitialNow(onDone);
     }
 
-    // Debug: show regardless of cadence/grace/cooldown.
+#if UNITY_EDITOR
+    // Editor-only: show regardless of cadence/grace/cooldown.
     public void ForceInterstitial(System.Action onDone) { ShowInterstitialNow(onDone ?? Noop); }
+#endif
 
     bool Eligible()
     {
@@ -361,7 +366,8 @@ public class AdManager : MonoBehaviour
     // BANNER-ONLY toggle (remove_banner IAP). Turns the banner off/on without touching interstitial or rewarded ads.
     public void SetBannerEnabled(bool enabled) { _bannerEnabled = enabled; if (!enabled) HideBanner(); }
 
-    // ===================== T6: TEMP on-screen debug panel (REMOVE BEFORE RELEASE) =====================
+#if UNITY_EDITOR
+    // ===================== editor-only on-screen debug panel =====================
     void OnGUI()
     {
         if (!SHOW_AD_DEBUG) return;
@@ -384,4 +390,5 @@ public class AdManager : MonoBehaviour
         { _wins = 0; _losses = 0; _lastInterstitial = -99999f; _rewardedJustShown = false; }
         GUILayout.EndArea();
     }
+#endif
 }

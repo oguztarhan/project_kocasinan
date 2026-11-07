@@ -318,7 +318,7 @@ namespace Ridebury
             float pack = levelNumber <= 21
                 ? Mathf.Lerp(1.7f, 1.35f, Mathf.Clamp01((levelNumber - 1) / 20f))   // more slack early, denser later
                 : Mathf.Lerp(1.35f, 1.2f, Mathf.Clamp01((levelNumber - 21) / 60f)); // late game: denser still
-            bool allowDiagonals = levelNumber >= 7 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 7+ = 8-way, matching the L7 "DIAGONALLY" banner (remote flag off => 4-way everywhere)
+            bool allowDiagonals = levelNumber >= 7 && GameConfig.FeatureDiagonals; // early high-count boards stay 4-way/readable; 7+ = 8-way, matching the L7 "DIAGONALLY" banner
             // MYSTERY vehicles (spawn GRAY, color hidden until they could fully drive out): start at level 11 and
             // grow with difficulty, capped at 30% of the board. 0 before L11 -> short-circuits the rng so early
             // level layouts are byte-for-byte unchanged.

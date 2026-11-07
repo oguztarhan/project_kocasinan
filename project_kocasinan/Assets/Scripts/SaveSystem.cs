@@ -16,12 +16,8 @@ namespace Ridebury
         const string K_Avatar   = "bj_avatar";
         const string K_Name     = "bj_name";
 
-        // ============================================================================================
-        // DEBUG / TESTING — unlock levels so you can play ANY level from Settings → LEVELS.
-        // On launch this raises your saved level to DEBUG_UNLOCK_TO_LEVEL (only ever UP, so it never
-        // wipes higher progress), which makes the LevelSelect map show 1..N as tappable.
-        //   • Set to 100 = levels 1–100 unlocked.    • Set to 0 (the normal/release setting) = no unlock.
-        // ============================================================================================
+#if UNITY_EDITOR
+        // Editor-only level unlock. Neither this initializer nor its PlayerPrefs cleanup exists in device builds.
         public const int DEBUG_UNLOCK_TO_LEVEL = 0;   // OFF: normal progression (was 100, which forced every "Next" to jump to 100)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -44,6 +40,7 @@ namespace Ridebury
                 BestLevel = DEBUG_UNLOCK_TO_LEVEL;
             }
         }
+#endif
 
         public static int Coins
         {
@@ -330,10 +327,14 @@ namespace Ridebury
             set { PlayerPrefs.SetString(K_SetsOwned, value ?? ""); PlayerPrefs.Save(); }
         }
 
-        public static bool DebugOwnAll = false; // RELEASE: MUST stay false or the chest+shard+craft economy breaks (true = own every car -> craft shows "0 left", buttons grey out = "can't craft"). NOTE: teammate syncs keep flipping this back to true for recolour testing -> re-check it is false before EVERY build.
+#if UNITY_EDITOR
+        public static bool DebugOwnAll = false; // editor-only vehicle collection preview
+#endif
         public static bool OwnsSet(string id)
         {
+#if UNITY_EDITOR
             if (DebugOwnAll) return true; // test mode — everything unlocked
+#endif
             // the free starter of EACH type (car / minivan "Classic" / bus "Classic") is always owned
             if (string.IsNullOrEmpty(id) || id == DefaultSetId || id == DefaultMinivanId || id == DefaultBusId) return true;
             return ("," + SetsOwnedRaw + ",").Contains("," + id + ",");

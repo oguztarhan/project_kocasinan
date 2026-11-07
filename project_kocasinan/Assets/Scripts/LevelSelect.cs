@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 
+#if UNITY_EDITOR
 namespace Ridebury
 {
     /// <summary>
@@ -251,3 +252,4 @@ namespace Ridebury
         { rt.anchorMin = rt.anchorMax = anchor; rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = pos; rt.sizeDelta = size; }
     }
 }
+#endif

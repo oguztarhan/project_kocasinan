@@ -105,7 +105,7 @@ namespace Ridebury
             StartCoroutine(RequestIosAuthorization());
 #endif
             CancelAll(); // foreground now — clear anything left over from a previous session
-#if UNITY_ANDROID
+#if UNITY_EDITOR && UNITY_ANDROID
             // TEST ONLY (TestSeconds): prove the pipeline works WITHOUT needing to background the app — post one visible
             // ping a few seconds after the player grants permission. Auto-removed when TestSeconds is set false for release.
             if (TestSeconds) StartCoroutine(TestPing());
@@ -183,16 +183,17 @@ namespace Ridebury
 
         void OnApplicationQuit() => ScheduleAll();
 
-        // TEST ONLY: fire the whole 14-message ladder within ~2 minutes (SECONDS, not days) so you can background the
-        // app on a device and watch every one arrive — verifies wiring, icon, permission + the per-language text.
-        // >>> SET TO false BEFORE RELEASE <<<  (false = the real day-based schedule below.)
+#if UNITY_EDITOR
+        // Editor-only accelerated notification schedule.
         static readonly bool TestSeconds = false;
+#endif
 
         void ScheduleAll()
         {
             CancelAll(); // clean slate so reminders never stack up across sessions
             if (!SaveSystem.NotificationsEnabled || !GameConfig.NotificationsEnabled) return; // player toggle / remote kill-switch off
 
+#if UNITY_EDITOR
             if (TestSeconds)
             {
                 // Background the app and wait: free chest at +5s, the rate nudge at +9s, then the 12 rotation
@@ -206,6 +207,7 @@ namespace Ridebury
                 for (int i = 0; i < Cycle.Length; i++) Schedule(Cycle[i], t.AddSeconds(13 + i * 8));
                 return;
             }
+#endif
 
             DateTime now = DateTime.Now;
             var slots = BuildSlots(now);
@@ -277,7 +279,8 @@ namespace Ridebury
 #endif
         }
 
-        // ---------------- On-device delivery TEST (diagnostic) ----------------
+#if UNITY_EDITOR
+        // ---------------- Editor-only delivery test (diagnostic) ----------------
         // Fires ONE visible notification ~4s after it is called, DELIBERATELY bypassing the +1h/day-based re-engagement
         // schedule AND the player/remote enabled toggles — an explicit tap is an explicit request. Android posts it even
         // while the app is in the FOREGROUND (the channel is High importance), so a tester gets a definitive yes/no in
@@ -329,8 +332,9 @@ namespace Ridebury
             return "Sadece mobil";
 #endif
         }
+#endif
 
-#if UNITY_ANDROID
+#if UNITY_EDITOR && UNITY_ANDROID
         // Waits for the POST_NOTIFICATIONS grant, then posts ONE visible notification ~5s later — so a tester can confirm
         // the whole chain (permission -> channel -> icon -> delivery) from the FOREGROUND, with no backgrounding needed.
         IEnumerator TestPing()

@@ -504,12 +504,6 @@ namespace Ridebury
             });
         }
 
-        // On-device notification DELIVERY TEST (diagnostic). Tapping fires a visible notification ~4s later — Android
-        // shows it even in the foreground — bypassing the +1h/day-based re-engagement schedule AND the enabled toggles,
-        // so the whole chain (permission → channel → icon → delivery) is confirmable on a device in seconds instead of
-        // waiting an hour. If nothing appears after tapping, the fault is permission / OEM battery-kill / a Remote Config
-        // kill-switch, NOT the notification code. The button's own label reports the result. Added as the LAST child so
-        // it draws on top of the (baked) panel content. To drop it before production, delete this method + its one call.
         // ---- Settings / Continue / Failed setup -----------------------------
         // Prefer the Inspector-editable scene panels baked via
         // "Tools ▸ 300Mind UI ▸ Bake In-Game Panels"; otherwise build them in code.
@@ -527,9 +521,10 @@ namespace Ridebury
             // request; COLOR BLIND is now a Hierarchy button you add to the Settings panel yourself (wired by name).
             WireColorBlindButton(settingsPanel != null ? settingsPanel.transform : null);
             AddPrivacyOptionsButton(settingsPanel != null ? settingsPanel.transform : null);
-            // DEBUG: the LEVELS jump button now lives HERE in Settings (off the play screen / out of screenshots),
-            // shown only while the "Ridebury ▸ LEVELS Test Button" editor toggle is ON. Device builds never see it.
+            // Editor-only level navigation. The code and UI are excluded from device builds.
+#if UNITY_EDITOR
             if (LevelSelect.DebugLevels) AddLevelsButton(settingsPanel != null ? settingsPanel.transform : null);
+#endif
             // LAST, deliberately: the privacy row is bottom-anchored and AddPrivacyOptionsButton positions the ad-privacy
             // button FROM the policy button's position. Running this before it would have the clone inherit an
             // already-shifted baseline and bake the inset in twice. (See SafeArea.ApplyToChrome.)
@@ -647,13 +642,14 @@ namespace Ridebury
             btn.onClick.AddListener(() => { SaveSystem.ColorBlind = !SaveSystem.ColorBlind; Refresh(); OnColorBlindToggle?.Invoke(); });
         }
 
-        // (DEBUG, currently NOT wired) Settings → LEVELS: opens the level-select map to jump to any level — used to reach
+        // (EDITOR ONLY) Settings → LEVELS: opens the level-select map to jump to any level — used to reach
         // the every-10th bonus levels without grinding to them. Call it from SetupSettings to switch it on, and flip
         // LevelSelect.debugUnlockAll to true alongside it (otherwise the map only shows levels you have actually reached).
         // Both are OFF for release: together they let a first-time player skip straight to level 100.
         // RideburyGame wires OnLevels to levelSelect.Open(); the lambda invokes it at CLICK time, so wiring order is free.
         // Placement: its OWN top-most canvas + raycaster. A plain child of the settings card does NOT receive taps (the
         // card's own overrideSorting canvas swallows them) — this is the placement proven to work on-device.
+#if UNITY_EDITOR
         void AddLevelsButton(Transform panel)
         {
             if (panel == null) return;
@@ -667,6 +663,7 @@ namespace Ridebury
                           () => { HideSettings(); OnLevels?.Invoke(); }); // close Settings, then open the level map (LevelSelect pauses the game)
             Label(btn.transform, "LEVELS", title, Vector2.zero, new Vector2(540, 70), 34, White); // raw key -> Localizer translates it (LEVELS is in Loc.Table)
         }
+#endif
 
         // (#1/#2) Wire the in-game Settings "Language" button. The baked button is named "Language" (the old code
         // looked for "Card/Btn_Empty", which doesn't exist, so it was never wired).

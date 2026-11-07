@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+#if UNITY_EDITOR
 namespace Ridebury
 {
     /// <summary>
@@ -88,3 +89,4 @@ namespace Ridebury
         }
     }
 }
+#endif

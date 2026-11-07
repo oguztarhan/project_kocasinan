@@ -308,12 +308,20 @@ namespace Ridebury
                 {
                     var lt = priceTf.GetComponent<Text>();
                     string pr = null;
+                    bool available = true;
 #if !UNITY_EDITOR
                     pr = IAPManager.Instance != null ? IAPManager.Instance.Price(pack.id) : null; // real localized store price (device only)
+                    available = !string.IsNullOrEmpty(pr);
 #endif
-                    // The editor uses Unity's FAKE store ("$0.01" for everything) — show the fixed placeholder instead.
+                    // Only the Editor shows fixed placeholders. A device never displays or sells at a made-up price:
+                    // the button stays disabled until StoreKit / Google Play returns real localized metadata.
+#if UNITY_EDITOR
                     if (string.IsNullOrEmpty(pr) && i < FallbackPrices.Length) pr = FallbackPrices[i];
+#else
+                    if (string.IsNullOrEmpty(pr)) pr = Loc.T("STORE NOT READY");
+#endif
                     if (lt != null && !string.IsNullOrEmpty(pr)) lt.text = pr;
+                    buy.interactable = available;
                 }
                 if (wireClicks) { var id = pack.id; buy.onClick.AddListener(() => IAPManager.Instance?.Buy(id)); }
             }
@@ -367,6 +375,12 @@ namespace Ridebury
             if (row == null) return;
 
             bool owned = IAPManager.Owned(productId);
+            string real = null;
+            bool available = true;
+#if !UNITY_EDITOR
+            real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
+            available = !string.IsNullOrEmpty(real);
+#endif
 
             var rowImg = row.GetComponent<Image>();
             if (rowImg != null) rowImg.raycastTarget = true;
@@ -381,8 +395,8 @@ namespace Ridebury
             if (pBtn == null) pBtn = target.gameObject.AddComponent<Button>();
             if (pImg != null) pBtn.targetGraphic = pImg;
             pBtn.onClick = new Button.ButtonClickedEvent();
-            if (!owned) pBtn.onClick.AddListener(() => onBuy());
-            pBtn.interactable = !owned;
+            if (!owned && available) pBtn.onClick.AddListener(() => onBuy());
+            pBtn.interactable = !owned && available;
 
             // Dim the whole row while it's owned, so "already yours" reads at a glance. A CanvasGroup
             // is used (not tinting the sprites) so nothing about the authored art has to be restored.
@@ -390,13 +404,13 @@ namespace Ridebury
             if (cg == null && owned) cg = row.gameObject.AddComponent<CanvasGroup>();
             if (cg != null) cg.alpha = owned ? 0.55f : 1f;
 
-            // Real localized store price on the row's "Price" label (Text or TMP), with the
-            // placeholder as a fallback so the label is never blank.
-            string real = null;
-#if !UNITY_EDITOR
-            real = IAPManager.Instance != null ? IAPManager.Instance.Price(productId) : null;
-#endif
+            // Real localized store price on device. Fixed placeholders are editor-only; device purchase controls stay
+            // disabled and explicitly say the store is unavailable until real product metadata arrives.
+#if UNITY_EDITOR
             string shown = owned ? Loc.T("OWNED") : (string.IsNullOrEmpty(real) ? fallbackPrice : real);
+#else
+            string shown = owned ? Loc.T("OWNED") : (available ? real : Loc.T("STORE NOT READY"));
+#endif
             if (string.IsNullOrEmpty(shown)) return;
             var pl = FindDeep(row, "Price") ?? price;
             if (pl == null) return;

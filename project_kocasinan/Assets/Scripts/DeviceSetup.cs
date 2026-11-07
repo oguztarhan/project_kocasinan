@@ -48,14 +48,15 @@ namespace Ridebury
         public enum Tier { Low, Mid, High }
         public static Tier DeviceTier { get; private set; } = Tier.High;
 
-        // TESTING: set this to Tier.Low / Mid / High to FORCE a tier on ANY device (incl. the editor), so you can
-        // preview each budget without the target hardware. Leave null for real per-device classification. >>> null for release <<<
+#if UNITY_EDITOR
+        // Editor-only quality preview. Device builds always use real per-device classification.
         public static Tier? ForceTier = null;
+#endif
 
         static Tier ClassifyTier()
         {
-            if (ForceTier.HasValue) return ForceTier.Value;           // code override (see above)
 #if UNITY_EDITOR
+            if (ForceTier.HasValue) return ForceTier.Value;           // code override (see above)
             int menuTier = UnityEditor.EditorPrefs.GetInt(EditorTierKey, -1); // Ridebury ▸ Graphics Tier menu (persists across Play)
             if (menuTier >= 0) return (Tier)menuTier;
 #endif
